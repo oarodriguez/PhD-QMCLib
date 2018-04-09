@@ -22,3 +22,7 @@
 # Other documents
 *.pdf   binary
 *.PDF   binary
+*.png   binary
+*.PNG   binary
+*.jpg   binary
+*.JPG   binary
