@@ -1,0 +1,71 @@
+% Package that contains the style for chapters.
+%
+% (c) Abel Rodríguez
+% LPPL LaTeX Public Project License
+%
+\NeedsTeXFormat{LaTeX2e}[1994/06/01]
+\ProvidesPackage{documentstyle}
+  [2011/01/11 v0.01 LaTeX package for my own purpose]
+
+\RequirePackage{ifthen}
+\RequirePackage{ifxetex}
+
+\setsecheadstyle{\Large \bfseries}
+\setsubsecheadstyle{\large \bfseries}
+\setsubsubsecheadstyle{\normalfont \bfseries}
+\setparaheadstyle{\normalfont}
+
+\renewcommand{\chapnamefont}{\LARGE \bfseries}%
+\renewcommand{\chapnumfont}{\LARGE \bfseries}%
+\renewcommand{\chaptitlefont}{\Huge \bfseries}%
+
+% *************** Chapter and section style ***************
+\makechapterstyle{thesischapterstyle}{%
+
+    \chapterstyle{default}
+
+    %    \setlength{\beforechapskip}{0pt}
+    \setlength{\afterchapskip}{40pt}
+    \setlength{\midchapskip}{10pt}
+
+
+    \renewcommand{\printchaptertitle}[1]{%
+        \centering
+        \chaptitlefont
+        \ifxetex
+            \chaptertitlefont
+        \fi
+        %        \hrule height 0.5pt
+        %        \vspace{1pt}
+        %        \hrule height 0.5pt
+        \vspace{0.2em}%
+        {##1}
+        \vspace{0.5em}
+        %        \hrule height 1.5pt%
+        %        \vspace{1pt}
+        %        \hrule height 1.5pt
+    }%
+
+    \renewcommand{\printchaptername}{
+        \chapnamefont
+        \ifxetex
+            \chapternumberfont
+        \fi
+        \@chapapp
+    }
+
+    \renewcommand*{\printchapternum}{%
+        \chapnumfont
+        \ifxetex
+            \chapternumberfont
+        \fi
+        \centering
+        %        \numtoName{\c@chapter}
+        \thechapter
+    }%
+}
+
+
+\endinput
+%%
+%% End of file `chapterstyle.sty'.

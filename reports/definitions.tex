@@ -1,0 +1,245 @@
+% !TeX spellcheck = en_US
+% *************** Definitions file ***************
+
+\ifxetex
+	\setdefaultlanguage{spanish}
+
+	%% Set main font and mathematical font.
+	\setmainfont[Ligatures={Common,TeX}]{Calibri}
+	\setmathfont{Cambria Math}
+
+	%% Make sure the curly quotes works fine (space after quote is not added
+	%% by default.)
+	\sfcode`\”0
+
+	%% Set Chinese-Japanese-Korean font (for testing).
+	\setCJKmainfont{MS Mincho}
+	%\makexeCJKactive
+	\makexeCJKinactive
+
+	%% Create some font families
+	\newfontfamily{\chaptertitlefont}[Scale=1.5]{Calibri}
+	\newfontfamily{\chapternumberfont}[Scale=1.2]{Calibri}
+	%\newfontfamily{\HanSimple}{FangSong}
+\else
+	%\decimalpoint
+\fi
+
+%% Enable index generation
+\makeindex
+
+%\renewcommand{\bibitempages}[1]{
+%\newblock {\scriptsize [\mbox{cited at p.\ }#1]}
+%}
+
+%% Several colors, may be useful...
+\definecolor{greenyellow}   {cmyk}{0.15, 0, 0.69, 0   }
+\definecolor{yellow}        {cmyk}{0, 0, 1, 0}
+\definecolor{goldenrod}     {cmyk}{0, 0.10, 0.84, 0   }
+\definecolor{dandelion}     {cmyk}{0, 0.29, 0.84, 0   }
+\definecolor{apricot}       {cmyk}{0, 0.32, 0.52, 0   }
+\definecolor{peach}         {cmyk}{0, 0.50, 0.70, 0   }
+\definecolor{melon}         {cmyk}{0, 0.46, 0.50, 0   }
+\definecolor{yelloworange}  {cmyk}{0, 0.42, 1, 0   }
+\definecolor{orange}        {cmyk}{0, 0.61, 0.87, 0   }
+\definecolor{burntorange}   {cmyk}{0, 0.51, 1, 0   }
+\definecolor{bittersweet}   {cmyk}{0, 0.75, 1, 0.24}
+\definecolor{redorange}     {cmyk}{0, 0.77, 0.87, 0   }
+\definecolor{mahogany}      {cmyk}{0, 0.85, 0.87, 0.35}
+\definecolor{maroon}        {cmyk}{0, 0.87, 0.68, 0.32}
+\definecolor{brickred}      {cmyk}{0, 0.89, 0.94, 0.28}
+\definecolor{red}           {cmyk}{0, 1, 1, 0   }
+\definecolor{orangered}     {cmyk}{0, 1, 0.50, 0   }
+\definecolor{rubinered}     {cmyk}{0, 1, 0.13, 0   }
+\definecolor{wildstrawberry}{cmyk}{0, 0.96, 0.39, 0   }
+\definecolor{salmon}        {cmyk}{0, 0.53, 0.38, 0   }
+\definecolor{carnationpink} {cmyk}{0, 0.63, 0, 0   }
+\definecolor{magenta}       {cmyk}{0, 1, 0, 0   }
+\definecolor{violetred}     {cmyk}{0, 0.81, 0, 0   }
+\definecolor{rhodamine}     {cmyk}{0, 0.82, 0, 0   }
+\definecolor{mulberry}      {cmyk}{0.34, 0.90, 0, 0.02}
+\definecolor{redviolet}     {cmyk}{0.07, 0.90, 0, 0.34}
+\definecolor{fuchsia}       {cmyk}{0.47, 0.91, 0, 0.08}
+\definecolor{lavender}      {cmyk}{0, 0.48, 0, 0   }
+\definecolor{thistle}       {cmyk}{0.12, 0.59, 0, 0   }
+\definecolor{orchid}        {cmyk}{0.32, 0.64, 0, 0   }
+\definecolor{darkorchid}    {cmyk}{0.40, 0.80, 0.20, 0   }
+\definecolor{purple}        {cmyk}{0.45, 0.86, 0, 0   }
+\definecolor{plum}          {cmyk}{0.50, 1, 0, 0   }
+\definecolor{violet}        {cmyk}{0.79, 0.88, 0, 0   }
+\definecolor{royalpurple}   {cmyk}{0.75, 0.90, 0, 0   }
+\definecolor{blueviolet}    {cmyk}{0.86, 0.91, 0, 0.04}
+\definecolor{periwinkle}    {cmyk}{0.57, 0.55, 0, 0   }
+\definecolor{cadetblue}     {cmyk}{0.62, 0.57, 0.23, 0   }
+\definecolor{cornflowerblue}{cmyk}{0.65, 0.13, 0, 0   }
+\definecolor{midnightblue}  {cmyk}{0.98, 0.13, 0, 0.43}
+\definecolor{navyblue}      {cmyk}{0.94, 0.54, 0, 0   }
+\definecolor{royalblue}     {cmyk}{1, 0.50, 0, 0   }
+\definecolor{blue}          {cmyk}{1, 1, 0, 0   }
+\definecolor{cerulean}      {cmyk}{0.94, 0.11, 0, 0   }
+\definecolor{cyan}          {cmyk}{1, 0, 0, 0   }
+\definecolor{processblue}   {cmyk}{0.96, 0, 0, 0   }
+\definecolor{skyblue}       {cmyk}{0.62, 0, 0.12, 0   }
+\definecolor{turquoise}     {cmyk}{0.85, 0, 0.20, 0   }
+\definecolor{tealblue}      {cmyk}{0.86, 0, 0.34, 0.02}
+\definecolor{aquamarine}    {cmyk}{0.82, 0, 0.30, 0   }
+\definecolor{bluegreen}     {cmyk}{0.85, 0, 0.33, 0   }
+\definecolor{emerald}       {cmyk}{1, 0, 0.50, 0   }
+\definecolor{junglegreen}   {cmyk}{0.99, 0, 0.52, 0   }
+\definecolor{seagreen}      {cmyk}{0.69, 0, 0.50, 0   }
+\definecolor{green}         {cmyk}{1, 0, 1, 0   }
+\definecolor{forestgreen}   {cmyk}{0.91, 0, 0.88, 0.12}
+\definecolor{pinegreen}     {cmyk}{0.92, 0, 0.59, 0.25}
+\definecolor{limegreen}     {cmyk}{0.50, 0, 1, 0   }
+\definecolor{yellowgreen}   {cmyk}{0.44, 0, 0.74, 0   }
+\definecolor{springgreen}   {cmyk}{0.26, 0, 0.76, 0   }
+\definecolor{olivegreen}    {cmyk}{0.64, 0, 0.95, 0.40}
+\definecolor{rawsienna}     {cmyk}{0, 0.72, 1, 0.45}
+\definecolor{sepia}         {cmyk}{0, 0.83, 1, 0.70}
+\definecolor{brown}         {cmyk}{0, 0.81, 1, 0.60}
+\definecolor{tan}           {cmyk}{0.14, 0.42, 0.56, 0   }
+\definecolor{gray}          {cmyk}{0, 0, 0, 0.50}
+\definecolor{black}         {cmyk}{0, 0, 0, 1   }
+\definecolor{white}         {cmyk}{0, 0, 0, 0   }
+
+%%%%%%%%%%%%%%%%%
+%% Page layout
+%%%%%%%%%%%%%%%%%
+%\settypeblocksize{*}{32pc}{1.618}
+%\settypeblocksize{48pc}{36pc}{*}
+%\settypeblocksize{48pc}{36pc}{*} % Size of text using picas, 1pc = 12pt
+\settypeblocksize{8in}{5.25in}{*} % Slightly less wide than above
+%\settypeblocksize{8in}{6in}{*}  % This is the same as above
+
+\setlrmargins{*}{*}{1}
+\setulmargins{*}{*}{1}
+
+\setheadfoot{\onelineskip}{2\onelineskip}
+\setheaderspaces{*}{2\onelineskip}{*}
+
+\def\baselinestretch{1.1}
+
+\checkandfixthelayout
+
+\chapterstyle{thesischapterstyle}
+
+\pagestyle{ruled}
+
+\maxtocdepth{subsubsection}
+
+
+% ****************** Figure Styles ************************
+
+%\setlength{\belowcaptionskip}{0.1in}
+
+% *****************  PHYSICAL CONSTANTS  *************************
+\newcommand{\kbz}{{k_{\mathrm{B}}}}
+
+%% Useful commands
+\renewcommand{\vec}{\mathbf}
+
+% Acronyms
+\newcommand{\VMC}{\textbf{VMC}}
+\newcommand{\QMC}{\textbf{QMC}}
+\newcommand{\DFT}{\textbf{DFT}}
+\newcommand{\GP}{Gross-Pitaevskii}
+
+% Mathematical elements
+\newcommand{\qmop}[1]{{\hat{#1}}}
+\newcommand{\estimator}[1]{\bar{#1}}
+\newcommand{\var}[1][]{\sigma^2_{#1}}
+\newcommand{\vecr}{\vec{r}}
+\newcommand{\drN}{d^N \vec{r}}
+
+
+% Physical quantities and operators
+\newcommand{\aopdagg}{\qmop{a}^\dagger}
+\newcommand{\aop}{\qmop{a}}
+\newcommand{\anhop}{\aop}
+\newcommand{\crtop}{\aopdagg}
+\newcommand{\as}{a}
+
+\newcommand{\gpwavefunc}{{\Phi}}
+\newcommand{\asonedim}{a_{ \mathrm{1D} }}
+\newcommand{\gonedim}{g_{ \mathrm{1D} }}
+%\newcommand{\asonedim}{{ a_{_{ \mathrm{1D} }}} }
+%\newcommand{\gonedim}{{g_{_{ \mathrm{1D} }}}}
+
+\newcommand{\densityone}{{\density_1}}
+%\newcommand{\gprho}[1][]{{\rho_{#1}^{_{(1)}}}}
+\newcommand{\gprho}[1][]{{\rho_{#1}}}
+
+\newcommand{\gpgamma}{\sigma}
+
+\newcommand{\jacobisn}{{\mathrm{sn}}}
+\newcommand{\jacobicn}{{\mathrm{cn}}}
+\newcommand{\jacobidn}{{\mathrm{dn}}}
+
+\newcommand{\ellipm}[1][]{m_{\mathrm{e}#1}}
+
+\newcommand{\density}{{n}}
+
+
+\newcommand{\VKP}{V_{\mathrm{KP}}}
+
+\newcommand{\wf}{\Psi}
+\newcommand{\wfargs}{\wf(x, y, z)}
+\newcommand{\wfx}{\mathcal{X}}
+\newcommand{\wfxarg}{\mathcal{X}(x)}
+\newcommand{\wfy}{\mathcal{Y}}
+\newcommand{\wfyarg}{\mathcal{Y}(y)}
+\newcommand{\wfz}{\mathcal{Z}}
+\newcommand{\wfzarg}{\mathcal{Z}(z)}
+\newcommand{\wfzpp}[1][k_z]{u_{#1}}
+\newcommand{\wfzpparg}{\wfzpp(z)}
+
+\newcommand{\eigfvalley}{\psi_{\mathrm{v}}}
+\newcommand{\eigfhill}{\psi_{\mathrm{h}}}
+
+\newcommand{\KP}{{Kronig-Penney}}
+\newcommand{\CBE}{condensación Bose-Einstein}
+\newcommand{\chapref}[1]{Cap. #1}
+\newcommand{\secref}[1]{Sec. #1}
+\newcommand{\subsecref}[1]{Sec. #1}
+\newcommand{\equref}[1]{Ec. (#1)}
+\newcommand{\equsref}[1]{Ecs. (#1)}
+\newcommand{\figref}[1]{Fig. #1}
+\newcommand{\figsref}[1]{Figs. #1}
+
+% Command definitions are wrapped by curly braces.
+\newcommand{\ktot}{\mathbf{k}}
+\newcommand{\zerovec}{\mathbf{0}}
+\newcommand{\kx}[1][]{k_{#1x}}
+\newcommand{\ky}[1][]{k_{#1y}}
+\newcommand{\kz}[1][]{k_{#1z}}
+
+\newcommand{\vzero}{{V_0}}
+\newcommand{\etot}{{\varepsilon}}
+\newcommand{\ex}{{\etot_x}}
+\newcommand{\ey}{{\etot_y}}
+\newcommand{\ez}[1][]{\etot_{#1z}}
+\newcommand{\ezno}{{\ez}}
+\newcommand{\ezzero}{\ez[0]}
+\newcommand{\etotktot}{\etot_{\ktot}}
+
+\newcommand{\vzeroadim}{{u_0}}
+\newcommand{\ezadim}[1][]{\bar{\epsilon}_{#1z}}
+\newcommand{\sqrtvzeroezadim}{\sqrt{\vzeroadim - \ezadim}}
+\newcommand{\sqrtezvzeroadim}{\sqrt{\ezadim - \vzeroadim}}
+\newcommand{\lambdazero}{{\lambda_0}}
+\newcommand{\abzero}{{(a+b)/\lambda_0}}
+\newcommand{\Tzero}{{T_0}}
+\newcommand{\Tzerozero}{{T_{00}}}
+\newcommand{\Tadim}{{T/\Tzero}}
+\newcommand{\Tadimtilde}{\tilde{T}}
+\newcommand{\Tcritic}{T_\mathrm{c}}
+\newcommand{\Tcriticadim}{\Tcritic/\Tzero}
+
+\newcommand{\barrierspace}{a}
+\newcommand{\barrierwidth}{b}
+\newcommand{\KPperiod}{a+b}
+\newcommand{\KPperiodexpanded}{\barrierspace + \barrierwidth}
+\newcommand{\KPperiodzero}{\KPperiod_0}
+\newcommand{\KPperiodzeroexpanded}{(a+b)/\lambdazero}
+
+\newcommand{\PsiT}{\Psi_{\mathrm{T}}}

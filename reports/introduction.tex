@@ -1,0 +1,173 @@
+
+% !TeX spellcheck = en_US
+\chapter{Introduction}
+\label{sec:introduccion}
+
+Ultracold bosonic and fermionic quantum gases have been a subject of intense
+research in the last few years since the experimental realization of
+Bose-Einstein condensation in 1995 \cite{bib:anderson-science.269.1995,
+bib:davis-phys.rev.A.75.3969.1995}. These experiments were a milestone that
+transformed Bose and Einstein \cite{bib:einstein-1924-quantentheorie}
+mathematical predictions in a physical reality. Experimental techniques have
+evolved enormously and physicists are able to realize Bose-Einstein condensates
+with great control of the particle interaction and confined in diverse
+geometries. These developments have opened the possibility to experiment with
+novel quantum many-body systems \cite{bib:takasu-et-al-phys-rev-lett.91.040404,
+bib:schreck-f-et-al-phys-rev-lett.87.080403}: Fermi and Bose gases are
+constrained in such ways that their movement is effectively quenched in one or
+two dimensions, so the dimensionality of the systems is not longer
+three-dimensional \cite{bib:a-gorlitz-phys-rev-lett.87.130402}. And not only the
+geometry of the systems can be controlled: other parameters as the interaction
+strength between the particles, the density, the temperature and the spin can be
+adjusted. We have reached the point where experimental researchers are able to
+simulate \cite{bib:bloch-nature-physics.2012} real quantum many-body systems in
+the laboratory by controlling most of its variables at will to the point where
+theoretical predictions made long ago are being verified
+\cite{bib:tonks-phys-rev.50.955.1936, bib:girardeau-j-math-phys.1960,
+bib:paredes-bloch-et-al-nature.419.2014}, exotic phase transitions are being
+discovered and new predictions are being done.
+
+Among the quantum systems that can be simulated with ultracold gases, periodic
+ones arise naturally as a consequence of the techniques used to constrain the
+particles, particularly when the confining potentials are made from optical
+lattices \cite{bib:bloch-nature-phys.2005}. It is worth to say that the shape of
+the potentials that trap the bosons or fermions can be controlled as well. This
+is a significant fact, as many of the most important problems in condensed
+matter physics such as superconductivity
+\cite{bib:bednorz-et-al-phys-b-cond-matt.1986, bib:phys-rev-B.50.4260,
+bib:norman-pepin-rep-prog-phys.2003} and helium-4 in any dimension
+\cite{bib:phys-rev-lett.71.3673, bib:j-phys-soc-jpn.77.111011} involve physical
+periodic systems.
+
+From the theoretical aspect, we know that the properties of real quantum systems
+are a consequence of the combined effect of the interactions between the
+particles and the spatial constrictions. In order to study quantum systems we
+have to take into account the interactions between its particles. This is not an
+easy task by any means, as we have to solve the Schrödinger equation of $N$
+particles! This means to find the corresponding wave function of the system
+(symmetric or antisymmetric depending on whether the particles are bosons or
+fermions) in a $3N$ dimensional coordinate space (or momentum space) so we have
+the possibility to obtain expected values of the observables of interest, as the
+momentum distribution. The direct solution of the Schrödinger equation is an
+unfeasible task unless the system under study contains only a few particles.
+
+Our research is focused mainly on bosons. The most common theoretical tool to
+study bosonic quantum many-body systems is mean-field theory, i.e., the
+Gross-Pitaevskii theory \cite{bib:gross-il-nuovo-cimento.1961,
+bib:pitaevskii-jetp.1961}, This approach assumes that the vast majority of the
+bosons occupy the same quantum state. This state (the ground state) is described
+by a wave function whose evolution in time is determined by the Gross-Pitaevskii
+equation: a one-body Schrödinger equation that takes the interaction between the
+bosons into account in the form of an additional nonlinear term. This theory has
+become a very useful tool as an alternative to the direct solution of the
+$N$-body Schrödinger equation. However, the applicability of the GP theory is
+restricted to systems where the healing length (or coherence length) is much
+larger than the distance between the bosons
+\cite{bib:pitaevskii-rev-mod-phys.71.463.1999}. For strongly correlated quantum
+systems this is not true anymore.
+
+Quantum Monte Carlo ({\textbf{QMC}}) methods have become an attractive
+alternative to calculate the properties of the ground state of quantum many-body
+systems at zero or even finite temperature
+\cite{bib:ceperley-rev-min-geochem.1.2010}. They give us information of a
+quantum system without having to solve the Schrödinger equation, but instead we
+have to evaluate multidimensional integrals for the expected values of the
+observables of interest, being the energy one of the most important, although
+other properties such as the momentum distribution and the static structure
+factor can be estimated. The main problem that Monte Carlo techniques address
+successfully is the evaluation of multidimensional integrals that appear when
+evaluating the expected values of some observable, since for a system with $N$
+particles we have to integrate over a $3N$-dimensional space.
+
+Most of the numerical techniques to evaluate integrals in one, two or three
+dimensions suffer of a problem called \textit{the curse of the dimensionality},
+as the number of function evaluations to reach a given accuracy increases
+exponentially with the dimension of the space. Monte Carlo methods are
+stochastic algorithms that do not have this problem, as its rate of convergence
+is inversely proportional to the square root of the number of evaluations.
+Although it has a slow rate of convergence, it is independent of the dimension
+of the space. In Quantum Monte Carlo, the number of particles determines the
+size of the coordinate space, but the convergence rate of the algorithm will be
+the same.
+
+Among the various QMC methods, the Variational Monte Carlo approach
+({\textbf{VMC}}) is the most simple. It is based on the variational principle of
+Quantum Mechanics, so we can use it to obtain an upper bound estimate to the
+ground state of the system. How good this estimate is depends on the quality of
+the trial wave function used to evaluate the expected value of the observable in
+question. Another approach is the Diffusion Monte Carlo method (\textbf{DMC}),
+an algorithm that starts from an initial approximation of the wave function and
+iteratively solves the \textit{imaginary time Schrödinger equation}. This
+process is repeated until we have a good enough estimate of the exact ground
+state wave function of the system. This means that any calculated expected value
+will be exact, except for a small, manageable stochastic noise. The Diffusion
+Monte Carlo method, however, is a lot more complex than the Variational Monte
+Carlo approach. Both techniques have been used extensively to study strongly
+correlated systems
+\cite{bib:boronat-phys-rev-B.49.8920.1994,bib:casurellas-phys-rev-B.52.3654.1995,
+bib:astrakharchik-phys-rev-a.68.031602.2003,
+bib:astrakharchik-phys.rev.lett.95.190407.2005} with great success.
+
+The main objective of my investigation is to study the physics of quantum gases
+constrained within periodic structures like planar, multi-slabs structures. In
+order to estimate the ground state properties of such systems as well as
+identify and characterize their possible quantum phase transitions, I use
+several methods, but I focus mainly Quantum Monte Carlo methods.
+
+This protocol is organized in the following way:
+
+In chapter \ref{chap:background} we give an brief overview of the research we
+did on the physical properties of an ideal Bose gas within a multi-slabs
+structure. We obtained the energy spectrum and the Bose-Einstein condensation
+critical temperature.
+%In addition we studied the thermodynamic properties like the chemical
+%potential, the heat capacity both at constant volume and constant pressure and
+%both the isothermal and isentropic (adiabatic) sound velocities.
+In addition we describe the equation of state of a Lieb-Liniger gas, as this
+system is a natural reference.
+
+Chapter \ref{chap:mean-field-theory} contains the theory of diluted gases in
+three dimensions, also known as mean-field theory. In this chapter we give some
+general results for the energy of a weakly interacting Bose gas and develop the
+mathematics that lead us to the celebrated Gross-Pitaevskii equation for a gas
+within an inhomogeneous medium. Later we explain how this theory must be
+adjusted in order to be applicable to Bose gases in lower dimensions,
+particularly for systems with very elongated, cigar-like shapes that resemble
+one-dimension geometry. We establish the conditions under which the mean-field
+theory picture is applicable to one-dimensional systems, to finally arrive to
+the one-dimensional version of the Gross-Pitaevskii equation.
+
+The most important section of this chapter contains the procedure to arrive to
+the solution of the Gross-Pitaevskii equation in 1D for a Bose gas subject to
+Kronig-Penney potential, which has an analytical form given in terms of the
+Jacobi elliptic functions. We establish the boundary conditions corresponding to
+periodic solutions which must be applied to obtain the density profile of the
+gas and other physical properties such as the chemical potential and the energy.
+Then we show some preliminary numerical results for a gas with repulsive
+interactions among its components as well as for a gas with attractive
+interactions, and show the existence of stable solutions for this case.
+
+
+In Chapter \ref{chap:quantum-monte-carlo-methods} we give a description of the
+Quantum Monte Carlo methods and how are they used to evaluate multidimensional
+integrals like those that arise when evaluating expected value of observables in
+quantum mechanics. Then we describe the foundation of such algorithms, from the
+concept of a Markov chain to the description and application of the
+Metropolis-Hastings algorithm to sample a complicated probability distribution
+function. We also show how they are used to obtain the physical properties of
+the ground state of a many-body quantum system with \textit{ab-initio}
+interactions, i.e., with a real, microscopic interaction potential.
+
+We focus on the Variational Monte Carlo method. As in the case of mean-field
+theory, we present some preliminary results of the energy for an interacting
+Bose gas in 1D subject to a Kronig-Penney potential using this quantum Monte
+Carlo technique. We use two different variational functions to estimate the
+energy, and later we investigate how the variational parameters affect the
+energy behavior, and which values minimize the energy. Then we compare both
+models and determine which is the best. Finally we analyze these results
+together with the predictions of the Lieb-Liniger theory so as with the results
+calculated from mean-field theory. We do this in order to validate our results
+as well as be confident with further results to come in the future.
+
+We finish this protocol giving an outline of my future research as well as a
+schedule of my research work for the next two years.
