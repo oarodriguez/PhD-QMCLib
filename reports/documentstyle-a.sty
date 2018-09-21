@@ -5,7 +5,7 @@
 %
 \NeedsTeXFormat{LaTeX2e}[1994/06/01]
 \ProvidesPackage{documentstyle}
-  [2011/01/11 v0.01 LaTeX package for my own purpose]
+[2011/01/11 v0.01 LaTeX package for my own purpose]
 
 \RequirePackage{ifthen}
 \RequirePackage{ifxetex}
@@ -22,47 +22,47 @@
 % *************** Chapter and section style ***************
 \makechapterstyle{thesischapterstyle}{%
 
-    \chapterstyle{default}
+  \chapterstyle{default}
 
-    %    \setlength{\beforechapskip}{0pt}
-    \setlength{\afterchapskip}{40pt}
-    \setlength{\midchapskip}{10pt}
+  %    \setlength{\beforechapskip}{0pt}
+  \setlength{\afterchapskip}{40pt}
+  \setlength{\midchapskip}{10pt}
 
 
-    \renewcommand{\printchaptertitle}[1]{%
-        \centering
-        \chaptitlefont
-        \ifxetex
-            \chaptertitlefont
-        \fi
-        %        \hrule height 0.5pt
-        %        \vspace{1pt}
-        %        \hrule height 0.5pt
-        \vspace{0.2em}%
-        {##1}
-        \vspace{0.5em}
-        %        \hrule height 1.5pt%
-        %        \vspace{1pt}
-        %        \hrule height 1.5pt
-    }%
+  \renewcommand{\printchaptertitle}[1]{%
+    \centering
+    \chaptitlefont
+    \ifxetex
+      \chaptertitlefont
+    \fi
+    %        \hrule height 0.5pt
+    %        \vspace{1pt}
+    %        \hrule height 0.5pt
+    \vspace{0.2em}%
+    {##1}
+    \vspace{0.5em}
+    %        \hrule height 1.5pt%
+    %        \vspace{1pt}
+    %        \hrule height 1.5pt
+  }%
 
-    \renewcommand{\printchaptername}{
-        \chapnamefont
-        \ifxetex
-            \chapternumberfont
-        \fi
-        \@chapapp
-    }
+  \renewcommand{\printchaptername}{
+    \chapnamefont
+    \ifxetex
+      \chapternumberfont
+    \fi
+    \@chapapp
+  }
 
-    \renewcommand*{\printchapternum}{%
-        \chapnumfont
-        \ifxetex
-            \chapternumberfont
-        \fi
-        \centering
-        %        \numtoName{\c@chapter}
-        \thechapter
-    }%
+  \renewcommand*{\printchapternum}{%
+    \chapnumfont
+    \ifxetex
+      \chapternumberfont
+    \fi
+    \centering
+    %        \numtoName{\c@chapter}
+    \thechapter
+  }%
 }
 
 

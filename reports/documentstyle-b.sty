@@ -5,10 +5,11 @@
 %
 \NeedsTeXFormat{LaTeX2e}[1994/06/01]
 \ProvidesPackage{documentstyle-b}
-  [2011/01/11 v0.01 LaTeX package for my own purpose]
+[2011/01/11 v0.01 LaTeX package for my own purpose]
 
 \RequirePackage{ifthen}
 \RequirePackage{ifxetex}
+% \RequirePackage{xcolor}
 
 \setsecheadstyle{\Large \bfseries}
 \setsubsecheadstyle{\large \bfseries}
@@ -24,91 +25,91 @@
 % *************** Chapter and section style ***************
 \makechapterstyle{thesischapter}{%
 
-    \chapterstyle{default}
+  \chapterstyle{default}
 
-    \setlength{\beforechapskip}{-10pt}
-    \setlength{\afterchapskip}{30pt}
-    \setlength{\midchapskip}{0pt}
-    \setlength{\chaptitlefontsize}{30pt}
-    \setlength{\chaptitlenumsize}{70pt}
+  \setlength{\beforechapskip}{-10pt}
+  \setlength{\afterchapskip}{30pt}
+  \setlength{\midchapskip}{0pt}
+  \setlength{\chaptitlefontsize}{30pt}
+  \setlength{\chaptitlenumsize}{70pt}
 
 
-    \renewcommand{\printchaptertitle}[1]{%
-%        \centering
-        \chaptitlefont
-        \ifxetex
-            \chaptertitlefont
-        \fi
-        %        \hrule height 0.5pt
-        %        \vspace{1pt}
-        %        \hrule height 0.5pt
-        \vspace{0.2em}%
-        \hfill \parbox{0.6\linewidth}{\raggedleft \fontsize{\chaptitlefontsize}{0}\selectfont ##1}
-        \vspace{0.5em}
-        %        \hrule height 1.5pt%
-        %        \vspace{1pt}
-        %        \hrule height 1.5pt
-    }%
+  \renewcommand{\printchaptertitle}[1]{%
+    %        \centering
+    \chaptitlefont
+    \ifxetex
+      \chaptertitlefont
+    \fi
+    %        \hrule height 0.5pt
+    %        \vspace{1pt}
+    %        \hrule height 0.5pt
+    \vspace{0.2em}%
+    \hfill \parbox{0.6\linewidth}{\raggedleft \fontsize{\chaptitlefontsize}{0}\selectfont ##1}
+    \vspace{0.5em}
+    %        \hrule height 1.5pt%
+    %        \vspace{1pt}
+    %        \hrule height 1.5pt
+  }%
 
-    \renewcommand{\printchaptername}{
-        \chapnamefont
-        \ifxetex
-            \chapternumberfont
-        \fi
-        %\@chapapp
-    }
+  \renewcommand{\printchaptername}{
+    \chapnamefont
+    \ifxetex
+      \chapternumberfont
+    \fi
+    %\@chapapp
+  }
 
-    \renewcommand*{\printchapternum}{%
-        \chapnumfont
-        \ifxetex
-            \chapternumberfont
-        \fi
-        %\centering
-        %        \numtoName{\c@chapter}
-        \hfill {\color{maroon}  \fontsize{\chaptitlenumsize}{0}\selectfont \thechapter}
-    }%
+  \renewcommand*{\printchapternum}{%
+    \chapnumfont
+    \ifxetex
+      \chapternumberfont
+    \fi
+    %\centering
+    %        \numtoName{\c@chapter}
+    \hfill {\color{Maroon}  \fontsize{\chaptitlenumsize}{0}\selectfont \thechapter}
+  }%
 }
 
 
 \makechapterstyle{thesissimplechapter}{%
 
-    \chapterstyle{default}
+  \chapterstyle{default}
 
-    \setlength{\beforechapskip}{-20pt}
-    \setlength{\afterchapskip}{30pt}
-    \setlength{\midchapskip}{0pt}
-    \setlength{\chaptitlefontsize}{30pt}
-    \setlength{\chaptitlenumsize}{70pt}
+  \setlength{\beforechapskip}{-20pt}
+  \setlength{\afterchapskip}{30pt}
+  \setlength{\midchapskip}{0pt}
+  \setlength{\chaptitlefontsize}{30pt}
+  \setlength{\chaptitlenumsize}{70pt}
 
 
-    \renewcommand{\printchaptertitle}[1]{%
-        %        \centering
-        \chaptitlefont
-        \ifxetex
-        \chaptertitlefont
-        \fi
+  \renewcommand{\printchaptertitle}[1]{%
+    %        \centering
+    \chaptitlefont
+    \ifxetex
+      \chaptertitlefont
+    \fi
 
-        \vspace{0em}
-        \hfill \parbox{0.6\linewidth}{ \fontsize{\chaptitlefontsize}{0}\selectfont ##1}
-        \vspace{0em}
+    \vspace{0em}
+    \hfill \parbox{0.6\linewidth}{ \fontsize{\chaptitlefontsize}{0}\selectfont ##1}
+    \vspace{0em}
 
-    }
+  }
 
-    \renewcommand{\printchaptername}{
-        \chapnamefont
-        \ifxetex
-        \chapternumberfont
-        \fi
-        %\@chapapp
-    }
+  \renewcommand{\printchaptername}{
+    \chapnamefont
+    \ifxetex
+      \chapternumberfont
+    \fi
+    %\@chapapp
+  }
 
-    \renewcommand*{\printchapternum}{%
-        \chapnumfont
-        \ifxetex
-        \chapternumberfont
-        \fi
-        \hfill {\color{maroon}  \fontsize{\chaptitlenumsize}{0}\selectfont \thechapter}
-    }%
+  \renewcommand*{\printchapternum}{%
+    \chapnumfont
+    \ifxetex
+      \chapternumberfont
+    \fi
+    \hfill {\color{Maroon}  \fontsize{\chaptitlenumsize}{0}\selectfont \thechapter}
+  }%
 }
 
 
