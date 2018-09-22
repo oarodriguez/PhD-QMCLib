@@ -1,9 +1,13 @@
 from abc import abstractmethod
+from collections import Callable
 from enum import Enum
+from typing import Callable as TCallable, Sequence
 
 from thesis_lib.utils import Cached, CachedMeta
 
 __all__ = [
+    'GUFuncBase',
+    'GUFuncBaseMeta',
     'QMCFuncsBase',
     'QMCFuncsMeta',
     'QMCFuncsNames',
@@ -166,3 +170,61 @@ class QMCFuncsNames(str, Enum):
     L_SF_GUV = 'structure_factor_func_guv'
 
     L_TBC = 'two_body_correlation_func'
+
+
+class GUFuncBaseMeta(CachedMeta):
+    """Metaclass for :class:`GUFuncBase` abstract base class."""
+    pass
+
+
+class GUFuncBase(Cached, Callable, metaclass=GUFuncBaseMeta):
+    """Interface to implement a callable object that behaves as
+    a ``numpy`` **generalized universal function**.
+    """
+
+    def __init__(self, base_func: TCallable[..., float],
+                 signatures: Sequence[str],
+                 layout: str, target: str = None):
+        """Initializer.
+
+        :param base_func:
+        :param target:
+        """
+        super().__init__()
+        self._base_func = base_func
+        self.signatures = signatures
+        self.layout = layout
+        self.target = target or 'parallel'
+
+    @property
+    @abstractmethod
+    def as_elem_func_args(self):
+        """Numba compiled function to get the elementary function arguments
+        from an array. It returns one or more objects compatible with
+        the ``elem_func`` signature.
+        """
+        # NOTE: Beware of array boundaries within a jit-function.
+        # The gufunc will not raise any error if we access elements
+        # outside the array with target='parallel'. In 'cpu' target it
+        # is possible.
+        pass
+
+    @property
+    @abstractmethod
+    def elem_func(self):
+        """Wrapper over the elementary function that should be vectorized.
+        This wrapper is necessary as numba vectorized functions only accept
+        numpy arrays as arguments.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def core_func(self):
+        """The internal generalized universal function."""
+        pass
+
+    @abstractmethod
+    def __call__(self, *args, **kwargs):
+        """"""
+        pass
