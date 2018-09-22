@@ -2,6 +2,6 @@
     thesis_lib
     ~~~~~~~~~~
 
-    Library to estimate the ground state properties of a quantum gas
-    constrained within a multi-rods, periodic structure in one dimension.
+    Library to estimate the ground state properties of an interacting
+    quantum Bose gas in one dimension.
 """

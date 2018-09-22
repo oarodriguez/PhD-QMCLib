@@ -1,11 +1,110 @@
 import os
+from abc import ABCMeta
 from datetime import datetime
 from itertools import product
+from multiprocessing import current_process
+from time import time
 from typing import Dict, ItemsView, Iterable, Sequence, Tuple, TypeVar, Union
 
+import numpy as np
 from decorator import contextmanager
 from numba.config import reload_config
 from tzlocal import get_localzone
+
+
+class CachedProperty(property):
+    """An object that acts as a property attribute with its value cached."""
+
+    # TODO: Add __repr__
+
+    def __init__(self, func, name=None):
+        """
+
+        :param name:
+        :param func:
+        """
+        super().__init__(func)
+        self.__name__ = name or func.__name__
+        self.func = func
+
+    def __get__(self, obj: 'Cached', type_=None):
+        """
+
+        :param obj:
+        :param type_:
+        :return:
+        """
+        if obj is None:
+            return self
+
+        name = self.__name__
+        func = self.func
+
+        if not isinstance(obj, Cached):
+            raise TypeError
+
+        if name not in obj.__cached_properties__:
+            msg = "object has no property '{}'".format(name)
+            raise AttributeError(msg)
+
+        if name not in obj._cached_data:
+            prop_value = func(obj)
+            obj._cached_data[name] = prop_value
+            return prop_value
+
+        return obj._cached_data[name]
+
+    def __set__(self, obj, value):
+        """Make read-only data descriptor."""
+        raise AttributeError
+
+
+def cached_property(func, name=None):
+    """Decorates a method with a single self argument to behave as a
+    property attribute, i.e., a :class:`CachedProperty` instance.
+
+    :param func:
+    :param name:
+    :return:
+    """
+    return CachedProperty(func, name)
+
+
+class CachedMeta(ABCMeta):
+    """Metaclass for the :class:`Cached` type. It picks every attribute
+    that is a :class:`CachedProperty` instance and stores a reference to
+    each of them in a special class attribute.
+    """
+
+    def __new__(mcs, name, bases, namespace):
+        """
+
+        :param name:
+        :param bases:
+        :param namespace:
+        :return:
+        """
+        cls = super().__new__(mcs, name, bases, namespace)
+
+        properties = {}
+        # NOTE: Whats is the difference between using the namespace?
+        for name_ in dir(cls):
+            obj = getattr(cls, name_)
+            if isinstance(obj, CachedProperty):
+                properties[obj.__name__] = obj
+
+        cls.__cached_properties__ = properties
+        return cls
+
+
+class Cached(metaclass=CachedMeta):
+    """Type that adds support for attribute caching."""
+
+    __slots__ = ('_cached_data',)
+
+    def __init__(self, *args, **kwargs):
+        """Mapping to hold cached data"""
+        self._cached_data = {}
 
 
 def now(local: bool = True) -> datetime:
@@ -137,3 +236,22 @@ def numba_env_vars(**env_vars):
         del os_environ[key]
     os_environ.update(old_env_vars)
     reload_config()
+
+
+def get_random_rng_seed():
+    """Generates a random integer to be used as seed for a RNG. It uses
+    the current process id (integer) plus the current time in milliseconds
+    to seed the ``numpy`` RNG, and pick a random integer from a uniform
+    probability distribution as a new seed. This way the integer is
+    different for every process when working with the ``multiprocessing``
+    module.
+
+    :return: A random integer
+    """
+    # TODO: This function needs more analysis :-\
+    i32_max = np.iinfo(np.int32).max
+    np.random.seed(
+            int(current_process().pid + int(time() * 1000) % i32_max)
+    )
+
+    return np.random.randint(0, high=i32_max - 1, dtype=np.int64)
