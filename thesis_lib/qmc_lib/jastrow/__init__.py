@@ -4,4 +4,7 @@
 """
 
 #
+from .gufunc import *
+
+#
 from .model import *

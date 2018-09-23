@@ -1,5 +1,6 @@
-import pytest
 import numpy as np
+import pytest
+from numba import jit
 
 from thesis_lib.multirods_qmc import bp_jastrow
 
@@ -58,8 +59,31 @@ def test_update_params():
     model = bp_jastrow.Model(correct_params)
     var_params = dict(tbf_contact_cutoff=rm)
     model.update_var_params(var_params)
-    pdf_params = model.wf_params
-    print(correct_params, pdf_params)
+
+
+class WFGUFunc(bp_jastrow.NOAScalarGUFuncBase):
+    """"""
+    pass
+
+
+class EnergyGUFunc(bp_jastrow.ScalarGUFuncBase):
+    """"""
+
+    @property
+    def as_func_args(self):
+        """"""
+
+        @jit(nopython=True, cache=True)
+        def _as_func_args(func_params):
+            """"""
+            v0_ = func_params[0]
+            r_ = func_params[1]
+            gn_ = func_params[2]
+            func_args_0 = v0_, r_, gn_
+
+            return func_args_0,
+
+        return _as_func_args
 
 
 def test_qmc_funcs():
@@ -106,3 +130,54 @@ def test_qmc_funcs():
         out_pos_values = out_sys_conf[model.BosonConfSlots.DRIFT_SLOT, :]
         assert np.alltrue(out_pos_values == in_pos_values)
 
+
+def test_gufunc():
+    """Testing the behavior of the generalized universal functions."""
+    
+    new_params = dict(correct_params)
+    var_params = dict(tbf_contact_cutoff=rm)
+
+    model = bp_jastrow.Model(new_params, var_params)
+    qmc_funcs = bp_jastrow.QMCFuncs()
+
+    # Generate a random configuration, pick the model parameters.
+    model_params = model.params
+    obf_params, tbf_params = model.wf_params
+    energy_params = model.energy_params
+    model_full_params = model.full_params
+    sys_conf = model.init_get_sys_conf(dist_type=model.SysConfDistType.REGULAR)
+
+    # Instantiate a universal function
+    wf_abs_log = qmc_funcs.wf_abs_log
+    energy = qmc_funcs.energy
+    wf_abs_log_gufunc = WFGUFunc(wf_abs_log)
+    energy_gufunc = EnergyGUFunc(energy)
+
+    energy_v = energy(sys_conf, energy_params, model_params, obf_params,
+                      tbf_params)
+    wf_abs_log_v = wf_abs_log(sys_conf, model_params, obf_params, tbf_params)
+
+    energy_gv = energy_gufunc(sys_conf, energy_params, model_full_params)
+    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf, model_full_params)
+
+    assert energy_gv == energy_v
+    assert wf_abs_log_gv == wf_abs_log_v
+
+    # Now let's see how broadcasting works...
+    # Create an array with ``sys_conf`` repeated 1000 times
+    sys_conf_copies = 1000
+    sys_conf_set = np.repeat(sys_conf[np.newaxis, ...],
+                             sys_conf_copies, axis=0)
+    energy_params = np.asarray(energy_params)
+
+    # GUFuncs must evaluate many times over the loop dimensions
+    # In this case the only loop dimension will be ``sys_conf_copies``.
+    energy_gv = energy_gufunc(sys_conf_set, energy_params, model_full_params)
+    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf_set, model_full_params)
+
+    # Verify the equivalences.
+    assert energy_gv.shape == (sys_conf_copies,)
+    assert np.alltrue(energy_gv == energy_v)
+
+    assert wf_abs_log_gv.shape == (sys_conf_copies,)
+    assert np.alltrue(wf_abs_log_gv == wf_abs_log_v)

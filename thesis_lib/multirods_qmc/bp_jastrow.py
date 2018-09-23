@@ -1,9 +1,13 @@
 import operator
+from abc import ABCMeta
 from collections import OrderedDict
 from functools import reduce
 from math import sqrt
 
+from numba import jit
+
 from thesis_lib.ideal import eigen_energy
+from thesis_lib.qmc_lib import jastrow
 from thesis_lib.utils import cached_property
 from . import trial_funcs as tf
 from .jastrow import ModelBase, QMCFuncsBase
@@ -143,3 +147,109 @@ class QMCFuncs(QMCFuncsBase):
         :return:
         """
         return tf.phonon_two_body_func_log_dz2
+
+
+class GUFuncBase(jastrow.BaseGUFuncBase, metaclass=ABCMeta):
+    """A generalized universal function interface for compatible functions
+    with the Bijl-Jastrow QMC model.
+    """
+
+    @property
+    def as_model_args(self):
+        """Takes the model parameters from an array."""
+
+        @jit(nopython=True)
+        def _as_model_args(model_all_params):
+            """Takes the model parameters from the array, and group them
+            in tuples. The constructed tuples are returned to the caller so
+            they an be user as arguments for a ``QMCFuncs`` function.
+            """
+            # TODO: Is there a better way to do this?
+            v0 = model_all_params[0]
+            r = model_all_params[1]
+            gn = model_all_params[2]
+            nop = model_all_params[3]
+            sc_size = model_all_params[4]
+            model_params = v0, r, gn, nop, sc_size
+
+            #
+            v0 = model_all_params[5]
+            r = model_all_params[6]
+            e0 = model_all_params[7]
+            k1 = model_all_params[8]
+            kp1 = model_all_params[9]
+            obf_params = v0, r, e0, k1, kp1
+
+            #
+            rm = model_all_params[10]
+            sc_size = model_all_params[11]
+            k2 = model_all_params[12]
+            beta = model_all_params[13]
+            r_off = model_all_params[14]
+            am = model_all_params[15]
+            tbf_params = rm, sc_size, k2, beta, r_off, am
+
+            # NOTICE: This way to access data may generate corrupted results.
+            # v0, r, gn, nop, sc_size = model_all_params[0:5]
+            # v0, r, e0, k1, kp1 = model_all_params[5:10]
+            # rm, scs, k2, beta, r_off, am = model_all_params[10:16]
+            #
+            return model_params, obf_params, tbf_params
+
+        return _as_model_args
+
+
+class ScalarGUFuncBase(GUFuncBase,
+                       jastrow.ScalarGUFuncBase,
+                       metaclass=ABCMeta):
+    """"""
+
+    def __init__(self, base_func, target=None):
+        """"""
+        signatures = [
+            'void(f8[:,:],f8[:],f8[:],f8[:])'
+        ]
+        layout = '(ns,nop),(p1),(p2)->()'
+        super().__init__(base_func, signatures, layout, target)
+
+
+class ArrayGUFuncBase(GUFuncBase,
+                      jastrow.ArrayGUFuncBase,
+                      metaclass=ABCMeta):
+    """"""
+
+    def __init__(self, base_func, target=None):
+        """"""
+        signatures = [
+            'void(f8[:,:],f8[:],f8[:],f8[:,:])'
+        ]
+        layout = '(ns,nop),(p1),(p2)->(ns,nop)'
+        super().__init__(base_func, signatures, layout, target)
+
+
+class NOAScalarGUFuncBase(GUFuncBase,
+                          jastrow.NOAScalarGUFuncBase,
+                          metaclass=ABCMeta):
+    """"""
+
+    def __init__(self, base_func, target=None):
+        """"""
+        signatures = [
+            'void(f8[:,:],f8[:],f8[:])'
+        ]
+        layout = '(ns,nop),(p1)->()'
+        super().__init__(base_func, signatures, layout, target)
+
+
+class NOAArrayGUFuncBase(GUFuncBase,
+                         jastrow.ArrayGUFuncBase,
+                         metaclass=ABCMeta):
+    """"""
+
+    def __init__(self, base_func, target=None):
+        """"""
+        signatures = [
+            'void(f8[:,:],f8[:],f8[:,:])'
+        ]
+        layout = '(ns,nop),(p1)->(ns,nop)'
+        super().__init__(base_func, signatures, layout, target)
