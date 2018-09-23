@@ -67,7 +67,7 @@ class Model(ModelBase):
         return v0, r, gn
 
     @property
-    def all_params(self):
+    def full_params(self):
         """Concatenate the :attr:`Model.wf_params` tuples and returns
         a single numpy array.
         """
