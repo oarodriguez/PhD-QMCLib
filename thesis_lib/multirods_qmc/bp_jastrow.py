@@ -5,7 +5,8 @@ from math import sqrt
 
 from thesis_lib.ideal import eigen_energy
 from thesis_lib.utils import cached_property
-from . import jastrow, trial_funcs as tf
+from . import trial_funcs as tf
+from .jastrow import ModelBase, QMCFuncsBase
 
 __all__ = [
     'Model',
@@ -16,7 +17,7 @@ __all__ = [
 _two_body_func_params = tf.two_body_func_match_params
 
 
-class Model(jastrow.ModelBase):
+class Model(ModelBase):
     """Concrete implementation of a QMC model with a trial wave function
     of the Bijl-Jastrow type and type :class:`jastrow.Model`.
     """
@@ -88,8 +89,12 @@ class Model(jastrow.ModelBase):
         return OrderedDict(bounds)
 
 
-class QMCFuncs(jastrow.QMCFuncs):
+class QMCFuncs(QMCFuncsBase):
     """"""
+
+    def __init__(self):
+        """"""
+        super().__init__()
 
     @cached_property
     def one_body_func(self):

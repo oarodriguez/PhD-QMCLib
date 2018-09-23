@@ -8,11 +8,11 @@ import numpy.random as random
 from numba import jit
 
 from thesis_lib.utils import cached_property
-from ..abc import QMCFuncsBase, QMCModelBase
+from .. import abc
 from ..utils import min_distance, sign
 
 __all__ = [
-    'QMCFuncs',
+    'QMCFuncsBase',
     'ModelBase',
     'ParamsSlots',
     'BosonConfSlots',
@@ -68,7 +68,7 @@ BOSON_CONF_SLOT_DIM = 0
 BOSON_INDEX_DIM = 1
 
 
-class ModelBase(QMCModelBase):
+class ModelBase(abc.QMCModelBase):
     """Abstract Base Class that represents a Quantum Monte Carlo model
     with a trial-wave function of the Bijl-Jastrow type.
     """
@@ -254,7 +254,7 @@ class ModelBase(QMCModelBase):
         pass
 
 
-class QMCFuncs(QMCFuncsBase):
+class QMCFuncsBase(abc.QMCFuncsBase):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical
     functions to realize a Quantum Monte Carlo calculation for a QMC model
     with a trial-wave function of the Bijl-Jastrow type.
