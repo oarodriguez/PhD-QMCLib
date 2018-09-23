@@ -9,12 +9,17 @@ from numba import jit
 from thesis_lib.ideal import eigen_energy
 from thesis_lib.qmc_lib import jastrow
 from thesis_lib.utils import cached_property
-from . import trial_funcs as tf
-from .jastrow import ModelBase, QMCFuncsBase
+from .. import trial_funcs as tf
+from ..jastrow import ModelBase, QMCFuncsBase
 
 __all__ = [
+    'ArrayGUFuncBase',
+    'GUFuncBase',
     'Model',
-    'QMCFuncs'
+    'NOAArrayGUFuncBase',
+    'NOAScalarGUFuncBase',
+    'QMCFuncs',
+    'ScalarGUFuncBase'
 ]
 
 # Some alias..
