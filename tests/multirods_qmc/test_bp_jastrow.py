@@ -59,19 +59,3 @@ def test_update_params():
     model.update_var_params(var_params)
     pdf_params = model.wf_params
     print(correct_params, pdf_params)
-
-
-def test_strict_model():
-    """
-
-    :return:
-    """
-    with pytest.raises(ValueError):
-        bp_jastrow.StrictModel(correct_params, None)
-
-    var_params = dict(tbf_contact_cutoff=rm)
-    model = bp_jastrow.StrictModel(correct_params, var_params)
-
-    with pytest.raises(AttributeError):
-        model.update_params(correct_params)
-        model.update_params(var_params)

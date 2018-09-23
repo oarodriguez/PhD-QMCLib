@@ -9,7 +9,6 @@ from . import jastrow, trial_funcs as tf
 
 __all__ = [
     'Model',
-    'StrictModel',
     'QMCFuncs'
 ]
 
@@ -87,11 +86,6 @@ class Model(jastrow.ModelBase):
             ('tbf_contact_cutoff', (5e-3, (0.5 - 5e-3) * sc_size))
         ]
         return OrderedDict(bounds)
-
-
-class StrictModel(Model, jastrow.StrictModelBase):
-    """"""
-    pass
 
 
 class QMCFuncs(jastrow.QMCFuncs):

@@ -9,7 +9,6 @@ from thesis_lib.utils import cached_property
 __all__ = [
     'QMCFuncs',
     'ModelBase',
-    'StrictModelBase',
     'potential_func'
 ]
 
@@ -85,12 +84,6 @@ class ModelBase(model.ModelBase, metaclass=ABCMeta):
             return True
         else:
             return False
-
-
-class StrictModelBase(ModelBase, model.StrictModelBase,
-                      metaclass=ABCMeta):
-    """"""
-    pass
 
 
 class QMCFuncs(model.QMCFuncs, metaclass=ABCMeta):

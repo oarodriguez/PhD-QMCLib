@@ -1,4 +1,4 @@
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
 from typing import Mapping as TMapping
@@ -15,7 +15,6 @@ __all__ = [
     'QMCFuncs',
     'ModelBase',
     'ParamsSlots',
-    'StrictModelBase',
     'BosonConfSlots',
     'SysConfDistType'
 ]
@@ -73,8 +72,6 @@ class ModelBase(QMCModelBase):
     """Abstract Base Class that represents a Quantum Monte Carlo model
     with a trial-wave function of the Bijl-Jastrow type.
     """
-
-    FN = ModelFN
 
     SysConfDistType = SysConfDistType
 
@@ -257,39 +254,6 @@ class ModelBase(QMCModelBase):
         pass
 
 
-class StrictModelBase(ModelBase, metaclass=ABCMeta):
-    """"""
-
-    def __init__(self, params: TMapping[str, float],
-                 var_params: TMapping[str, float]):
-        """
-
-        :param params:
-        :param var_params:
-        """
-        if var_params is None:
-            raise ValueError("var_params must be a mapping-like object")
-
-        super().__init__(params, var_params)
-
-    @property
-    def params(self):
-        """"""
-        return super().params
-
-    def update_params(self, value):
-        """"""
-        raise AttributeError("cant't change params")
-
-    @property
-    def var_params(self):
-        return super().var_params
-
-    def update_var_params(self, params=None):
-        """"""
-        raise AttributeError("can't change var_params")
-
-
 class QMCFuncs(QMCFuncsBase):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical
     functions to realize a Quantum Monte Carlo calculation for a QMC model
@@ -337,7 +301,7 @@ class QMCFuncs(QMCFuncsBase):
 
         return _boundaries
 
-    @cached_property
+    @property
     @abstractmethod
     def is_free(self):
         """"""
@@ -350,7 +314,7 @@ class QMCFuncs(QMCFuncsBase):
 
         return _is_free
 
-    @cached_property
+    @property
     @abstractmethod
     def is_ideal(self):
         """"""
@@ -808,7 +772,6 @@ class QMCFuncs(QMCFuncsBase):
         one_body_func_log_dz2 = self.one_body_func_log_dz2
         two_body_func_log_dz2 = self.two_body_func_log_dz2
 
-        # noinspection PyUnusedLocal
         @jit(nopython=True, cache=True)
         def _ith_energy(i_, sys_conf,
                         func_params,
