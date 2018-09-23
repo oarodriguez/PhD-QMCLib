@@ -26,6 +26,7 @@ class BosonConfSlots(IntEnum):
     """"""
     POS_SLOT = 0
     DRIFT_SLOT = 1
+    ENERGY_SLOT = 2
 
 
 class SysConfDistType(Enum):
@@ -401,7 +402,7 @@ class QMCFuncs(QMCFuncsBase):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -520,7 +521,7 @@ class QMCFuncs(QMCFuncsBase):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -587,7 +588,7 @@ class QMCFuncs(QMCFuncsBase):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -649,24 +650,23 @@ class QMCFuncs(QMCFuncsBase):
         return _ith_drift
 
     @cached_property
-    def ith_drift_to_buffer(self):
+    def drift(self):
         """
 
         :return:
         """
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
-        drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        drift_slot = int(self.BosonConfSlots.DRIFT_SLOT)
         ith_drift = self.ith_drift
 
         @jit(nopython=True, cache=True)
-        def _ith_drift_to_buffer(i_, sys_conf,
-                                 model_params,
-                                 obf_params,
-                                 tbf_params,
-                                 result):
+        def _drift(sys_conf,
+                   model_params,
+                   obf_params,
+                   tbf_params,
+                   result):
             """
 
-            :param i_:
             :param sys_conf:
             :param model_params:
             :param obf_params:
@@ -674,11 +674,19 @@ class QMCFuncs(QMCFuncsBase):
             :param result:
             :return:
             """
-            result[pos_slot, i_] = sys_conf[pos_slot, i_]
-            result[drift_slot, i_] = ith_drift(i_, sys_conf, model_params,
-                                               obf_params, tbf_params)
+            nop = sys_conf.shape[BOSON_INDEX_DIM]
 
-        return _ith_drift_to_buffer
+            # Set the position first
+            for i_ in range(nop):
+                result[pos_slot, i_] = sys_conf[pos_slot, i_]
+
+            # Set the drift later.
+            for i_ in range(nop):
+                result[drift_slot, i_] = ith_drift(i_, sys_conf,
+                                                   model_params,
+                                                   obf_params, tbf_params)
+
+        return _drift
 
     @cached_property
     def delta_ith_drift_kth_move(self):
@@ -689,7 +697,7 @@ class QMCFuncs(QMCFuncsBase):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -786,8 +794,8 @@ class QMCFuncs(QMCFuncsBase):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
-        drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        # drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -860,13 +868,10 @@ class QMCFuncs(QMCFuncsBase):
 
             # Accumulate to the drift velocity squared magnitude.
             ith_drift_mag = ith_drift ** 2
-            kin_energy -= ith_drift_mag
-
             # Save the drift and avoid extra work.
-            # TODO: We need a better way to store and handle this data.
-            sys_conf[drift_slot, i_] = ith_drift
+            # sys_conf[drift_slot, i_] = ith_drift
 
-            return kin_energy + pot_energy
+            return kin_energy - ith_drift_mag + pot_energy
 
         return _ith_energy
 
@@ -904,15 +909,104 @@ class QMCFuncs(QMCFuncsBase):
         return _energy
 
     @cached_property
-    def energy_to_buffer(self):
+    def ith_energy_and_drift(self):
         """
 
         :return:
         """
-        energy = self.energy
+        is_free = self.is_free
+        is_ideal = self.is_ideal
+        supercell_size = self.supercell_size
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+
+        potential = self.potential
+        one_body_func_log_dz = self.one_body_func_log_dz
+        two_body_func_log_dz = self.two_body_func_log_dz
+        one_body_func_log_dz2 = self.one_body_func_log_dz2
+        two_body_func_log_dz2 = self.two_body_func_log_dz2
 
         @jit(nopython=True, cache=True)
-        def _energy_to_buffer(sys_conf,
+        def _ith_energy_and_drift(i_, sys_conf,
+                                  func_params,
+                                  model_params,
+                                  obf_params,
+                                  tbf_params):
+            """Computes the local energy for a given configuration of the
+            position of the bodies. The kinetic energy of the hamiltonian is
+            computed through central finite differences.
+
+            :param i_:
+            :param sys_conf: The current configuration of the positions of the
+                   particles.
+            :param func_params:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
+            :return: The local energy.
+            """
+
+            if is_free(model_params) and is_ideal(model_params):
+                return 0.
+
+            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            sc_size = supercell_size(model_params)
+
+            # Unpack the parameters.
+            kin_energy = 0.
+            pot_energy = 0
+            ith_drift = 0.
+
+            if not is_free(model_params):
+                # Case with external potential.
+                z_i = sys_conf[pos_slot, i_]
+                ob_fn_ldz2 = one_body_func_log_dz2(z_i, *obf_params)
+                ob_fn_ldz = one_body_func_log_dz(z_i, *obf_params)
+
+                kin_energy += (-ob_fn_ldz2 + ob_fn_ldz ** 2)
+                pot_energy += potential(z_i, *func_params)
+                ith_drift += ob_fn_ldz
+
+            if not is_ideal(model_params):
+                # Case with interactions.
+                z_i = sys_conf[pos_slot, i_]
+
+                for j_ in range(nop):
+                    # Do not account diagonal terms.
+                    if j_ == i_:
+                        continue
+
+                    z_j = sys_conf[pos_slot, j_]
+                    z_ij = min_distance(z_i, z_j, sc_size)
+                    sgn = sign(z_ij)
+
+                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij),
+                                                       *tbf_params)
+                    tb_fn_ldz = two_body_func_log_dz(fabs(z_ij),
+                                                     *tbf_params) * sgn
+
+                    kin_energy += (-tb_fn_ldz2 + tb_fn_ldz ** 2)
+                    ith_drift += tb_fn_ldz
+
+            # Evaluate drift velocity squared magnitude.
+            ith_drift_mag = ith_drift ** 2
+            ith_energy = kin_energy - ith_drift_mag + pot_energy
+
+            return ith_energy, ith_drift
+
+        return _ith_energy_and_drift
+
+    @cached_property
+    def energy_and_drift(self):
+        """
+
+        :return:
+        """
+        drift_slot = int(self.BosonConfSlots.DRIFT_SLOT)
+        energy_slot = int(self.BosonConfSlots.ENERGY_SLOT)
+        ith_energy_and_drift = self.ith_energy_and_drift
+
+        @jit(nopython=True, cache=True)
+        def _energy_and_drift(sys_conf,
                               func_params,
                               model_params,
                               obf_params,
@@ -928,10 +1022,18 @@ class QMCFuncs(QMCFuncsBase):
             :param tbf_params:
             :param result:
             """
-            result[0] = energy(sys_conf, func_params, model_params, obf_params,
-                               tbf_params)
+            nop = sys_conf.shape[BOSON_INDEX_DIM]
 
-        return _energy_to_buffer
+            for i_ in range(nop):
+                ith_energy, ith_drift = ith_energy_and_drift(sys_conf,
+                                                             func_params,
+                                                             model_params,
+                                                             obf_params,
+                                                             tbf_params)
+                result[drift_slot, i_] = ith_drift
+                result[energy_slot, i_] = ith_energy
+
+        return _energy_and_drift
 
     @cached_property
     def ith_one_body_density(self):
@@ -942,7 +1044,7 @@ class QMCFuncs(QMCFuncsBase):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -974,7 +1076,7 @@ class QMCFuncs(QMCFuncsBase):
             # divided by the wave function with the particles evaluated
             # in their original positions. To improve statistics, we
             # average over all possible particle displacements.
-            ith_obd = 0.
+            ith_obd_log = 0.
             nop = sys_conf.shape[BOSON_INDEX_DIM]
             sc_size = supercell_size(model_params)
             sz, = func_params
@@ -986,7 +1088,7 @@ class QMCFuncs(QMCFuncsBase):
 
                 ob_fn = one_body_func(z_i, *obf_params)
                 ob_fn_sft = one_body_func(z_i_sft, *obf_params)
-                ith_obd += (log(ob_fn_sft) - log(ob_fn))
+                ith_obd_log += (log(ob_fn_sft) - log(ob_fn))
 
             if not is_ideal(model_params):
                 # Interacting gas.
@@ -1006,9 +1108,9 @@ class QMCFuncs(QMCFuncsBase):
                     z_ij = min_distance(z_i_sft, z_j, sc_size)
                     tb_fn_shift = two_body_func(fabs(z_ij), *tbf_params)
 
-                    ith_obd += (log(tb_fn_shift) - log(tb_fn))
+                    ith_obd_log += (log(tb_fn_shift) - log(tb_fn))
 
-            return exp(ith_obd)
+            return exp(ith_obd_log)
 
         return _ith_one_body_density
 
@@ -1049,45 +1151,12 @@ class QMCFuncs(QMCFuncsBase):
         return _one_body_density
 
     @cached_property
-    def one_body_density_to_buffer(self):
-        """
-
-        :return:
-        """
-        one_body_density = self.one_body_density
-
-        @jit(nopython=True, cache=True)
-        def _one_body_density_to_buffer(sys_conf,
-                                        func_params,
-                                        model_params,
-                                        obf_params,
-                                        tbf_params,
-                                        result):
-            """Computes the logarithm of the local one-body density matrix
-            for a given configuration of the position of the bodies and for a
-            specified particle index.
-
-            :param sys_conf:
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
-            :param result:
-            :return:
-            """
-            result[0] = one_body_density(sys_conf, func_params,
-                                         model_params, obf_params,
-                                         tbf_params)
-
-        return _one_body_density_to_buffer
-
-    @cached_property
     def structure_factor(self):
         """
 
         :return:
         """
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.BosonConfSlots.POS_SLOT)
 
         # noinspection PyUnusedLocal
         @jit(nopython=True, cache=True)

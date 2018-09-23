@@ -122,12 +122,22 @@ class QMCFuncsBase(Cached, metaclass=QMCFuncsMeta):
 
     @property
     @abstractmethod
+    def drift(self):
+        pass
+
+    @property
+    @abstractmethod
     def delta_ith_drift_kth_move(self):
         pass
 
     @property
     @abstractmethod
     def energy(self):
+        pass
+
+    @property
+    @abstractmethod
+    def energy_and_drift(self):
         pass
 
     @property
@@ -159,15 +169,13 @@ class QMCFuncsNames(str, Enum):
 
     I_L_E = 'ith_energy'
     L_E = 'energy'
-    L_E_BUFFER = 'energy_to_buffer'
+    I_L_E_DRIFT = 'ith_energy_and_drift'
+    L_E_DRIFT = 'energy_and_drift'
 
     I_L_OBD = 'ith_one_body_density'
     L_OBD = 'one_body_density'
-    L_OBD_BUFFER = 'one_body_density_to_buffer'
-    L_OBD_GUV = 'one_body_density_guv_func'
 
     L_SF = 'structure_factor'
-    L_SF_GUV = 'structure_factor_func_guv'
 
     L_TBC = 'two_body_correlation_func'
 
