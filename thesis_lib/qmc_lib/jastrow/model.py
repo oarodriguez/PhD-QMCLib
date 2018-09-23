@@ -292,7 +292,7 @@ class QMCFuncs(QMCFuncsBase):
 
     ParamsSlots = ParamsSlots
 
-    SysConfSlots = BosonConfSlots
+    BosonConfSlots = BosonConfSlots
 
     @cached_property
     def boson_number(self):
@@ -422,7 +422,7 @@ class QMCFuncs(QMCFuncsBase):
             :param tbf_params:
             :return:
             """
-            ith_wf_abs_log_ = 0.
+            ith_wf_abs_log = 0.
             nop = sys_conf.shape[BOSON_INDEX_DIM]
             sc_size = supercell_size(model_params)
 
@@ -430,7 +430,7 @@ class QMCFuncs(QMCFuncsBase):
                 # Gas subject to external potential.
                 z_i = sys_conf[pos_slot, i_]
                 obv = one_body_func(z_i, *obf_params)
-                ith_wf_abs_log_ += log(fabs(obv))
+                ith_wf_abs_log += log(fabs(obv))
 
             if not is_ideal(model_params):
                 # Gas with interactions.
@@ -440,9 +440,9 @@ class QMCFuncs(QMCFuncsBase):
                     z_ij = min_distance(z_i, z_j, sc_size)
                     tbv = two_body_func(fabs(z_ij), *tbf_params)
 
-                    ith_wf_abs_log_ += log(fabs(tbv))
+                    ith_wf_abs_log += log(fabs(tbv))
 
-            return ith_wf_abs_log_
+            return ith_wf_abs_log
 
         return _ith_wf_abs_log
 
@@ -470,16 +470,16 @@ class QMCFuncs(QMCFuncsBase):
             :param tbf_params:
             :return:
             """
-            wf_abs_log_ = 0.
+            wf_abs_log = 0.
             nop = sys_conf.shape[BOSON_INDEX_DIM]
 
             if is_free(model_params) and is_ideal(model_params):
-                return wf_abs_log_
+                return wf_abs_log
 
             for i_ in range(nop):
-                wf_abs_log_ += ith_wf_abs_log(i_, sys_conf, model_params,
-                                              obf_params, tbf_params)
-            return wf_abs_log_
+                wf_abs_log += ith_wf_abs_log(i_, sys_conf, model_params,
+                                             obf_params, tbf_params)
+            return wf_abs_log
 
         return _wf_abs_log
 
@@ -713,12 +713,12 @@ class QMCFuncs(QMCFuncsBase):
             :param tbf_params:
             :return:
             """
-            ith_drift = 0.
+            delta_ith_drift = 0.
             nop = sys_conf.shape[BOSON_INDEX_DIM]
             sc_size = supercell_size(model_params)
 
             if is_free(model_params) and is_ideal(model_params):
-                return ith_drift
+                return delta_ith_drift
 
             z_k_delta, = func_params
             z_k = sys_conf[pos_slot, k_]
@@ -727,7 +727,7 @@ class QMCFuncs(QMCFuncsBase):
             if i_ != k_:
                 #
                 if is_ideal(model_params):
-                    return ith_drift
+                    return delta_ith_drift
 
                 z_i = sys_conf[pos_slot, i_]
                 z_ki_upd = min_distance(z_k_upd, z_i, sc_size)
@@ -742,15 +742,15 @@ class QMCFuncs(QMCFuncsBase):
                 ob_fn_ldz_upd = two_body_func_log_dz(fabs(z_ki_upd),
                                                      *tbf_params) * sgn
 
-                ith_drift += -(ob_fn_ldz_upd - ob_fn_ldz)
-                return ith_drift
+                delta_ith_drift += -(ob_fn_ldz_upd - ob_fn_ldz)
+                return delta_ith_drift
 
             if not is_free(model_params):
                 #
                 ob_fn_ldz = one_body_func_log_dz(z_k, *obf_params)
                 ob_fn_ldz_upd = one_body_func_log_dz(z_k_upd, *obf_params)
 
-                ith_drift += ob_fn_ldz_upd - ob_fn_ldz
+                delta_ith_drift += ob_fn_ldz_upd - ob_fn_ldz
 
             if not is_ideal(model_params):
                 # Gas with interactions.
@@ -771,9 +771,9 @@ class QMCFuncs(QMCFuncsBase):
                     tb_fn_ldz_upd = two_body_func_log_dz(fabs(z_kj_upd),
                                                          *tbf_params) * sgn
 
-                    ith_drift += (tb_fn_ldz_upd - tb_fn_ldz)
+                    delta_ith_drift += (tb_fn_ldz_upd - tb_fn_ldz)
 
-            return ith_drift
+            return delta_ith_drift
 
         return _delta_ith_drift_kth_move
 
@@ -825,7 +825,7 @@ class QMCFuncs(QMCFuncsBase):
             # Unpack the parameters.
             kin_energy = 0.
             pot_energy = 0
-            drift = 0.
+            ith_drift = 0.
 
             if not is_free(model_params):
                 # Case with external potential.
@@ -835,7 +835,7 @@ class QMCFuncs(QMCFuncsBase):
 
                 kin_energy += (-ob_fn_ldz2 + ob_fn_ldz ** 2)
                 pot_energy += potential(z_i, *func_params)
-                drift += ob_fn_ldz
+                ith_drift += ob_fn_ldz
 
             if not is_ideal(model_params):
                 # Case with interactions.
@@ -856,15 +856,15 @@ class QMCFuncs(QMCFuncsBase):
                                                      *tbf_params) * sgn
 
                     kin_energy += (-tb_fn_ldz2 + tb_fn_ldz ** 2)
-                    drift += tb_fn_ldz
+                    ith_drift += tb_fn_ldz
 
             # Accumulate to the drift velocity squared magnitude.
-            drift_mag = drift ** 2
-            kin_energy -= drift_mag
+            ith_drift_mag = ith_drift ** 2
+            kin_energy -= ith_drift_mag
 
             # Save the drift and avoid extra work.
             # TODO: We need a better way to store and handle this data.
-            sys_conf[drift_slot, i_] = drift
+            sys_conf[drift_slot, i_] = ith_drift
 
             return kin_energy + pot_energy
 
@@ -893,13 +893,13 @@ class QMCFuncs(QMCFuncsBase):
             :param tbf_params:
             :return:
             """
-            energy_ = 0.
+            energy = 0.
             nop = sys_conf.shape[BOSON_INDEX_DIM]
 
             for i_ in range(nop):
-                energy_ += ith_energy(i_, sys_conf, func_params, model_params,
-                                      obf_params, tbf_params)
-            return energy_
+                energy += ith_energy(i_, sys_conf, func_params, model_params,
+                                     obf_params, tbf_params)
+            return energy
 
         return _energy
 
@@ -974,7 +974,7 @@ class QMCFuncs(QMCFuncsBase):
             # divided by the wave function with the particles evaluated
             # in their original positions. To improve statistics, we
             # average over all possible particle displacements.
-            local_obd = 0.
+            ith_obd = 0.
             nop = sys_conf.shape[BOSON_INDEX_DIM]
             sc_size = supercell_size(model_params)
             sz, = func_params
@@ -986,7 +986,7 @@ class QMCFuncs(QMCFuncsBase):
 
                 ob_fn = one_body_func(z_i, *obf_params)
                 ob_fn_sft = one_body_func(z_i_sft, *obf_params)
-                local_obd += (log(ob_fn_sft) - log(ob_fn))
+                ith_obd += (log(ob_fn_sft) - log(ob_fn))
 
             if not is_ideal(model_params):
                 # Interacting gas.
@@ -1006,9 +1006,9 @@ class QMCFuncs(QMCFuncsBase):
                     z_ij = min_distance(z_i_sft, z_j, sc_size)
                     tb_fn_shift = two_body_func(fabs(z_ij), *tbf_params)
 
-                    local_obd += (log(tb_fn_shift) - log(tb_fn))
+                    ith_obd += (log(tb_fn_shift) - log(tb_fn))
 
-            return exp(local_obd)
+            return exp(ith_obd)
 
         return _ith_one_body_density
 
