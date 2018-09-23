@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 from thesis_lib.multirods_qmc import bp_jastrow
 
@@ -59,3 +60,49 @@ def test_update_params():
     model.update_var_params(var_params)
     pdf_params = model.wf_params
     print(correct_params, pdf_params)
+
+
+def test_qmc_funcs():
+    """"""
+    new_params = dict(correct_params)
+    var_params = dict(tbf_contact_cutoff=rm)
+
+    # We have an ideal system...
+    new_params['interaction_strength'] = 0.
+    model = bp_jastrow.Model(new_params, var_params)
+    qmc_funcs = bp_jastrow.QMCFuncs()
+
+    # Generate a random configuration, pick the model parameters.
+    sys_conf = model.init_get_sys_conf()
+    model_params = model.params
+    obf_params, tbf_params = model.wf_params
+    energy_params = model.energy_params
+
+    # Testing a scalar function with own arguments
+    energy_func = qmc_funcs.energy
+    energy_v = energy_func(sys_conf, energy_params, model_params, obf_params,
+                           tbf_params)
+
+    # Testing an array function with no own arguments
+    drift = qmc_funcs.drift
+    out_sys_conf = sys_conf.copy()
+    drift(sys_conf, model_params, obf_params, tbf_params, out_sys_conf)
+
+    epp = energy_v / nop
+    print("The energy per particle is: {:.6g}".format(epp))
+
+    drift_values = out_sys_conf[model.BosonConfSlots.DRIFT_SLOT, :]
+    print("The drift is: {}".format(drift_values))
+
+    # Testing that the array function do not modify its inputs
+    in_pos_values = sys_conf[model.BosonConfSlots.POS_SLOT, :]
+    out_pos_values = out_sys_conf[model.BosonConfSlots.POS_SLOT, :]
+    assert np.alltrue(out_pos_values == in_pos_values)
+
+    with pytest.raises(AssertionError):
+        # Testing that the array function modified the output array
+        # where expected.
+        in_pos_values = sys_conf[model.BosonConfSlots.DRIFT_SLOT, :]
+        out_pos_values = out_sys_conf[model.BosonConfSlots.DRIFT_SLOT, :]
+        assert np.alltrue(out_pos_values == in_pos_values)
+
