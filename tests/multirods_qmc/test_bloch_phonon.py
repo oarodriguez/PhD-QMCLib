@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numba import jit
 
-from thesis_lib.multirods_qmc import bp_jastrow
+from thesis_lib.multirods_qmc import bloch_phonon
 
 v0, r, gn = 100, 1, 1
 nop = 100
@@ -23,17 +23,17 @@ def test_init():
     with pytest.raises(KeyError):
         # Extra parameter. This will fail.
         params = dict(correct_params, extra_param=True)
-        bp_jastrow.Model(params)
+        bloch_phonon.Model(params)
 
     with pytest.raises(KeyError):
         # Missing parameter. This will fail too.
         params = dict(correct_params)
         params.pop('boson_number')
-        bp_jastrow.Model(params)
+        bloch_phonon.Model(params)
 
     # With and without initial variational parameters
-    bp_jastrow.Model(correct_params)
-    bp_jastrow.Model(correct_params, var_params={})
+    bloch_phonon.Model(correct_params)
+    bloch_phonon.Model(correct_params, var_params={})
 
 
 def test_update_params():
@@ -41,7 +41,7 @@ def test_update_params():
 
     :return:
     """
-    model = bp_jastrow.Model(correct_params)
+    model = bloch_phonon.Model(correct_params)
     with pytest.raises(KeyError):
         # Extra parameter. This will fail.
         new_params = dict(correct_params, extra_param=True)
@@ -56,17 +56,17 @@ def test_update_params():
     assert model.params[model.ParamsSlots.BOSON_NUMBER] == nop
 
     # This will pass...
-    model = bp_jastrow.Model(correct_params)
+    model = bloch_phonon.Model(correct_params)
     var_params = dict(tbf_contact_cutoff=rm)
     model.update_var_params(var_params)
 
 
-class WFGUFunc(bp_jastrow.NOAScalarGUFuncBase):
+class WFGUFunc(bloch_phonon.NOAScalarGUFuncBase):
     """"""
     pass
 
 
-class EnergyGUFunc(bp_jastrow.ScalarGUFuncBase):
+class EnergyGUFunc(bloch_phonon.ScalarGUFuncBase):
     """"""
 
     @property
@@ -93,8 +93,8 @@ def test_qmc_funcs():
 
     # We have an ideal system...
     new_params['interaction_strength'] = 0.
-    model = bp_jastrow.Model(new_params, var_params)
-    qmc_funcs = bp_jastrow.QMCFuncs()
+    model = bloch_phonon.Model(new_params, var_params)
+    qmc_funcs = bloch_phonon.QMCFuncs()
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model.init_get_sys_conf()
@@ -133,12 +133,12 @@ def test_qmc_funcs():
 
 def test_gufunc():
     """Testing the behavior of the generalized universal functions."""
-    
+
     new_params = dict(correct_params)
     var_params = dict(tbf_contact_cutoff=rm)
 
-    model = bp_jastrow.Model(new_params, var_params)
-    qmc_funcs = bp_jastrow.QMCFuncs()
+    model = bloch_phonon.Model(new_params, var_params)
+    qmc_funcs = bloch_phonon.QMCFuncs()
 
     # Generate a random configuration, pick the model parameters.
     model_params = model.params
