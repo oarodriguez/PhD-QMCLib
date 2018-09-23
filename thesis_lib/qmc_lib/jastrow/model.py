@@ -23,7 +23,11 @@ __all__ = [
 
 @unique
 class BosonConfSlots(IntEnum):
-    """"""
+    """Slots to store the configuration of a single particle."""
+
+    # NOTE: We have added an slot to store the energy
+    # It is very convenient, for instance, in Diffusion Monte Carlo
+    # calculations.
     POS_SLOT = 0
     DRIFT_SLOT = 1
     ENERGY_SLOT = 2
@@ -37,7 +41,8 @@ class SysConfDistType(Enum):
 
 @unique
 class ParamsSlots(IntEnum):
-    """"""
+    """Slots to enumerate the parameters that define a
+    QMC ``ModelBase``."""
 
     BOSON_NUMBER = 0  # Value does not matter here
     SUPERCELL_SIZE = 1  # Value does not matter here
