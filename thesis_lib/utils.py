@@ -4,7 +4,10 @@ from datetime import datetime
 from itertools import product
 from multiprocessing import current_process
 from time import time
-from typing import Dict, ItemsView, Iterable, Sequence, Tuple, TypeVar, Union
+from typing import (
+    Dict, ItemsView, Iterable, Mapping, MutableMapping, Sequence, Tuple,
+    TypeVar, Union
+)
 
 import numpy as np
 from decorator import contextmanager
@@ -255,3 +258,26 @@ def get_random_rng_seed():
     )
 
     return np.random.randint(0, high=i32_max - 1, dtype=np.int64)
+
+
+def strict_update(obj: MutableMapping,
+                  mapping: Union[Mapping, Sequence, ItemsView],
+                  full: bool = False):
+    """Updates ``obj`` with the items in ``mapping``. Raises ``KeyError``
+    if an item in ``mapping`` is not in ``obj``. If ``full = True``, the
+    update process expect that all the items of ``obj`` are in ``mapping``.
+    """
+    items = {}
+    mapping = dict(mapping)
+    remaining = mapping.keys() - obj.keys()
+    if remaining:
+        raise KeyError("{}".format(remaining))
+    for name in obj:
+        if name not in mapping:
+            if full:
+                raise KeyError("{}".format(name))
+            else:
+                continue
+        else:
+            items[name] = mapping[name]
+    obj.update(items)
