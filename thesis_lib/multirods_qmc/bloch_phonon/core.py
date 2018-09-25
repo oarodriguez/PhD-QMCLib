@@ -6,27 +6,25 @@ from math import sqrt
 
 from numba import jit
 
-from thesis_lib.ideal import eigen_energy
-from thesis_lib.qmc_lib import jastrow
+from thesis_lib import ideal, qmc_lib
 from thesis_lib.utils import cached_property
-from .. import trial_funcs as tf
-from ..jastrow import ModelBase, QMCFuncsBase
+from .. import jastrow, trial_funcs as tf
 
 __all__ = [
-    'ArrayGUFuncBase',
-    'GUFuncBase',
+    'ArrayGUFunc',
+    'GUFunc',
     'Model',
-    'NOAArrayGUFuncBase',
-    'NOAScalarGUFuncBase',
+    'NOAArrayGUFunc',
+    'NOAScalarGUFunc',
     'QMCFuncs',
-    'ScalarGUFuncBase'
+    'ScalarGUFunc'
 ]
 
 # Some alias..
 _two_body_func_params = tf.two_body_func_match_params
 
 
-class Model(ModelBase):
+class Model(jastrow.Model):
     """Concrete implementation of a QMC model with a trial wave function
     of the Bijl-Jastrow type and type :class:`jastrow.Model`.
     """
@@ -40,7 +38,7 @@ class Model(ModelBase):
         v0 = self.lattice_depth
         r = self.lattice_ratio
 
-        e0 = float(eigen_energy(v0, r))
+        e0 = float(ideal.eigen_energy(v0, r))
         k1, kp1 = sqrt(e0), sqrt(v0 - e0)
         return v0, r, e0, k1, kp1
 
@@ -98,7 +96,7 @@ class Model(ModelBase):
         return OrderedDict(bounds)
 
 
-class QMCFuncs(QMCFuncsBase):
+class QMCFuncs(jastrow.QMCFuncs):
     """"""
 
     def __init__(self):
@@ -154,7 +152,7 @@ class QMCFuncs(QMCFuncsBase):
         return tf.phonon_two_body_func_log_dz2
 
 
-class GUFuncBase(jastrow.BaseGUFuncBase, metaclass=ABCMeta):
+class GUFunc(qmc_lib.jastrow.BaseGUFunc, metaclass=ABCMeta):
     """A generalized universal function interface for compatible functions
     with the Bijl-Jastrow QMC model.
     """
@@ -204,9 +202,7 @@ class GUFuncBase(jastrow.BaseGUFuncBase, metaclass=ABCMeta):
         return _as_model_args
 
 
-class ScalarGUFuncBase(GUFuncBase,
-                       jastrow.ScalarGUFuncBase,
-                       metaclass=ABCMeta):
+class ScalarGUFunc(GUFunc, qmc_lib.jastrow.ScalarGUFunc, metaclass=ABCMeta):
     """"""
 
     def __init__(self, base_func, target=None):
@@ -218,9 +214,7 @@ class ScalarGUFuncBase(GUFuncBase,
         super().__init__(base_func, signatures, layout, target)
 
 
-class ArrayGUFuncBase(GUFuncBase,
-                      jastrow.ArrayGUFuncBase,
-                      metaclass=ABCMeta):
+class ArrayGUFunc(GUFunc, qmc_lib.jastrow.ArrayGUFunc, metaclass=ABCMeta):
     """"""
 
     def __init__(self, base_func, target=None):
@@ -232,9 +226,8 @@ class ArrayGUFuncBase(GUFuncBase,
         super().__init__(base_func, signatures, layout, target)
 
 
-class NOAScalarGUFuncBase(GUFuncBase,
-                          jastrow.NOAScalarGUFuncBase,
-                          metaclass=ABCMeta):
+class NOAScalarGUFunc(GUFunc, qmc_lib.jastrow.NOAScalarGUFunc,
+                      metaclass=ABCMeta):
     """"""
 
     def __init__(self, base_func, target=None):
@@ -246,9 +239,7 @@ class NOAScalarGUFuncBase(GUFuncBase,
         super().__init__(base_func, signatures, layout, target)
 
 
-class NOAArrayGUFuncBase(GUFuncBase,
-                         jastrow.ArrayGUFuncBase,
-                         metaclass=ABCMeta):
+class NOAArrayGUFunc(GUFunc, qmc_lib.jastrow.ArrayGUFunc, metaclass=ABCMeta):
     """"""
 
     def __init__(self, base_func, target=None):

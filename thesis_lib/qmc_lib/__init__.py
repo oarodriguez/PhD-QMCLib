@@ -4,3 +4,4 @@
 
     Main package for Quantum Monte Carlo routines.
 """
+from . import jastrow

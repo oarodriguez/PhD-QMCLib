@@ -5,16 +5,16 @@ import numpy as np
 from numba import guvectorize, jit
 
 from thesis_lib.utils import cached_property
-from . import abc as abc_
+from . import abc as qmc_lib_abc
 
 __all__ = [
-    'ArrayGUFuncBase',
-    'GUFuncBase',
-    'ScalarGUFuncBase'
+    'ArrayGUFunc',
+    'GUFunc',
+    'ScalarGUFunc'
 ]
 
 
-class GUFuncBase(abc_.GUFuncBase, metaclass=ABCMeta):
+class GUFunc(qmc_lib_abc.GUFunc, metaclass=ABCMeta):
     """"""
 
     def __call__(self, sys_conf: np.ndarray,
@@ -32,7 +32,7 @@ class GUFuncBase(abc_.GUFuncBase, metaclass=ABCMeta):
         return self.core_func(sys_conf, func_params, result)
 
 
-class ScalarGUFuncBase(GUFuncBase, metaclass=ABCMeta):
+class ScalarGUFunc(GUFunc, metaclass=ABCMeta):
     """Generalized universal function interface for functions that
     evaluate a scalar property over a system configuration.
     """
@@ -69,7 +69,7 @@ class ScalarGUFuncBase(GUFuncBase, metaclass=ABCMeta):
         return _core_func
 
 
-class ArrayGUFuncBase(GUFuncBase, metaclass=ABCMeta):
+class ArrayGUFunc(GUFunc, metaclass=ABCMeta):
     """Generalized universal function interface for functions that
     evaluate an "array" (non-scalar) property over a system configuration.
     """

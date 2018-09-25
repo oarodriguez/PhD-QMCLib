@@ -61,12 +61,12 @@ def test_update_params():
     model.update_var_params(var_params)
 
 
-class WFGUFunc(bloch_phonon.NOAScalarGUFuncBase):
+class WFGUFunc(bloch_phonon.NOAScalarGUFunc):
     """"""
     pass
 
 
-class EnergyGUFunc(bloch_phonon.ScalarGUFuncBase):
+class EnergyGUFunc(bloch_phonon.ScalarGUFunc):
     """"""
 
     @property

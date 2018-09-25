@@ -6,22 +6,22 @@ from typing import Callable as TCallable, Sequence
 from thesis_lib.utils import Cached, CachedMeta
 
 __all__ = [
-    'GUFuncBase',
-    'GUFuncBaseMeta',
-    'QMCFuncsBase',
+    'GUFunc',
+    'GUFuncMeta',
+    'Model',
+    'ModelMeta',
+    'QMCFuncs',
     'QMCFuncsMeta',
-    'QMCFuncsNames',
-    'QMCModelBase',
-    'QMCModelMeta'
+    'QMCFuncsNames'
 ]
 
 
-class QMCModelMeta(CachedMeta):
-    """Metaclass for :class:`QMCModelBase` abstract base class."""
+class ModelMeta(CachedMeta):
+    """Metaclass for :class:`Model` abstract base class."""
     pass
 
 
-class QMCModelBase(Cached, metaclass=QMCModelMeta):
+class Model(Cached, metaclass=ModelMeta):
     """Represents a Quantum Monte Carlo model for a physical quantum
     system. This abstract base class that defines the most common
     methods/functions used in a QMC simulation to estimate the properties
@@ -83,11 +83,11 @@ class QMCModelBase(Cached, metaclass=QMCModelMeta):
 
 
 class QMCFuncsMeta(CachedMeta):
-    """Metaclass for :class:`QMCFuncsBase` abstract base class."""
+    """Metaclass for :class:`QMCFuncs` abstract base class."""
     pass
 
 
-class QMCFuncsBase(Cached, metaclass=QMCFuncsMeta):
+class QMCFuncs(Cached, metaclass=QMCFuncsMeta):
     """"""
 
     @property
@@ -180,12 +180,12 @@ class QMCFuncsNames(str, Enum):
     L_TBC = 'two_body_correlation_func'
 
 
-class GUFuncBaseMeta(CachedMeta):
-    """Metaclass for :class:`GUFuncBase` abstract base class."""
+class GUFuncMeta(CachedMeta):
+    """Metaclass for :class:`GUFunc` abstract base class."""
     pass
 
 
-class GUFuncBase(Cached, Callable, metaclass=GUFuncBaseMeta):
+class GUFunc(Cached, Callable, metaclass=GUFuncMeta):
     """Interface to implement a callable object that behaves as
     a ``numpy`` **generalized universal function**.
     """

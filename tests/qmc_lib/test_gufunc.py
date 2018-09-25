@@ -30,7 +30,7 @@ def field_base_func(sys_conf: np.ndarray,
         result[j_] = sigma * sys_conf[j_].mean()
 
 
-class GUFuncBase(gufunc.GUFuncBase, metaclass=ABCMeta):
+class GUFunc(gufunc.GUFunc, metaclass=ABCMeta):
     """Common ABC that implements the function that retrieves the
     base function parameters.
     """
@@ -51,8 +51,8 @@ class GUFuncBase(gufunc.GUFuncBase, metaclass=ABCMeta):
         return _as_elem_func_args
 
 
-class ScalarGUFunc(GUFuncBase, gufunc.ScalarGUFuncBase):
-    """Concrete implementation of ``gufunc.ScalarGUFuncBase``."""
+class ScalarGUFunc(GUFunc, gufunc.ScalarGUFunc):
+    """Concrete implementation of ``gufunc.ScalarGUFunc``."""
 
     def __init__(self, base_func, target=None):
         """Initializer.
@@ -65,8 +65,8 @@ class ScalarGUFunc(GUFuncBase, gufunc.ScalarGUFuncBase):
         super().__init__(base_func, signatures, layout, target)
 
 
-class ArrayGUFunc(GUFuncBase, gufunc.ArrayGUFuncBase):
-    """Concrete implementation of ``gufunc.ArrayGUFuncBase``."""
+class ArrayGUFunc(GUFunc, gufunc.ArrayGUFunc):
+    """Concrete implementation of ``gufunc.ArrayGUFunc``."""
 
     def __init__(self, base_func, target=None):
         """

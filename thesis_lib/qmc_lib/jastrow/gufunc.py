@@ -4,20 +4,20 @@ import numpy as np
 from numba import guvectorize, jit
 
 from thesis_lib.utils import cached_property
-from .. import abc as qmc_lib_abc
+from .. import abc
 
 __all__ = [
-    'ArrayGUFuncBase',
-    'BaseGUFuncBase',
-    'GUFuncBase',
-    'NOAArrayGUFuncBase',
-    'NOAGUFuncBase',
-    'NOAScalarGUFuncBase',
-    'ScalarGUFuncBase'
+    'ArrayGUFunc',
+    'BaseGUFunc',
+    'GUFunc',
+    'NOAArrayGUFunc',
+    'NOAGUFunc',
+    'NOAScalarGUFunc',
+    'ScalarGUFunc'
 ]
 
 
-class BaseGUFuncBase(qmc_lib_abc.GUFuncBase):
+class BaseGUFunc(abc.GUFunc):
     """A generalized universal function interface for compatible functions
     with the Bijl-Jastrow QMC model.
     """
@@ -46,7 +46,7 @@ class BaseGUFuncBase(qmc_lib_abc.GUFuncBase):
         return self._base_func
 
 
-class GUFuncBase(BaseGUFuncBase, metaclass=ABCMeta):
+class GUFunc(BaseGUFunc, metaclass=ABCMeta):
     """"""
 
     @cached_property
@@ -82,7 +82,7 @@ class GUFuncBase(BaseGUFuncBase, metaclass=ABCMeta):
         return self.core_func(sys_conf, func_params, model_params, result)
 
 
-class ScalarGUFuncBase(GUFuncBase, metaclass=ABCMeta):
+class ScalarGUFunc(GUFunc, metaclass=ABCMeta):
     """"""
 
     @cached_property
@@ -106,7 +106,7 @@ class ScalarGUFuncBase(GUFuncBase, metaclass=ABCMeta):
         return _core_func
 
 
-class ArrayGUFuncBase(GUFuncBase, metaclass=ABCMeta):
+class ArrayGUFunc(GUFunc, metaclass=ABCMeta):
     """"""
 
     @cached_property
@@ -132,7 +132,7 @@ class ArrayGUFuncBase(GUFuncBase, metaclass=ABCMeta):
         return _core_func
 
 
-class NOAGUFuncBase(BaseGUFuncBase, metaclass=ABCMeta):
+class NOAGUFunc(BaseGUFunc, metaclass=ABCMeta):
     """A generalized universal function interface for compatible functions
     with the Bijl-Jastrow QMC model.
     """
@@ -174,7 +174,7 @@ class NOAGUFuncBase(BaseGUFuncBase, metaclass=ABCMeta):
         return self.core_func(sys_conf, model_params, result)
 
 
-class NOAScalarGUFuncBase(NOAGUFuncBase, metaclass=ABCMeta):
+class NOAScalarGUFunc(NOAGUFunc, metaclass=ABCMeta):
     """"""
 
     @cached_property
@@ -197,7 +197,7 @@ class NOAScalarGUFuncBase(NOAGUFuncBase, metaclass=ABCMeta):
         return _core_func
 
 
-class NOAArrayGUFuncBase(NOAGUFuncBase, metaclass=ABCMeta):
+class NOAArrayGUFunc(NOAGUFunc, metaclass=ABCMeta):
     """"""
 
     @cached_property

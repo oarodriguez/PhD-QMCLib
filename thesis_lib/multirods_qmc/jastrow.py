@@ -3,12 +3,12 @@ from enum import IntEnum, unique
 
 from numba import jit
 
-from thesis_lib.qmc_lib.jastrow import model
+from thesis_lib.qmc_lib import jastrow
 from thesis_lib.utils import cached_property
 
 __all__ = [
-    'ModelBase',
-    'QMCFuncsBase',
+    'Model',
+    'QMCFuncs',
     'potential_func'
 ]
 
@@ -23,7 +23,7 @@ class ParamsSlots(IntEnum):
     SUPERCELL_SIZE = 4
 
 
-class ModelBase(model.ModelBase, metaclass=ABCMeta):
+class Model(jastrow.Model, metaclass=ABCMeta):
     """"""
 
     ParamsSlots = ParamsSlots
@@ -86,7 +86,7 @@ class ModelBase(model.ModelBase, metaclass=ABCMeta):
             return False
 
 
-class QMCFuncsBase(model.QMCFuncsBase, metaclass=ABCMeta):
+class QMCFuncs(jastrow.QMCFuncs, metaclass=ABCMeta):
     """"""
 
     ParamsSlots = ParamsSlots
