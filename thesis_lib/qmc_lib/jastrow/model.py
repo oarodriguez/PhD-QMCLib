@@ -14,8 +14,8 @@ from ..utils import min_distance, sign
 __all__ = [
     'BosonConfSlots',
     'Model',
+    'ModelFuncs',
     'ParamsSlots',
-    'QMCFuncs',
     'SysConfDistType'
 ]
 
@@ -254,7 +254,7 @@ class Model(abc.Model):
         pass
 
 
-class QMCFuncs(abc.QMCFuncs):
+class ModelFuncs(abc.ModelFuncs):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical
     functions to realize a Quantum Monte Carlo calculation for a QMC model
     with a trial-wave function of the Bijl-Jastrow type.

@@ -9,9 +9,9 @@ __all__ = [
     'GUFunc',
     'GUFuncMeta',
     'Model',
+    'ModelFuncs',
+    'ModelFuncsMeta',
     'ModelMeta',
-    'QMCFuncs',
-    'QMCFuncsMeta',
     'QMCFuncsNames'
 ]
 
@@ -82,12 +82,12 @@ class Model(Cached, metaclass=ModelMeta):
         pass
 
 
-class QMCFuncsMeta(CachedMeta):
-    """Metaclass for :class:`QMCFuncs` abstract base class."""
+class ModelFuncsMeta(CachedMeta):
+    """Metaclass for :class:`ModelFuncs` abstract base class."""
     pass
 
 
-class QMCFuncs(Cached, metaclass=QMCFuncsMeta):
+class ModelFuncs(Cached, metaclass=ModelFuncsMeta):
     """"""
 
     @property

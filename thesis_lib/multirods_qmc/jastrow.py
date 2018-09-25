@@ -8,7 +8,7 @@ from thesis_lib.utils import cached_property
 
 __all__ = [
     'Model',
-    'QMCFuncs',
+    'ModelFuncs',
     'potential_func'
 ]
 
@@ -86,7 +86,7 @@ class Model(jastrow.Model, metaclass=ABCMeta):
             return False
 
 
-class QMCFuncs(jastrow.QMCFuncs, metaclass=ABCMeta):
+class ModelFuncs(jastrow.ModelFuncs, metaclass=ABCMeta):
     """"""
 
     ParamsSlots = ParamsSlots

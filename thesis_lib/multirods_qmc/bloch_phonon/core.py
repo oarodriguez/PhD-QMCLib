@@ -14,9 +14,9 @@ __all__ = [
     'ArrayGUFunc',
     'GUFunc',
     'Model',
+    'ModelFuncs',
     'NOAArrayGUFunc',
     'NOAScalarGUFunc',
-    'QMCFuncs',
     'ScalarGUFunc'
 ]
 
@@ -96,7 +96,7 @@ class Model(jastrow.Model):
         return OrderedDict(bounds)
 
 
-class QMCFuncs(jastrow.QMCFuncs):
+class ModelFuncs(jastrow.ModelFuncs):
     """"""
 
     def __init__(self):
@@ -165,7 +165,7 @@ class GUFunc(qmc_lib.jastrow.BaseGUFunc, metaclass=ABCMeta):
         def _as_model_args(model_all_params):
             """Takes the model parameters from the array, and group them
             in tuples. The constructed tuples are returned to the caller so
-            they an be user as arguments for a ``QMCFuncs`` function.
+            they an be user as arguments for a ``ModelFuncs`` function.
             """
             # TODO: Is there a better way to do this?
             v0 = model_all_params[0]
