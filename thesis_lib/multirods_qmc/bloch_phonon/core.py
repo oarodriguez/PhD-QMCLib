@@ -193,75 +193,60 @@ def _as_model_args(model_full_params):
 class ArrayGUFunc(qmc_lib.jastrow.ArrayGUFunc, metaclass=ABCMeta):
     """"""
 
+    signatures = ['void(f8[:,:],f8[:],f8[:],f8[:,:])']
+    layout = '(ns,nop),(p1),(p2)->(ns,nop)'
+
     @cached_property
     def as_model_args(self):
         """Takes the model parameters from an array."""
         return _as_model_args
 
-    def __init__(self, base_func, signatures=None, layout=None, target=None):
+    def __init__(self, base_func, target=None):
         """
 
         :param base_func:
-        :param signatures:
-        :param layout:
         :param target:
         """
-        if signatures is None:
-            signatures = [
-                'void(f8[:,:],f8[:],f8[:],f8[:,:])'
-            ]
-        if layout is None:
-            layout = '(ns,nop),(p1),(p2)->(ns,nop)'
-
-        super().__init__(base_func, signatures, layout, target)
+        super().__init__(base_func, target)
 
 
 class ScalarGUFunc(ArrayGUFunc, qmc_lib.jastrow.ScalarGUFunc,
                    metaclass=ABCMeta):
     """"""
+    signatures = ['void(f8[:,:],f8[:],f8[:],f8[:])']
+    layout = '(ns,nop),(p1),(p2)->()'
 
     def __init__(self, base_func, target=None):
         """"""
-        signatures = [
-            'void(f8[:,:],f8[:],f8[:],f8[:])'
-        ]
-        layout = '(ns,nop),(p1),(p2)->()'
-        super().__init__(base_func, signatures, layout, target)
+        super().__init__(base_func, target)
 
 
 class ArrayGUPureFunc(qmc_lib.jastrow.ArrayGUPureFunc, metaclass=ABCMeta):
     """"""
+
+    signatures = ['void(f8[:,:],f8[:],f8[:,:])']
+    layout = '(ns,nop),(p1)->(ns,nop)'
 
     @cached_property
     def as_model_args(self):
         """"""
         return _as_model_args
 
-    def __init__(self, base_func, signatures=None, layout=None, target=None):
+    def __init__(self, base_func, target=None):
         """
 
         :param base_func:
-        :param signatures:
-        :param layout:
         :param target:
         """
-        if signatures is None:
-            signatures = [
-                'void(f8[:,:],f8[:],f8[:,:])'
-            ]
-        if layout is None:
-            layout = '(ns,nop),(p1)->(ns,nop)'
-        super().__init__(base_func, signatures, layout, target)
+        super().__init__(base_func, target)
 
 
 class ScalarGUPureFunc(ArrayGUPureFunc, qmc_lib.jastrow.ScalarGUPureFunc,
                        metaclass=ABCMeta):
     """"""
+    signatures = ['void(f8[:,:],f8[:],f8[:])']
+    layout = '(ns,nop),(p1)->()'
 
     def __init__(self, base_func, target=None):
         """"""
-        signatures = [
-            'void(f8[:,:],f8[:],f8[:])'
-        ]
-        layout = '(ns,nop),(p1)->()'
-        super().__init__(base_func, signatures, layout, target)
+        super().__init__(base_func, target)

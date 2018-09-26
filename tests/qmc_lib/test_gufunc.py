@@ -32,21 +32,16 @@ def field_base_func(sys_conf: np.ndarray,
 class ArrayGUFunc(gufunc.ArrayGUFunc):
     """Concrete implementation of ``gufunc.ArrayGUFunc``."""
 
-    def __init__(self, base_func, signatures=None, layout=None,
-                 target=None):
+    signatures = ['void(f8[:,:],f8[:],f8[:,:])']
+    layout = '(ss,ns),(nf)->(ss,ns)'
+
+    def __init__(self, base_func, target=None):
         """
 
         :param base_func:
-        :param signatures:
-        :param layout:
         :param target:
         """
-        if signatures is None:
-            signatures = ['void(f8[:,:],f8[:],f8[:,:])']
-        if layout is None:
-            layout = '(ss,ns),(nf)->(ss,ns)'
-
-        super().__init__(base_func, signatures, layout, target)
+        super().__init__(base_func, target)
 
     @property
     def as_elem_func_args(self):
@@ -67,15 +62,16 @@ class ArrayGUFunc(gufunc.ArrayGUFunc):
 class ScalarGUFunc(ArrayGUFunc, gufunc.ScalarGUFunc):
     """Concrete implementation of ``gufunc.ScalarGUFunc``."""
 
+    signatures = ['void(f8[:,:],f8[:],f8[:])']
+    layout = '(ss,ns),(nf)->()'
+
     def __init__(self, base_func, target=None):
         """Initializer.
 
         :param base_func:
         :param target:
         """
-        signatures = ['void(f8[:,:],f8[:],f8[:])']
-        layout = '(ss,ns),(nf)->()'
-        super().__init__(base_func, signatures, layout, target)
+        super().__init__(base_func, target)
 
 
 def test_base_func_exec():

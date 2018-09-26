@@ -189,10 +189,12 @@ class GUFunc(Cached, Callable, metaclass=GUFuncMeta):
     """Interface to implement a callable object that behaves as
     a ``numpy`` **generalized universal function**.
     """
+    #
+    signatures: Sequence[str] = []
+    layout: str = ''
 
     def __init__(self, base_func: TCallable[..., float],
-                 signatures: Sequence[str],
-                 layout: str, target: str = None):
+                 target: str = None):
         """Initializer.
 
         :param base_func:
@@ -200,8 +202,6 @@ class GUFunc(Cached, Callable, metaclass=GUFuncMeta):
         """
         super().__init__()
         self._base_func = base_func
-        self.signatures = signatures
-        self.layout = layout
         self.target = target or 'parallel'
 
     @property
