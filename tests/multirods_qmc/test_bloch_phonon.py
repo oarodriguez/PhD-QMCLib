@@ -61,7 +61,7 @@ def test_update_params():
     model.update_var_params(var_params)
 
 
-class WFGUFunc(bloch_phonon.NOAScalarGUFunc):
+class WFGUFunc(bloch_phonon.ScalarGUPureFunc):
     """"""
     pass
 

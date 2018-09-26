@@ -12,12 +12,11 @@ from .. import jastrow, trial_funcs as tf
 
 __all__ = [
     'ArrayGUFunc',
-    'GUFunc',
+    'ArrayGUPureFunc',
     'Model',
     'ModelFuncs',
-    'NOAArrayGUFunc',
-    'NOAScalarGUFunc',
-    'ScalarGUFunc'
+    'ScalarGUFunc',
+    'ScalarGUPureFunc'
 ]
 
 # Some alias..
@@ -152,57 +151,73 @@ class ModelFuncs(jastrow.ModelFuncs):
         return tf.phonon_two_body_func_log_dz2
 
 
-class GUFunc(qmc_lib.jastrow.BaseGUFunc, metaclass=ABCMeta):
-    """A generalized universal function interface for compatible functions
-    with the Bijl-Jastrow QMC model.
+@jit(nopython=True, cache=True)
+def _as_model_args(model_full_params):
+    """Takes the model parameters from the array, and group them
+    in tuples. The constructed tuples are returned to the caller so
+    they an be user as arguments for a ``ModelFuncs`` function.
     """
+    # TODO: Is there a better way to do this?
+    v0 = model_full_params[0]
+    r = model_full_params[1]
+    gn = model_full_params[2]
+    nop = model_full_params[3]
+    sc_size = model_full_params[4]
+    model_params = v0, r, gn, nop, sc_size
 
-    @property
+    #
+    v0 = model_full_params[5]
+    r = model_full_params[6]
+    e0 = model_full_params[7]
+    k1 = model_full_params[8]
+    kp1 = model_full_params[9]
+    obf_params = v0, r, e0, k1, kp1
+
+    #
+    rm = model_full_params[10]
+    sc_size = model_full_params[11]
+    k2 = model_full_params[12]
+    beta = model_full_params[13]
+    r_off = model_full_params[14]
+    am = model_full_params[15]
+    tbf_params = rm, sc_size, k2, beta, r_off, am
+
+    # NOTICE: This way to access data may generate corrupted results.
+    # v0, r, gn, nop, sc_size = model_full_params[0:5]
+    # v0, r, e0, k1, kp1 = model_full_params[5:10]
+    # rm, scs, k2, beta, r_off, am = model_full_params[10:16]
+    #
+    return model_params, obf_params, tbf_params
+
+
+class ArrayGUFunc(qmc_lib.jastrow.ArrayGUFunc, metaclass=ABCMeta):
+    """"""
+
+    @cached_property
     def as_model_args(self):
         """Takes the model parameters from an array."""
-
-        @jit(nopython=True)
-        def _as_model_args(model_all_params):
-            """Takes the model parameters from the array, and group them
-            in tuples. The constructed tuples are returned to the caller so
-            they an be user as arguments for a ``ModelFuncs`` function.
-            """
-            # TODO: Is there a better way to do this?
-            v0 = model_all_params[0]
-            r = model_all_params[1]
-            gn = model_all_params[2]
-            nop = model_all_params[3]
-            sc_size = model_all_params[4]
-            model_params = v0, r, gn, nop, sc_size
-
-            #
-            v0 = model_all_params[5]
-            r = model_all_params[6]
-            e0 = model_all_params[7]
-            k1 = model_all_params[8]
-            kp1 = model_all_params[9]
-            obf_params = v0, r, e0, k1, kp1
-
-            #
-            rm = model_all_params[10]
-            sc_size = model_all_params[11]
-            k2 = model_all_params[12]
-            beta = model_all_params[13]
-            r_off = model_all_params[14]
-            am = model_all_params[15]
-            tbf_params = rm, sc_size, k2, beta, r_off, am
-
-            # NOTICE: This way to access data may generate corrupted results.
-            # v0, r, gn, nop, sc_size = model_all_params[0:5]
-            # v0, r, e0, k1, kp1 = model_all_params[5:10]
-            # rm, scs, k2, beta, r_off, am = model_all_params[10:16]
-            #
-            return model_params, obf_params, tbf_params
-
         return _as_model_args
 
+    def __init__(self, base_func, signatures=None, layout=None, target=None):
+        """
 
-class ScalarGUFunc(GUFunc, qmc_lib.jastrow.ScalarGUFunc, metaclass=ABCMeta):
+        :param base_func:
+        :param signatures:
+        :param layout:
+        :param target:
+        """
+        if signatures is None:
+            signatures = [
+                'void(f8[:,:],f8[:],f8[:],f8[:,:])'
+            ]
+        if layout is None:
+            layout = '(ns,nop),(p1),(p2)->(ns,nop)'
+
+        super().__init__(base_func, signatures, layout, target)
+
+
+class ScalarGUFunc(ArrayGUFunc, qmc_lib.jastrow.ScalarGUFunc,
+                   metaclass=ABCMeta):
     """"""
 
     def __init__(self, base_func, target=None):
@@ -214,20 +229,33 @@ class ScalarGUFunc(GUFunc, qmc_lib.jastrow.ScalarGUFunc, metaclass=ABCMeta):
         super().__init__(base_func, signatures, layout, target)
 
 
-class ArrayGUFunc(GUFunc, qmc_lib.jastrow.ArrayGUFunc, metaclass=ABCMeta):
+class ArrayGUPureFunc(qmc_lib.jastrow.ArrayGUPureFunc, metaclass=ABCMeta):
     """"""
 
-    def __init__(self, base_func, target=None):
+    @cached_property
+    def as_model_args(self):
         """"""
-        signatures = [
-            'void(f8[:,:],f8[:],f8[:],f8[:,:])'
-        ]
-        layout = '(ns,nop),(p1),(p2)->(ns,nop)'
+        return _as_model_args
+
+    def __init__(self, base_func, signatures=None, layout=None, target=None):
+        """
+
+        :param base_func:
+        :param signatures:
+        :param layout:
+        :param target:
+        """
+        if signatures is None:
+            signatures = [
+                'void(f8[:,:],f8[:],f8[:,:])'
+            ]
+        if layout is None:
+            layout = '(ns,nop),(p1)->(ns,nop)'
         super().__init__(base_func, signatures, layout, target)
 
 
-class NOAScalarGUFunc(GUFunc, qmc_lib.jastrow.NOAScalarGUFunc,
-                      metaclass=ABCMeta):
+class ScalarGUPureFunc(ArrayGUPureFunc, qmc_lib.jastrow.ScalarGUPureFunc,
+                       metaclass=ABCMeta):
     """"""
 
     def __init__(self, base_func, target=None):
@@ -236,16 +264,4 @@ class NOAScalarGUFunc(GUFunc, qmc_lib.jastrow.NOAScalarGUFunc,
             'void(f8[:,:],f8[:],f8[:])'
         ]
         layout = '(ns,nop),(p1)->()'
-        super().__init__(base_func, signatures, layout, target)
-
-
-class NOAArrayGUFunc(GUFunc, qmc_lib.jastrow.ArrayGUFunc, metaclass=ABCMeta):
-    """"""
-
-    def __init__(self, base_func, target=None):
-        """"""
-        signatures = [
-            'void(f8[:,:],f8[:],f8[:,:])'
-        ]
-        layout = '(ns,nop),(p1)->(ns,nop)'
         super().__init__(base_func, signatures, layout, target)
