@@ -1,4 +1,3 @@
-from abc import ABCMeta
 from math import pi
 from typing import Sequence
 
@@ -30,10 +29,24 @@ def field_base_func(sys_conf: np.ndarray,
         result[j_] = sigma * sys_conf[j_].mean()
 
 
-class GUFunc(gufunc.GUFunc, metaclass=ABCMeta):
-    """Common ABC that implements the function that retrieves the
-    base function parameters.
-    """
+class ArrayGUFunc(gufunc.ArrayGUFunc):
+    """Concrete implementation of ``gufunc.ArrayGUFunc``."""
+
+    def __init__(self, base_func, signatures=None, layout=None,
+                 target=None):
+        """
+
+        :param base_func:
+        :param signatures:
+        :param layout:
+        :param target:
+        """
+        if signatures is None:
+            signatures = ['void(f8[:,:],f8[:],f8[:,:])']
+        if layout is None:
+            layout = '(ss,ns),(nf)->(ss,ns)'
+
+        super().__init__(base_func, signatures, layout, target)
 
     @property
     def as_elem_func_args(self):
@@ -51,7 +64,7 @@ class GUFunc(gufunc.GUFunc, metaclass=ABCMeta):
         return _as_elem_func_args
 
 
-class ScalarGUFunc(GUFunc, gufunc.ScalarGUFunc):
+class ScalarGUFunc(ArrayGUFunc, gufunc.ScalarGUFunc):
     """Concrete implementation of ``gufunc.ScalarGUFunc``."""
 
     def __init__(self, base_func, target=None):
@@ -62,20 +75,6 @@ class ScalarGUFunc(GUFunc, gufunc.ScalarGUFunc):
         """
         signatures = ['void(f8[:,:],f8[:],f8[:])']
         layout = '(ss,ns),(nf)->()'
-        super().__init__(base_func, signatures, layout, target)
-
-
-class ArrayGUFunc(GUFunc, gufunc.ArrayGUFunc):
-    """Concrete implementation of ``gufunc.ArrayGUFunc``."""
-
-    def __init__(self, base_func, target=None):
-        """
-
-        :param base_func:
-        :param target:
-        """
-        signatures = ['void(f8[:,:],f8[:],f8[:,:])']
-        layout = '(ss,ns),(nf)->(ss,ns)'
         super().__init__(base_func, signatures, layout, target)
 
 
