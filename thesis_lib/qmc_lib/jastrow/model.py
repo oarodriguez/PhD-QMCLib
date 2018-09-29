@@ -12,16 +12,18 @@ from .. import abc
 from ..utils import min_distance, sign
 
 __all__ = [
-    'BosonConfSlots',
     'Model',
     'ModelFuncs',
     'ParamsSlots',
-    'SysConfDistType'
+    'SysConfSlots',
+    'SysConfDistType',
+    'SYS_CONF_SLOTS_DIM',
+    'SYS_CONF_PARTICLE_INDEX_DIM'
 ]
 
 
 @unique
-class BosonConfSlots(IntEnum):
+class SysConfSlots(IntEnum):
     """Slots to store the configuration of a single particle."""
 
     # NOTE: We have added an slot to store the energy
@@ -41,7 +43,8 @@ class SysConfDistType(Enum):
 @unique
 class ParamsSlots(IntEnum):
     """Slots to enumerate the parameters that define a
-    QMC ``ModelBase``."""
+    QMC ``ModelBase``.
+    """
 
     BOSON_NUMBER = 0  # Value does not matter here
     SUPERCELL_SIZE = 1  # Value does not matter here
@@ -64,20 +67,23 @@ DIST_RAND = SysConfDistType.RANDOM
 DIST_REGULAR = SysConfDistType.REGULAR
 
 # The dimensions of a system configuration.
-BOSON_CONF_SLOT_DIM = 0
-BOSON_INDEX_DIM = 1
+# TODO: Put these in an IntEnum
+SYS_CONF_SLOTS_DIM = 0
+SYS_CONF_PARTICLE_INDEX_DIM = 1
 
 
 class Model(abc.Model):
     """Abstract Base Class that represents a Quantum Monte Carlo model
     with a trial-wave function of the Bijl-Jastrow type.
     """
-
-    SysConfDistType = SysConfDistType
-
-    BosonConfSlots = BosonConfSlots
-
+    #
     ParamsSlots = ParamsSlots
+
+    #
+    SysConfSlots = SysConfSlots
+
+    #
+    SysConfDistType = SysConfDistType
 
     def __init__(self, params: TMapping[str, float],
                  var_params: TMapping[str, float] = None):
@@ -189,7 +195,7 @@ class Model(abc.Model):
 
     @property
     def num_boson_conf_slots(self):
-        return len([_ for _ in self.BosonConfSlots])
+        return len([_ for _ in self.SysConfSlots])
 
     @property
     def sys_conf_shape(self):
@@ -223,7 +229,7 @@ class Model(abc.Model):
         """
         nop = self.boson_number
         z_min, z_max = self.boundaries
-        pos_slot = self.BosonConfSlots.POS_SLOT
+        pos_slot = self.SysConfSlots.POS_SLOT
         sys_conf = self.get_sys_conf_buffer()
         sc_size = z_max - z_min
         offset = offset or 0.
@@ -259,10 +265,11 @@ class ModelFuncs(abc.ModelFuncs):
     functions to realize a Quantum Monte Carlo calculation for a QMC model
     with a trial-wave function of the Bijl-Jastrow type.
     """
-
+    #
     ParamsSlots = ParamsSlots
 
-    BosonConfSlots = BosonConfSlots
+    #
+    SysConfSlots = SysConfSlots
 
     @cached_property
     def boson_number(self):
@@ -371,7 +378,7 @@ class ModelFuncs(abc.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -393,7 +400,7 @@ class ModelFuncs(abc.ModelFuncs):
             :return:
             """
             ith_wf_abs_log = 0.
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
             sc_size = supercell_size(model_params)
 
             if not is_free(model_params):
@@ -441,7 +448,7 @@ class ModelFuncs(abc.ModelFuncs):
             :return:
             """
             wf_abs_log = 0.
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
             if is_free(model_params) and is_ideal(model_params):
                 return wf_abs_log
@@ -490,7 +497,7 @@ class ModelFuncs(abc.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -513,7 +520,7 @@ class ModelFuncs(abc.ModelFuncs):
             :return:
             """
             delta_wf_abs_log = 0.
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
             sc_size = supercell_size(model_params)
 
             if is_free(model_params) and is_ideal(model_params):
@@ -557,7 +564,7 @@ class ModelFuncs(abc.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -585,7 +592,7 @@ class ModelFuncs(abc.ModelFuncs):
 
             # Unpack the parameters.
             ith_drift = 0.
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
             sc_size = supercell_size(model_params)
 
             if not is_free(model_params):
@@ -624,8 +631,8 @@ class ModelFuncs(abc.ModelFuncs):
 
         :return:
         """
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
-        drift_slot = int(self.BosonConfSlots.DRIFT_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
         ith_drift = self.ith_drift
 
         @jit(nopython=True, cache=True)
@@ -643,7 +650,7 @@ class ModelFuncs(abc.ModelFuncs):
             :param result:
             :return:
             """
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
             # Set the position first
             for i_ in range(nop):
@@ -666,7 +673,7 @@ class ModelFuncs(abc.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -691,7 +698,7 @@ class ModelFuncs(abc.ModelFuncs):
             :return:
             """
             delta_ith_drift = 0.
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
             sc_size = supercell_size(model_params)
 
             if is_free(model_params) and is_ideal(model_params):
@@ -763,7 +770,7 @@ class ModelFuncs(abc.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
         # drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
 
         potential = self.potential
@@ -795,7 +802,7 @@ class ModelFuncs(abc.ModelFuncs):
             if is_free(model_params) and is_ideal(model_params):
                 return 0.
 
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
             sc_size = supercell_size(model_params)
 
             # Unpack the parameters.
@@ -867,7 +874,7 @@ class ModelFuncs(abc.ModelFuncs):
             :return:
             """
             energy = 0.
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
             for i_ in range(nop):
                 energy += ith_energy(i_, sys_conf, func_params, model_params,
@@ -885,7 +892,7 @@ class ModelFuncs(abc.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -916,7 +923,7 @@ class ModelFuncs(abc.ModelFuncs):
             if is_free(model_params) and is_ideal(model_params):
                 return 0.
 
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
             sc_size = supercell_size(model_params)
 
             # Unpack the parameters.
@@ -969,8 +976,8 @@ class ModelFuncs(abc.ModelFuncs):
 
         :return:
         """
-        drift_slot = int(self.BosonConfSlots.DRIFT_SLOT)
-        energy_slot = int(self.BosonConfSlots.ENERGY_SLOT)
+        drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
+        energy_slot = int(self.SysConfSlots.ENERGY_SLOT)
         ith_energy_and_drift = self.ith_energy_and_drift
 
         @jit(nopython=True, cache=True)
@@ -990,7 +997,7 @@ class ModelFuncs(abc.ModelFuncs):
             :param tbf_params:
             :param result:
             """
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
             for i_ in range(nop):
                 ith_energy, ith_drift = ith_energy_and_drift(sys_conf,
@@ -1012,7 +1019,7 @@ class ModelFuncs(abc.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         supercell_size = self.supercell_size
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -1045,7 +1052,7 @@ class ModelFuncs(abc.ModelFuncs):
             # in their original positions. To improve statistics, we
             # average over all possible particle displacements.
             ith_obd_log = 0.
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
             sc_size = supercell_size(model_params)
             sz, = func_params
 
@@ -1108,7 +1115,7 @@ class ModelFuncs(abc.ModelFuncs):
             :return:
             """
             obd = 0.
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
             for i_ in range(nop):
                 obd += ith_one_body_density(i_, sys_conf, func_params,
@@ -1124,7 +1131,7 @@ class ModelFuncs(abc.ModelFuncs):
 
         :return:
         """
-        pos_slot = int(self.BosonConfSlots.POS_SLOT)
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         # noinspection PyUnusedLocal
         @jit(nopython=True, cache=True)
@@ -1143,7 +1150,7 @@ class ModelFuncs(abc.ModelFuncs):
             :param tbf_params:
             :return:
             """
-            nop = sys_conf.shape[BOSON_INDEX_DIM]
+            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
             kz, = func_params
             s_sin, s_cos = 0., 0.
 

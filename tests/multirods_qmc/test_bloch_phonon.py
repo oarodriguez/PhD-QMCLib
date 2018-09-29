@@ -115,19 +115,19 @@ def test_qmc_funcs():
     epp = energy_v / nop
     print("The energy per particle is: {:.6g}".format(epp))
 
-    drift_values = out_sys_conf[model.BosonConfSlots.DRIFT_SLOT, :]
+    drift_values = out_sys_conf[model.SysConfSlots.DRIFT_SLOT, :]
     print("The drift is: {}".format(drift_values))
 
     # Testing that the array function do not modify its inputs
-    in_pos_values = sys_conf[model.BosonConfSlots.POS_SLOT, :]
-    out_pos_values = out_sys_conf[model.BosonConfSlots.POS_SLOT, :]
+    in_pos_values = sys_conf[model.SysConfSlots.POS_SLOT, :]
+    out_pos_values = out_sys_conf[model.SysConfSlots.POS_SLOT, :]
     assert np.alltrue(out_pos_values == in_pos_values)
 
     with pytest.raises(AssertionError):
         # Testing that the array function modified the output array
         # where expected.
-        in_pos_values = sys_conf[model.BosonConfSlots.DRIFT_SLOT, :]
-        out_pos_values = out_sys_conf[model.BosonConfSlots.DRIFT_SLOT, :]
+        in_pos_values = sys_conf[model.SysConfSlots.DRIFT_SLOT, :]
+        out_pos_values = out_sys_conf[model.SysConfSlots.DRIFT_SLOT, :]
         assert np.alltrue(out_pos_values == in_pos_values)
 
 
