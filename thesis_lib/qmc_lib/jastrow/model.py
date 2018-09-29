@@ -7,7 +7,7 @@ import numpy as np
 import numpy.random as random
 from numba import jit
 
-from thesis_lib.utils import cached_property
+from thesis_lib.utils import cached_property, strict_update
 from .. import abc
 from ..utils import min_distance, sign
 
@@ -93,8 +93,9 @@ class Model(abc.Model):
         :param var_params:
         """
         super().__init__()
-
-        self._params = self._get_check_params(params)
+        self_params = {slot.name.lower(): None for slot in self.ParamsSlots}
+        strict_update(self_params, params, full=True)
+        self._params = self_params
         self._var_params = dict(var_params or {})
 
     @property
@@ -148,41 +149,7 @@ class Model(abc.Model):
 
     def update_params(self, params: TMapping):
         """"""
-        checked_params = self._get_check_params(params, check_all=False)
-        self._params.update(checked_params)
-
-    def _get_check_params(self, params: TMapping,
-                          check_all: bool = True):
-        """
-
-        :param params:
-        :param check_all:
-        :return:
-        """
-        # We want a shallow copy of the input parameters.
-        self_params = {}
-        params_slots = self.ParamsSlots
-        params_names = params.keys()
-        slots_names = set([slot.name.lower() for slot in params_slots])
-        distinct = params_names ^ slots_names
-        if not distinct:
-            self_params.update(params)
-            return self_params
-        else:
-            missing = distinct - params_names
-            extra = distinct - slots_names
-            if missing:
-                if check_all:
-                    msg = "{} required parameter not specified"
-                    raise KeyError(msg.format(missing))
-                else:
-                    present = params_names - distinct
-                    for name in present:
-                        self_params[name] = params[name]
-                    return self_params
-            if extra:
-                msg = "'unrecognized {} parameter"
-                raise KeyError(msg.format(extra))
+        strict_update(self._params, params, full=False)
 
     @property
     def var_params(self):
