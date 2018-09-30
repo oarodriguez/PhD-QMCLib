@@ -7,4 +7,4 @@
 from .gufunc import *
 
 #
-from .model import *
+from .core import *
