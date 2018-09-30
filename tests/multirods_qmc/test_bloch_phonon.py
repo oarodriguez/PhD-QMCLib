@@ -101,19 +101,19 @@ def test_qmc_funcs():
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model.init_get_sys_conf()
-    model_params = model.params
-    obf_params, tbf_params = model.wf_params
-    energy_params = model.energy_params
+    model_args = model.args
+    obf_args, tbf_args = model.wf_args
+    energy_args = model.energy_args
 
     # Testing a scalar function with own arguments
     energy_func = qmc_funcs.energy
-    energy_v = energy_func(sys_conf, energy_params, model_params, obf_params,
-                           tbf_params)
+    energy_v = energy_func(sys_conf, energy_args, model_args, obf_args,
+                           tbf_args)
 
     # Testing an array function with no own arguments
     drift = qmc_funcs.drift
     out_sys_conf = sys_conf.copy()
-    drift(sys_conf, model_params, obf_params, tbf_params, out_sys_conf)
+    drift(sys_conf, model_args, obf_args, tbf_args, out_sys_conf)
 
     epp = energy_v / nop
     print("The energy per particle is: {:.6g}".format(epp))
@@ -144,10 +144,10 @@ def test_gufunc():
     qmc_funcs = bloch_phonon.ModelFuncs()
 
     # Generate a random configuration, pick the model parameters.
-    model_params = model.params
-    obf_params, tbf_params = model.wf_params
-    energy_params = model.energy_params
-    model_full_params = model.full_params
+    model_args = model.args
+    obf_args, tbf_args = model.wf_args
+    energy_args = model.energy_args
+    model_full_args = model.full_args
     sys_conf = model.init_get_sys_conf(dist_type=model.SysConfDistType.REGULAR)
 
     # Instantiate a universal function
@@ -156,12 +156,11 @@ def test_gufunc():
     wf_abs_log_gufunc = WFGUFunc(wf_abs_log)
     energy_gufunc = EnergyGUFunc(energy)
 
-    energy_v = energy(sys_conf, energy_params, model_params, obf_params,
-                      tbf_params)
-    wf_abs_log_v = wf_abs_log(sys_conf, model_params, obf_params, tbf_params)
+    energy_v = energy(sys_conf, energy_args, model_args, obf_args, tbf_args)
+    wf_abs_log_v = wf_abs_log(sys_conf, model_args, obf_args, tbf_args)
 
-    energy_gv = energy_gufunc(sys_conf, energy_params, model_full_params)
-    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf, model_full_params)
+    energy_gv = energy_gufunc(sys_conf, energy_args, model_full_args)
+    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf, model_full_args)
 
     assert energy_gv == energy_v
     assert wf_abs_log_gv == wf_abs_log_v
@@ -171,12 +170,12 @@ def test_gufunc():
     sys_conf_copies = 1000
     sys_conf_set = np.repeat(sys_conf[np.newaxis, ...],
                              sys_conf_copies, axis=0)
-    energy_params = np.asarray(energy_params)
+    energy_args = np.asarray(energy_args)
 
     # GUFuncs must evaluate many times over the loop dimensions
     # In this case the only loop dimension will be ``sys_conf_copies``.
-    energy_gv = energy_gufunc(sys_conf_set, energy_params, model_full_params)
-    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf_set, model_full_params)
+    energy_gv = energy_gufunc(sys_conf_set, energy_args, model_full_args)
+    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf_set, model_full_args)
 
     # Verify the equivalences.
     assert energy_gv.shape == (sys_conf_copies,)

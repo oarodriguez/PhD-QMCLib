@@ -38,7 +38,7 @@ class Model(jastrow.Model):
     VarParam = VarParam
 
     @property
-    def obf_params(self):
+    def obf_args(self):
         """
 
         :return:
@@ -51,7 +51,7 @@ class Model(jastrow.Model):
         return v0, r, e0, k1, kp1
 
     @property
-    def tbf_params(self):
+    def tbf_args(self):
         """
 
         :return:
@@ -67,14 +67,14 @@ class Model(jastrow.Model):
         return (rm, sc_size) + _two_body_func_params(gn, nop, rm, sc_size)
 
     @property
-    def wf_params(self):
+    def wf_args(self):
         """"""
-        obf_params = self.obf_params
-        tbf_params = self.tbf_params
-        return obf_params, tbf_params
+        obf_args = self.obf_args
+        tbf_args = self.tbf_args
+        return obf_args, tbf_args
 
     @property
-    def energy_params(self):
+    def energy_args(self):
         """"""
         v0 = self.lattice_depth
         r = self.lattice_ratio
@@ -82,14 +82,14 @@ class Model(jastrow.Model):
         return v0, r, gn
 
     @property
-    def full_params(self):
-        """Concatenate the :attr:`Model.wf_params` tuples and returns
+    def full_args(self):
+        """Concatenate the :attr:`Model.wf_args` tuples and returns
         a single numpy array.
         """
-        params = self.params
-        obf_params = self.obf_params
-        tbf_params = self.tbf_params
-        return reduce(operator.add, (params, obf_params, tbf_params))
+        self_args = self.args
+        obf_args = self.obf_args
+        tbf_args = self.tbf_args
+        return reduce(operator.add, (self_args, obf_args, tbf_args))
 
     @property
     def var_params_bounds(self):

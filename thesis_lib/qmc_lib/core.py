@@ -75,8 +75,18 @@ class Model(Cached, metaclass=ModelMeta):
 
     @property
     @abstractmethod
+    def args(self):
+        pass
+
+    @property
+    @abstractmethod
     def var_params(self):
         return
+
+    @property
+    @abstractmethod
+    def var_args(self):
+        pass
 
     @property
     @abstractmethod
@@ -98,7 +108,7 @@ class Model(Cached, metaclass=ModelMeta):
 
     @property
     @abstractmethod
-    def wf_params(self):
+    def wf_args(self):
         pass
 
     @property

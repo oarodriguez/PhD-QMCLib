@@ -166,6 +166,10 @@ class Model(core.Model):
         strict_update(self._params, params, full=False)
 
     @property
+    def args(self):
+        return tuple(self._params.values())
+
+    @property
     def var_params(self):
         """Returns an ``OrderedDict`` with the model parameters in
         the same order as :attr:`ModelBase.VarParam` attribute.
@@ -179,6 +183,10 @@ class Model(core.Model):
         :return:
         """
         strict_update(self._var_params, params, full=False)
+
+    @property
+    def var_args(self):
+        return tuple(self._var_params.values())
 
     @property
     def num_boson_conf_slots(self):
@@ -233,17 +241,17 @@ class Model(core.Model):
 
     @property
     @abstractmethod
-    def obf_params(self):
+    def obf_args(self):
         pass
 
     @property
     @abstractmethod
-    def tbf_params(self):
+    def tbf_args(self):
         pass
 
     @property
     @abstractmethod
-    def energy_params(self):
+    def energy_args(self):
         pass
 
 
