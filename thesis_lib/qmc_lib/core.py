@@ -12,8 +12,33 @@ __all__ = [
     'ModelFuncs',
     'ModelFuncsMeta',
     'ModelMeta',
+    'Param',
     'QMCFuncsNames'
 ]
+
+
+class Param(str, Enum):
+    """Base class for Enum parameters.
+
+    These parameters (the Enum elements) behave as strings. They can
+    be used directly as their ``value`` attribute. In addition, they
+    have a ``slot`` attribute that indicates the order in which they
+    where defined.
+    """
+
+    def __new__(cls, value):
+        """
+        :param value:
+        :return:
+        """
+        slot = len(cls.__members__)
+        param = super().__new__(cls, value)
+        param._slot_ = slot
+        return param
+
+    @property
+    def slot(self):
+        return self._slot_
 
 
 class ModelMeta(CachedMeta):

@@ -1,32 +1,33 @@
 from abc import ABCMeta
-from enum import IntEnum, unique
+from enum import unique
 
 from numba import jit
 
-from thesis_lib.qmc_lib import jastrow
+from thesis_lib.qmc_lib import core, jastrow
 from thesis_lib.utils import cached_property
 
 __all__ = [
     'Model',
     'ModelFuncs',
+    'Param',
     'potential_func'
 ]
 
 
 @unique
-class ParamsSlots(IntEnum):
+class Param(core.Param):
     """"""
-    LATTICE_DEPTH = 0
-    LATTICE_RATIO = 1
-    INTERACTION_STRENGTH = 2
-    BOSON_NUMBER = 3
-    SUPERCELL_SIZE = 4
+    LATTICE_DEPTH = 'lattice_depth'
+    LATTICE_RATIO = 'lattice_ratio'
+    INTERACTION_STRENGTH = 'interaction_strength'
+    BOSON_NUMBER = 'boson_number'
+    SUPERCELL_SIZE = 'supercell_size'
 
 
 class Model(jastrow.Model, metaclass=ABCMeta):
     """"""
 
-    ParamsSlots = ParamsSlots
+    Param = Param
 
     @property
     def lattice_depth(self):
@@ -34,7 +35,7 @@ class Model(jastrow.Model, metaclass=ABCMeta):
         params = self.params
         if not params:
             raise ValueError
-        return params[self.ParamsSlots.LATTICE_DEPTH]
+        return params[self.Param.LATTICE_DEPTH]
 
     @property
     def lattice_ratio(self):
@@ -42,7 +43,7 @@ class Model(jastrow.Model, metaclass=ABCMeta):
         params = self.params
         if not params:
             raise ValueError
-        return params[self.ParamsSlots.LATTICE_RATIO]
+        return params[self.Param.LATTICE_RATIO]
 
     @property
     def interaction_strength(self):
@@ -50,7 +51,7 @@ class Model(jastrow.Model, metaclass=ABCMeta):
         params = self.params
         if not params:
             raise ValueError
-        return params[self.ParamsSlots.INTERACTION_STRENGTH]
+        return params[self.Param.INTERACTION_STRENGTH]
 
     @property
     def well_width(self):
@@ -89,13 +90,13 @@ class Model(jastrow.Model, metaclass=ABCMeta):
 class ModelFuncs(jastrow.ModelFuncs, metaclass=ABCMeta):
     """"""
 
-    ParamsSlots = ParamsSlots
+    Param = Param
 
     @cached_property
     def lattice_depth(self):
         """"""
 
-        lattice_depth_slot = int(self.ParamsSlots.LATTICE_DEPTH)
+        lattice_depth_slot = int(self.Param.LATTICE_DEPTH.slot)
 
         @jit(nopython=True, cache=True)
         def _lattice_depth(model_params):
@@ -107,7 +108,7 @@ class ModelFuncs(jastrow.ModelFuncs, metaclass=ABCMeta):
     @cached_property
     def lattice_ratio(self):
         """"""
-        lattice_ratio_slot = int(self.ParamsSlots.LATTICE_RATIO)
+        lattice_ratio_slot = int(self.Param.LATTICE_RATIO.slot)
 
         @jit(nopython=True, cache=True)
         def _lattice_ratio(model_params: tuple) -> float:
@@ -120,7 +121,7 @@ class ModelFuncs(jastrow.ModelFuncs, metaclass=ABCMeta):
     def interaction_strength(self):
         """"""
 
-        int_strength_slot = int(self.ParamsSlots.INTERACTION_STRENGTH)
+        int_strength_slot = int(self.Param.INTERACTION_STRENGTH.slot)
 
         @jit(nopython=True, cache=True)
         def _interaction_strength(model_params):

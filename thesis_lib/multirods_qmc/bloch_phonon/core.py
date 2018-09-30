@@ -1,6 +1,7 @@
 import operator
 from abc import ABCMeta
 from collections import OrderedDict
+from enum import unique
 from functools import reduce
 from math import sqrt
 
@@ -23,10 +24,18 @@ __all__ = [
 _two_body_func_params = tf.two_body_func_match_params
 
 
+@unique
+class VarParam(qmc_lib.Param):
+    """"""
+    TBF_CONTACT_CUTOFF = 'tbf_contact_cutoff'
+
+
 class Model(jastrow.Model):
     """Concrete implementation of a QMC model with a trial wave function
     of the Bijl-Jastrow type and type :class:`jastrow.Model`.
     """
+
+    VarParam = VarParam
 
     @property
     def obf_params(self):
@@ -54,7 +63,7 @@ class Model(jastrow.Model):
 
         # Convert to float, as numba jit-functions will not accept
         # other type.
-        rm = float(var_params['tbf_contact_cutoff'])
+        rm = float(var_params[self.VarParam.TBF_CONTACT_CUTOFF])
         return (rm, sc_size) + _two_body_func_params(gn, nop, rm, sc_size)
 
     @property
@@ -89,8 +98,9 @@ class Model(jastrow.Model):
         :return:
         """
         sc_size = self.supercell_size
+        var_param = self.VarParam
         bounds = [
-            ('tbf_contact_cutoff', (5e-3, (0.5 - 5e-3) * sc_size))
+            (var_param.TBF_CONTACT_CUTOFF, (5e-3, (0.5 - 5e-3) * sc_size))
         ]
         return OrderedDict(bounds)
 

@@ -23,17 +23,19 @@ def test_init():
     with pytest.raises(KeyError):
         # Extra parameter. This will fail.
         params = dict(correct_params, extra_param=True)
-        bloch_phonon.Model(params)
+        var_params = dict(tbf_contact_cutoff=rm)
+        bloch_phonon.Model(params, var_params)
 
     with pytest.raises(KeyError):
         # Missing parameter. This will fail too.
         params = dict(correct_params)
         params.pop('boson_number')
-        bloch_phonon.Model(params)
+        var_params = dict(tbf_contact_cutoff=rm)
+        bloch_phonon.Model(params, var_params)
 
-    # With and without initial variational parameters
-    bloch_phonon.Model(correct_params)
-    bloch_phonon.Model(correct_params, var_params={})
+    # This passes.
+    var_params = dict(tbf_contact_cutoff=rm)
+    bloch_phonon.Model(correct_params, var_params)
 
 
 def test_update_params():
@@ -41,7 +43,8 @@ def test_update_params():
 
     :return:
     """
-    model = bloch_phonon.Model(correct_params)
+    var_params = dict(tbf_contact_cutoff=rm)
+    model = bloch_phonon.Model(correct_params, var_params)
     with pytest.raises(KeyError):
         # Extra parameter. This will fail.
         new_params = dict(correct_params, extra_param=True)
@@ -53,10 +56,10 @@ def test_update_params():
     model.update_params(new_params)
 
     # Current parameter should remain intact
-    assert model.params[model.ParamsSlots.BOSON_NUMBER] == nop
+    assert model.params[model.Param.BOSON_NUMBER] == nop
 
     # This will pass...
-    model = bloch_phonon.Model(correct_params)
+    model = bloch_phonon.Model(correct_params, var_params)
     var_params = dict(tbf_contact_cutoff=rm)
     model.update_var_params(var_params)
 

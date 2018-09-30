@@ -15,7 +15,7 @@ from ..utils import min_distance, sign
 __all__ = [
     'Model',
     'ModelFuncs',
-    'ParamsSlots',
+    'Param',
     'SysConfSlots',
     'SysConfDistType',
     'SYS_CONF_SLOTS_DIM',
@@ -42,13 +42,18 @@ class SysConfDistType(Enum):
 
 
 @unique
-class ParamsSlots(IntEnum):
+class Param(core.Param):
     """Slots to enumerate the parameters that define a
     QMC ``ModelBase``.
     """
+    BOSON_NUMBER = 'boson_number'
+    SUPERCELL_SIZE = 'supercell_size'
 
-    BOSON_NUMBER = 0  # Value does not matter here
-    SUPERCELL_SIZE = 1  # Value does not matter here
+
+@unique
+class VarParam(core.Param):
+    """Enum with the variational parameters of a Jastrow model instance."""
+    pass
 
 
 class ModelFN(str, Enum):
@@ -78,7 +83,10 @@ class Model(core.Model):
     with a trial-wave function of the Bijl-Jastrow type.
     """
     #
-    ParamsSlots = ParamsSlots
+    Param = Param
+
+    #
+    VarParam = VarParam
 
     #
     SysConfSlots = SysConfSlots
@@ -87,7 +95,7 @@ class Model(core.Model):
     SysConfDistType = SysConfDistType
 
     def __init__(self, params: TMapping[str, float],
-                 var_params: TMapping[str, float] = None):
+                 var_params: TMapping[str, float]):
         """
 
         :param params:
@@ -95,13 +103,18 @@ class Model(core.Model):
         """
         super().__init__()
 
-        # We get the order from ``ParamsSlots`` directly.
-        items = [(slot.name.lower(), None) for slot in self.ParamsSlots]
+        # We get the order from ``Param`` attribute directly.
+        items = [(param, 0) for param in self.Param]
         self_params = OrderedDict(items)
         strict_update(self_params, params, full=True)
+
+        # Analogously with ``VarParam`` attribute.
+        var_items = [(param, 0) for param in self.VarParam]
+        self_var_params = OrderedDict(var_items)
+        strict_update(self_var_params, var_params, full=True)
         #
         self._params = self_params
-        self._var_params = dict(var_params or {})
+        self._var_params = self_var_params
 
     @property
     def boson_number(self):
@@ -109,7 +122,7 @@ class Model(core.Model):
         params = self.params
         if not params:
             raise ValueError
-        return params[self.ParamsSlots.BOSON_NUMBER]
+        return params[self.Param.BOSON_NUMBER]
 
     @property
     def supercell_size(self):
@@ -117,7 +130,7 @@ class Model(core.Model):
         params = self.params
         if not params:
             raise ValueError
-        return params[self.ParamsSlots.SUPERCELL_SIZE]
+        return params[self.Param.SUPERCELL_SIZE]
 
     @property
     def boundaries(self):
@@ -139,12 +152,10 @@ class Model(core.Model):
 
     @property
     def params(self):
-        """Returns a tuple with the model parameters in the same order
-         as :attr:`ModelBase.ParamsSlots` attribute.
-
-        :return:
+        """Returns an ``OrderedDict`` with the model parameters in
+        the same order as :attr:`ModelBase.Param` attribute.
         """
-        return tuple(self._params.values())
+        return OrderedDict(self._params)
 
     def update_params(self, params: TMapping):
         """
@@ -156,12 +167,18 @@ class Model(core.Model):
 
     @property
     def var_params(self):
-        """"""
-        return self._var_params
+        """Returns an ``OrderedDict`` with the model parameters in
+        the same order as :attr:`ModelBase.VarParam` attribute.
+        """
+        return OrderedDict(self._var_params)
 
     def update_var_params(self, params: TMapping = None):
-        """"""
-        self._var_params.update(params)
+        """
+
+        :param params:
+        :return:
+        """
+        strict_update(self._var_params, params, full=False)
 
     @property
     def num_boson_conf_slots(self):
@@ -197,7 +214,7 @@ class Model(core.Model):
         :param offset:
         :return:
         """
-        nop = self.boson_number
+        nop = self.params[self.Param.BOSON_NUMBER]
         z_min, z_max = self.boundaries
         pos_slot = self.SysConfSlots.POS_SLOT
         sys_conf = self.get_sys_conf_buffer()
@@ -236,7 +253,7 @@ class ModelFuncs(core.ModelFuncs):
     with a trial-wave function of the Bijl-Jastrow type.
     """
     #
-    ParamsSlots = ParamsSlots
+    Param = Param
 
     #
     SysConfSlots = SysConfSlots
@@ -244,7 +261,7 @@ class ModelFuncs(core.ModelFuncs):
     @cached_property
     def boson_number(self):
         """"""
-        boson_number_slot = int(self.ParamsSlots.BOSON_NUMBER)
+        boson_number_slot = int(self.Param.BOSON_NUMBER.slot)
 
         @jit(nopython=True, cache=True)
         def _boson_number(model_params):
@@ -256,7 +273,7 @@ class ModelFuncs(core.ModelFuncs):
     @cached_property
     def supercell_size(self):
         """"""
-        sc_size_slot = int(self.ParamsSlots.SUPERCELL_SIZE)
+        sc_size_slot = int(self.Param.SUPERCELL_SIZE.slot)
 
         @jit(nopython=True, cache=True)
         def _supercell_size(model_params):
