@@ -189,7 +189,7 @@ class Model(core.Model):
         return tuple(self._var_params.values())
 
     @property
-    def num_boson_conf_slots(self):
+    def num_sys_conf_slots(self):
         return len([_ for _ in self.SysConfSlots])
 
     @property
@@ -200,7 +200,7 @@ class Model(core.Model):
         # NOTE: Should we allocate space for the DRIFT_SLOT?
         # TODO: Fix NUM_SLOTS if DRIFT_SLOT becomes really unnecessary.
         nop = self.boson_number
-        ns = self.num_boson_conf_slots
+        ns = self.num_sys_conf_slots
         return ns, nop
 
     def get_sys_conf_buffer(self):

@@ -90,7 +90,7 @@ class Model(Cached, metaclass=ModelMeta):
 
     @property
     @abstractmethod
-    def num_boson_conf_slots(self):
+    def num_sys_conf_slots(self):
         pass
 
     @property
