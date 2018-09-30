@@ -4,7 +4,7 @@ import numpy as np
 from numba import guvectorize, jit
 
 from thesis_lib.utils import cached_property
-from .. import abc as qmc_lib_abc
+from .. import core
 
 __all__ = [
     'ArrayGUFunc',
@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 
-class ArrayGUFunc(qmc_lib_abc.GUFunc, metaclass=ABCMeta):
+class ArrayGUFunc(core.GUFunc, metaclass=ABCMeta):
     """"""
 
     @property
@@ -120,7 +120,7 @@ class ScalarGUFunc(ArrayGUFunc, metaclass=ABCMeta):
         return _elem_func
 
 
-class ArrayGUPureFunc(qmc_lib_abc.GUFunc, metaclass=ABCMeta):
+class ArrayGUPureFunc(core.GUFunc, metaclass=ABCMeta):
     """"""
 
     @property

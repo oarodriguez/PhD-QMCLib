@@ -9,7 +9,7 @@ import numpy.random as random
 from numba import jit
 
 from thesis_lib.utils import cached_property, strict_update
-from .. import abc
+from .. import core
 from ..utils import min_distance, sign
 
 __all__ = [
@@ -73,7 +73,7 @@ SYS_CONF_SLOTS_DIM = 0
 SYS_CONF_PARTICLE_INDEX_DIM = 1
 
 
-class Model(abc.Model):
+class Model(core.Model):
     """Abstract Base Class that represents a Quantum Monte Carlo model
     with a trial-wave function of the Bijl-Jastrow type.
     """
@@ -230,7 +230,7 @@ class Model(abc.Model):
         pass
 
 
-class ModelFuncs(abc.ModelFuncs):
+class ModelFuncs(core.ModelFuncs):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical
     functions to realize a Quantum Monte Carlo calculation for a QMC model
     with a trial-wave function of the Bijl-Jastrow type.

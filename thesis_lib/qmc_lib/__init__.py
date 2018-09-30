@@ -8,4 +8,4 @@
 from . import jastrow
 
 #
-from .abc import *
+from .core import *
