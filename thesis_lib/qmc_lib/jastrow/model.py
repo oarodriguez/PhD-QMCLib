@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from collections import OrderedDict
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
 from typing import Mapping as TMapping
@@ -93,8 +94,12 @@ class Model(abc.Model):
         :param var_params:
         """
         super().__init__()
-        self_params = {slot.name.lower(): None for slot in self.ParamsSlots}
+
+        # We get the order from ``ParamsSlots`` directly.
+        items = [(slot.name.lower(), None) for slot in self.ParamsSlots]
+        self_params = OrderedDict(items)
         strict_update(self_params, params, full=True)
+        #
         self._params = self_params
         self._var_params = dict(var_params or {})
 
@@ -139,16 +144,14 @@ class Model(abc.Model):
 
         :return:
         """
-        params_slots = self.ParamsSlots
-        self_params = self._params
-
-        # We care about order here, so we iterate over __members__
-        slots_items = params_slots.__members__.items()
-        ord_params = [self_params[name.lower()] for name, _ in slots_items]
-        return tuple(ord_params)
+        return tuple(self._params.values())
 
     def update_params(self, params: TMapping):
-        """"""
+        """
+
+        :param params:
+        :return:
+        """
         strict_update(self._params, params, full=False)
 
     @property
