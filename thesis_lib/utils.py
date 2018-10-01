@@ -260,6 +260,21 @@ def get_random_rng_seed():
     return np.random.randint(0, high=i32_max - 1, dtype=np.int64)
 
 
+def missing_message(missing: Iterable):
+    """Gives a nice "missing ..." formatted string with the corresponding
+    values in ``missing``.
+    """
+    missing = ["'{}'".format(value) for value in missing]
+    len_missing = len(missing)
+    joined_missing = ' and '.join(missing)
+    if len_missing == 1:
+        message_fmt = 'missing {} required item: {}'
+    else:
+        message_fmt = 'missing {} required items: {}'
+    # NOTE: KeyError will display the message in quotes :|
+    return message_fmt.format(len_missing, joined_missing)
+
+
 def strict_update(obj: MutableMapping,
                   mapping: Union[Mapping, Sequence, ItemsView],
                   full: bool = False):
@@ -269,15 +284,13 @@ def strict_update(obj: MutableMapping,
     """
     items = {}
     mapping = dict(mapping)
-    remaining = mapping.keys() - obj.keys()
-    if remaining:
-        raise KeyError("{}".format(remaining))
-    for name in obj:
-        if name not in mapping:
-            if full:
-                raise KeyError("{}".format(name))
-            else:
-                continue
+    for name in mapping:
+        if name not in obj:
+            raise KeyError("unexpected item: '{}'".format(name))
         else:
             items[name] = mapping[name]
+    missing = obj.keys() - mapping.keys()
+    if missing and full:
+        raise KeyError(missing_message(missing))
+
     obj.update(items)
