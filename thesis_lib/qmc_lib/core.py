@@ -23,7 +23,7 @@ class ParamNameEnum(str, Enum):
 
     These parameters (the Enum elements) behave as strings. They can
     be used directly as their ``value`` attribute. In addition, they
-    have a ``slot`` attribute that indicates the order in which they
+    have a ``loc`` attribute that indicates the order in which they
     where defined.
     """
 
@@ -32,14 +32,14 @@ class ParamNameEnum(str, Enum):
         :param value:
         :return:
         """
-        slot = len(cls.__members__)
+        loc = len(cls.__members__)
         param = super().__new__(cls, value)
-        param._slot_ = slot
+        param._loc_ = loc
         return param
 
     @property
-    def slot(self):
-        return self._slot_
+    def loc(self):
+        return self._loc_
 
 
 class ParamsSet(Mapping):

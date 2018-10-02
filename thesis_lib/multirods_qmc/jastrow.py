@@ -102,38 +102,36 @@ class ModelFuncs(jastrow.ModelFuncs, metaclass=ABCMeta):
     @cached_property
     def lattice_depth(self):
         """"""
-
-        lattice_depth_pos = int(self.params_cls.names.LATTICE_DEPTH.slot)
+        param_loc = int(self.params_cls.names.LATTICE_DEPTH.loc)
 
         @jit(nopython=True, cache=True)
         def _lattice_depth(model_params):
             """"""
-            return model_params[lattice_depth_pos]
+            return model_params[param_loc]
 
         return _lattice_depth
 
     @cached_property
     def lattice_ratio(self):
         """"""
-        lattice_ratio_pos = int(self.params_cls.names.LATTICE_RATIO.slot)
+        param_loc = int(self.params_cls.names.LATTICE_RATIO.loc)
 
         @jit(nopython=True, cache=True)
         def _lattice_ratio(model_params: tuple) -> float:
             """"""
-            return model_params[lattice_ratio_pos]
+            return model_params[param_loc]
 
         return _lattice_ratio
 
     @cached_property
     def interaction_strength(self):
         """"""
-
-        int_strength_pos = int(self.params_cls.names.INTERACTION_STRENGTH.slot)
+        param_loc = int(self.params_cls.names.INTERACTION_STRENGTH.loc)
 
         @jit(nopython=True, cache=True)
         def _interaction_strength(model_params):
             """"""
-            return model_params[int_strength_pos]
+            return model_params[param_loc]
 
         return _interaction_strength
 

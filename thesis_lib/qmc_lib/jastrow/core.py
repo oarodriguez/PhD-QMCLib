@@ -285,24 +285,24 @@ class ModelFuncs(core.ModelFuncs):
     @cached_property
     def boson_number(self):
         """"""
-        boson_number_pos = int(self.params_cls.names.BOSON_NUMBER.slot)
+        param_loc = int(self.params_cls.names.BOSON_NUMBER.loc)
 
         @jit(nopython=True, cache=True)
         def _boson_number(model_params):
             """"""
-            return model_params[boson_number_pos]
+            return model_params[param_loc]
 
         return _boson_number
 
     @cached_property
     def supercell_size(self):
         """"""
-        sc_size_pos = int(self.params_cls.names.SUPERCELL_SIZE.slot)
+        param_loc = int(self.params_cls.names.SUPERCELL_SIZE.loc)
 
         @jit(nopython=True, cache=True)
         def _supercell_size(model_params):
             """"""
-            return model_params[sc_size_pos]
+            return model_params[param_loc]
 
         return _supercell_size
 
