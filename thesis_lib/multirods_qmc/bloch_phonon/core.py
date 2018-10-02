@@ -16,6 +16,8 @@ __all__ = [
     'ArrayGUPureFunc',
     'Model',
     'ModelFuncs',
+    'ModelParams',
+    'ModelVarParams',
     'ScalarGUFunc',
     'ScalarGUPureFunc'
 ]
@@ -25,17 +27,44 @@ _two_body_func_params = tf.two_body_func_match_params
 
 
 @unique
-class VarParam(qmc_lib.Param):
-    """"""
+class ParamName(qmc_lib.core.ParamNameEnum):
+    """Enumerates the parameters of the model (Bijl-Jastrow type) of a
+    quantum system in a Multi-Rods periodic structure with repulsive,
+    contact interactions.
+    """
+    LATTICE_DEPTH = 'lattice_depth'
+    LATTICE_RATIO = 'lattice_ratio'
+    INTERACTION_STRENGTH = 'interaction_strength'
+    BOSON_NUMBER = 'boson_number'
+    SUPERCELL_SIZE = 'supercell_size'
+
+
+class ModelParams(qmc_lib.ParamsSet):
+    """Represents the parameters of the model."""
+    names = ParamName
+
+
+@unique
+class VarParamName(qmc_lib.ParamNameEnum):
+    """Enumerates the variational parameters of the wave function of the
+    model (Bijl-Jastrow type) of a quantum system in a Multi-Rods periodic
+    structure with repulsive, contact interactions.
+    """
     TBF_CONTACT_CUTOFF = 'tbf_contact_cutoff'
 
 
-class Model(jastrow.Model):
-    """Concrete implementation of a QMC model with a trial wave function
-    of the Bijl-Jastrow type and type :class:`jastrow.Model`.
-    """
+class ModelVarParams(qmc_lib.ParamsSet):
+    """Represents the variational parameters of the model"""
+    names = VarParamName
 
-    VarParam = VarParam
+
+class Model(jastrow.Model):
+    """QMC model for a system with a trial wave function of the
+    Bijl-Jastrow type.
+    """
+    #
+    params_cls = ModelParams
+    var_params_cls = ModelVarParams
 
     @property
     def obf_args(self):
@@ -63,7 +92,7 @@ class Model(jastrow.Model):
 
         # Convert to float, as numba jit-functions will not accept
         # other type.
-        rm = float(var_params[self.VarParam.TBF_CONTACT_CUTOFF])
+        rm = float(var_params[self.var_params_cls.names.TBF_CONTACT_CUTOFF])
         return (rm, sc_size) + _two_body_func_params(gn, nop, rm, sc_size)
 
     @property
@@ -98,15 +127,20 @@ class Model(jastrow.Model):
         :return:
         """
         sc_size = self.supercell_size
-        var_param = self.VarParam
+        names = self.var_params_cls.names
         bounds = [
-            (var_param.TBF_CONTACT_CUTOFF, (5e-3, (0.5 - 5e-3) * sc_size))
+            (names.TBF_CONTACT_CUTOFF.value, (5e-3, (0.5 - 5e-3) * sc_size))
         ]
         return OrderedDict(bounds)
 
 
 class ModelFuncs(jastrow.ModelFuncs):
-    """"""
+    """Functions of a QMC model for a system with a trial wave function
+    of the Bijl-Jastrow type.
+    """
+    #
+    params_cls = ModelParams
+    var_params_cls = ModelVarParams
 
     def __init__(self):
         """"""

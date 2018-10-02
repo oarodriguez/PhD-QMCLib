@@ -56,12 +56,15 @@ def test_update_params():
     model.update_params(new_params)
 
     # Current parameter should remain intact
-    assert model.params[model.Param.BOSON_NUMBER] == nop
+    assert model.params[model.params_cls.names.BOSON_NUMBER] == nop
 
     # This will pass...
     model = bloch_phonon.Model(correct_params, var_params)
     var_params = dict(tbf_contact_cutoff=rm)
     model.update_var_params(var_params)
+
+    var_param_names = model.var_params_cls.names
+    assert model.var_params[var_param_names.TBF_CONTACT_CUTOFF] == rm
 
 
 class WFGUFunc(bloch_phonon.ScalarGUPureFunc):

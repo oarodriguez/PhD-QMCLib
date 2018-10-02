@@ -12,14 +12,14 @@ __all__ = [
     'ModelFuncs',
     'ModelFuncsMeta',
     'ModelMeta',
-    'Param',
+    'ParamNameEnum',
     'ParamsSet',
     'QMCFuncsNames'
 ]
 
 
-class Param(str, Enum):
-    """Base class for Enum parameters.
+class ParamNameEnum(str, Enum):
+    """Base class for parameter enumerations.
 
     These parameters (the Enum elements) behave as strings. They can
     be used directly as their ``value`` attribute. In addition, they
