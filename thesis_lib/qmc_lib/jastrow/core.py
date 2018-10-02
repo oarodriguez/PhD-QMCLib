@@ -136,18 +136,12 @@ class Model(core.Model):
     @property
     def boson_number(self):
         """"""
-        params = self.params
-        if not params:
-            raise ValueError
-        return params[self.params_cls.names.BOSON_NUMBER]
+        return self.params[self.params_cls.names.BOSON_NUMBER]
 
     @property
     def supercell_size(self):
         """"""
-        params = self.params
-        if not params:
-            raise ValueError
-        return params[self.params_cls.names.SUPERCELL_SIZE]
+        return self.params[self.params_cls.names.SUPERCELL_SIZE]
 
     @property
     def boundaries(self):

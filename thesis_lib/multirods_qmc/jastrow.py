@@ -39,26 +39,17 @@ class Model(jastrow.Model, metaclass=ABCMeta):
     @property
     def lattice_depth(self):
         """"""
-        params = self.params
-        if not params:
-            raise ValueError
-        return params[self.params_cls.names.LATTICE_DEPTH]
+        return self.params[self.params_cls.names.LATTICE_DEPTH]
 
     @property
     def lattice_ratio(self):
         """"""
-        params = self.params
-        if not params:
-            raise ValueError
-        return params[self.params_cls.names.LATTICE_RATIO]
+        return self.params[self.params_cls.names.LATTICE_RATIO]
 
     @property
     def interaction_strength(self):
         """"""
-        params = self.params
-        if not params:
-            raise ValueError
-        return params[self.params_cls.names.INTERACTION_STRENGTH]
+        return self.params[self.params_cls.names.INTERACTION_STRENGTH]
 
     @property
     def well_width(self):
