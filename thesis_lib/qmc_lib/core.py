@@ -1,9 +1,9 @@
 from abc import abstractmethod
-from collections import Callable
+from collections import Callable, Mapping
 from enum import Enum
-from typing import Callable as TCallable, Sequence
+from typing import Callable as TCallable, Sequence, Type
 
-from thesis_lib.utils import Cached, CachedMeta
+from thesis_lib.utils import Cached, CachedMeta, strict_update
 
 __all__ = [
     'GUFunc',
@@ -13,6 +13,7 @@ __all__ = [
     'ModelFuncsMeta',
     'ModelMeta',
     'Param',
+    'ParamsSet',
     'QMCFuncsNames'
 ]
 
@@ -39,6 +40,52 @@ class Param(str, Enum):
     @property
     def slot(self):
         return self._slot_
+
+
+class ParamsSet(Mapping):
+    """Base class for parameters. Implements a read-only mapping
+    interface.
+    """
+    #
+    names: Type[Enum] = None
+
+    # Names are important as they restrict the set of
+    # allowed parameters.
+    __slots__ = (
+        '_ord_names',
+        '_data',
+    )
+
+    def __init__(self, *args, **kwargs):
+        """
+
+        :param args:
+        :param kwargs:
+        """
+        if self.names is None:
+            raise TypeError("'names' attribute must not be None")
+        elif not issubclass(self.names, Enum):
+            raise TypeError("'names' attribute must be an enumeration")
+
+        ord_names = [name.value for name in self.names]
+        data = dict([(name, None) for name in ord_names])
+        strict_update(data, dict(*args, **kwargs), full=True)
+
+        # The order in which the mapping will be iterated.
+        self._ord_names = tuple(ord_names)
+        self._data = data
+
+    def __getitem__(self, name):
+        # Items come from the attributes.
+        return self._data[name]
+
+    def __len__(self):
+        """"""
+        return len(self._data)
+
+    def __iter__(self):
+        """"""
+        return iter(self._ord_names)
 
 
 class ModelMeta(CachedMeta):
