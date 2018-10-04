@@ -100,7 +100,7 @@ def test_qmc_funcs():
     # We have an ideal system...
     new_params['interaction_strength'] = 0.
     model = bloch_phonon.Model(new_params, var_params)
-    qmc_funcs = bloch_phonon.ModelFuncs()
+    qmc_funcs = model.funcs
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model.init_get_sys_conf()
@@ -142,7 +142,7 @@ def test_gufunc():
     var_params = dict(tbf_contact_cutoff=rm)
 
     model = bloch_phonon.Model(new_params, var_params)
-    qmc_funcs = bloch_phonon.ModelFuncs()
+    qmc_funcs = model.funcs
 
     # Generate a random configuration, pick the model parameters.
     func_args = model.func_args
