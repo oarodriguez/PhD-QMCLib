@@ -119,9 +119,10 @@ class Model(jastrow.Model):
         return v0, r, gn
 
     @property
-    def full_args(self):
+    def flat_func_args(self):
         """Concatenate the :attr:`Model.func_args` tuples and returns
-        a single tuple.
+        a single tuple. Intended to be used with generalized universal
+        functions (gufunc).
         """
         return reduce(operator.add, self.func_args)
 

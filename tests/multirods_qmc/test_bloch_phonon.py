@@ -147,7 +147,7 @@ def test_gufunc():
     # Generate a random configuration, pick the model parameters.
     func_args = model.func_args
     energy_args = model.energy_args
-    model_full_args = model.full_args
+    flat_func_args = model.flat_func_args
     sys_conf = model.init_get_sys_conf(dist_type=model.SysConfDistType.REGULAR)
 
     # Instantiate a universal function
@@ -159,8 +159,8 @@ def test_gufunc():
     energy_v = energy(sys_conf, energy_args, *func_args)
     wf_abs_log_v = wf_abs_log(sys_conf, *func_args)
 
-    energy_gv = energy_gufunc(sys_conf, energy_args, model_full_args)
-    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf, model_full_args)
+    energy_gv = energy_gufunc(sys_conf, energy_args, flat_func_args)
+    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf, flat_func_args)
 
     assert energy_gv == energy_v
     assert wf_abs_log_gv == wf_abs_log_v
@@ -174,8 +174,8 @@ def test_gufunc():
 
     # GUFuncs must evaluate many times over the loop dimensions
     # In this case the only loop dimension will be ``sys_conf_copies``.
-    energy_gv = energy_gufunc(sys_conf_set, energy_args, model_full_args)
-    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf_set, model_full_args)
+    energy_gv = energy_gufunc(sys_conf_set, energy_args, flat_func_args)
+    wf_abs_log_gv = wf_abs_log_gufunc(sys_conf_set, flat_func_args)
 
     # Verify the equivalences.
     assert energy_gv.shape == (sys_conf_copies,)
