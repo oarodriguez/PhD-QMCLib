@@ -103,6 +103,14 @@ class Model(jastrow.Model):
         return obf_args, tbf_args
 
     @property
+    def func_args(self):
+        """"""
+        self_args = self.args
+        obf_args = self.obf_args
+        tbf_args = self.tbf_args
+        return self_args, obf_args, tbf_args
+
+    @property
     def energy_args(self):
         """"""
         v0 = self.lattice_depth
@@ -112,13 +120,10 @@ class Model(jastrow.Model):
 
     @property
     def full_args(self):
-        """Concatenate the :attr:`Model.wf_args` tuples and returns
-        a single numpy array.
+        """Concatenate the :attr:`Model.func_args` tuples and returns
+        a single tuple.
         """
-        self_args = self.args
-        obf_args = self.obf_args
-        tbf_args = self.tbf_args
-        return reduce(operator.add, (self_args, obf_args, tbf_args))
+        return reduce(operator.add, self.func_args)
 
     @property
     def var_params_bounds(self):
@@ -132,6 +137,11 @@ class Model(jastrow.Model):
             (names.TBF_CONTACT_CUTOFF.value, (5e-3, (0.5 - 5e-3) * sc_size))
         ]
         return OrderedDict(bounds)
+
+    @cached_property
+    def funcs(self):
+        """"""
+        return ModelFuncs()
 
 
 class ModelFuncs(jastrow.ModelFuncs):

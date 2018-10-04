@@ -163,6 +163,21 @@ class Model(Cached, metaclass=ModelMeta):
     def var_params_bounds(self):
         pass
 
+    @property
+    @abstractmethod
+    def func_args(self):
+        """Tuple to be used as part of the arguments of the functions
+        in the corresponding :class:`ModelFuncs` instance of the model
+        (:attr:`Model.funcs` attribute).
+        """
+        return
+
+    @property
+    @abstractmethod
+    def funcs(self):
+        """The QMC functions associated to the model."""
+        pass
+
 
 class ModelFuncsMeta(CachedMeta):
     """Metaclass for :class:`ModelFuncs` abstract base class."""
