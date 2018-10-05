@@ -4,6 +4,9 @@
 """
 
 #
+from . import vmc
+
+#
 from .gufunc import *
 
 #

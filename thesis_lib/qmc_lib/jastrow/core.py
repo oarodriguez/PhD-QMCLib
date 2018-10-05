@@ -261,6 +261,11 @@ class Model(core.Model):
     def energy_args(self):
         pass
 
+    @property
+    @abstractmethod
+    def funcs(self) -> 'ModelFuncs':
+        pass
+
 
 class ModelFuncs(core.ModelFuncs):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical

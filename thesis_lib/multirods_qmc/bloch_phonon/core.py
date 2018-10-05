@@ -18,6 +18,8 @@ __all__ = [
     'ModelFuncs',
     'ModelParams',
     'ModelVarParams',
+    'Sampling',
+    'UniformSampling',
     'ScalarGUFunc',
     'ScalarGUPureFunc'
 ]
@@ -204,6 +206,33 @@ class ModelFuncs(jastrow.ModelFuncs):
         :return:
         """
         return tf.phonon_two_body_func_log_dz2
+
+
+class Sampling(qmc_lib.jastrow.vmc.PBCSampling):
+    """Sampling of the probability density of the Bloch-Phonon model with
+    a multi-rods external potential.
+    """
+
+    @property
+    def gen_args(self):
+        """The arguments of the sampling generator function.
+
+        :return:
+        """
+        names = self.params_cls.names
+        return (
+            self.model.func_args,
+            self.ppf_args,
+            self.params[names.INI_SYS_CONF],
+            self.params[names.CHAIN_SAMPLES],
+            self.params[names.BURN_IN_SAMPLES],
+            self.params[names.RNG_SEED]
+        )
+
+
+class UniformSampling(Sampling, qmc_lib.jastrow.vmc.PBCUniformSampling):
+    """"""
+    pass
 
 
 @jit(nopython=True, cache=True)

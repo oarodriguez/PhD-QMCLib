@@ -1,13 +1,15 @@
 from abc import abstractmethod
-from collections import Callable, Mapping
+from collections import Callable, Iterable, Mapping
 from enum import Enum
-from typing import Callable as TCallable, Sequence, Type
+from typing import Callable as TCallable, Mapping as T_Mapping, Sequence, Type
 
 from thesis_lib.utils import Cached, CachedMeta, strict_update
 
 __all__ = [
     'GUFunc',
     'GUFuncMeta',
+    'MHSampling',
+    'MHSamplingMeta',
     'Model',
     'ModelFuncs',
     'ModelFuncsMeta',
@@ -332,4 +334,72 @@ class GUFunc(Cached, Callable, metaclass=GUFuncMeta):
     @abstractmethod
     def __call__(self, *args, **kwargs):
         """"""
+        pass
+
+
+class MHSamplingMeta(CachedMeta):
+    """Metaclass for :class:`MHSampling` abstract base class."""
+    pass
+
+
+class MHSampling(Iterable, Cached, metaclass=MHSamplingMeta):
+    """The interface that represents the sampling of an arbitrary
+    probability density function (p.d.f) using the Metropolis-Hastings
+    algorithm.
+    """
+
+    @property
+    @abstractmethod
+    def params(self):
+        """The parameters of the sampling."""
+        pass
+
+    @abstractmethod
+    def update_params(self, params: T_Mapping):
+        """Updates the sampling parameters."""
+        pass
+
+    @property
+    @abstractmethod
+    def wf_abs_log(self):
+        """The probability density function (p.d.f.) to sample."""
+        pass
+
+    @property
+    @abstractmethod
+    def ppf_args(self):
+        """The set of parameters for the transition proposal
+        probability function.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def sys_conf_ppf(self):
+        """The transition proposal probability function."""
+        pass
+
+    @property
+    @abstractmethod
+    def gen_args(self):
+        """
+
+        :return:
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def generator(self):
+        """A generator object for the sampling configurations that follow
+        the p.d.f.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def as_chain(self):
+        """Builds a JIT-compiled function to generate a Markov chain
+        that samples the probability distribution function.
+        """
         pass
