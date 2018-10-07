@@ -926,7 +926,7 @@ class ModelFuncs(core.ModelFuncs):
             """
 
             if is_free(model_params) and is_ideal(model_params):
-                return 0.
+                return 0., 0.
 
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
@@ -980,6 +980,7 @@ class ModelFuncs(core.ModelFuncs):
 
         :return:
         """
+        pos_slot = int(self.SysConfSlots.POS_SLOT)
         drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
         energy_slot = int(self.SysConfSlots.ENERGY_SLOT)
         ith_energy_and_drift = self.ith_energy_and_drift
@@ -1004,11 +1005,12 @@ class ModelFuncs(core.ModelFuncs):
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
             for i_ in range(nop):
-                ith_energy, ith_drift = ith_energy_and_drift(sys_conf,
+                ith_energy, ith_drift = ith_energy_and_drift(i_, sys_conf,
                                                              func_params,
                                                              model_params,
                                                              obf_params,
                                                              tbf_params)
+                result[pos_slot, i_] = sys_conf[pos_slot, i_]
                 result[drift_slot, i_] = ith_drift
                 result[energy_slot, i_] = ith_energy
 
