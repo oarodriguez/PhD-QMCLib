@@ -16,7 +16,7 @@ __all__ = [
     'ModelFuncs',
     'ModelParams',
     'ModelVarParams',
-    'SysConfSlots',
+    'SysConfSlot',
     'SysConfDistType',
     'SYS_CONF_SLOTS_DIM',
     'SYS_CONF_PARTICLE_INDEX_DIM'
@@ -24,7 +24,7 @@ __all__ = [
 
 
 @unique
-class SysConfSlots(IntEnum):
+class SysConfSlot(IntEnum):
     """Slots to store the configuration of a single particle."""
 
     # NOTE: We have added an slot to store the energy
@@ -101,10 +101,10 @@ class Model(core.Model):
     var_params_cls = ModelVarParams
 
     #
-    SysConfSlots = SysConfSlots
+    sys_conf_slots = SysConfSlot
 
     #
-    SysConfDistType = SysConfDistType
+    sys_conf_dist_type = SysConfDistType
 
     def __init__(self, params: TMapping[str, float],
                  var_params: TMapping[str, float]):
@@ -197,7 +197,7 @@ class Model(core.Model):
 
     @property
     def num_sys_conf_slots(self):
-        return len([_ for _ in self.SysConfSlots])
+        return len([_ for _ in self.sys_conf_slots])
 
     @property
     def sys_conf_shape(self):
@@ -219,8 +219,7 @@ class Model(core.Model):
         sc_shape = self.sys_conf_shape
         return np.zeros(sc_shape, dtype=np.float64)
 
-    def init_get_sys_conf(self, dist_type=DIST_RAND,
-                          offset=None):
+    def init_get_sys_conf(self, dist_type=DIST_RAND, offset=None):
         """Creates and initializes a system configuration with the
         positions of the particles arranged in the order specified
         by ``dist_type`` argument.
@@ -231,7 +230,7 @@ class Model(core.Model):
         """
         nop = self.params[self.params_cls.names.BOSON_NUMBER]
         z_min, z_max = self.boundaries
-        pos_slot = self.SysConfSlots.POS_SLOT
+        pos_slot = self.sys_conf_slots.POS_SLOT
         sys_conf = self.get_sys_conf_buffer()
         sc_size = z_max - z_min
         offset = offset or 0.
@@ -279,7 +278,7 @@ class ModelFuncs(core.ModelFuncs):
     var_params_cls = ModelVarParams
 
     #
-    SysConfSlots = SysConfSlots
+    sys_conf_slots = SysConfSlot
 
     @cached_property
     def boson_number(self):
@@ -388,7 +387,7 @@ class ModelFuncs(core.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -506,7 +505,7 @@ class ModelFuncs(core.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -572,7 +571,7 @@ class ModelFuncs(core.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -638,8 +637,8 @@ class ModelFuncs(core.ModelFuncs):
 
         :return:
         """
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
-        drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
         ith_drift = self.ith_drift
 
         @jit(nopython=True, cache=True)
@@ -680,7 +679,7 @@ class ModelFuncs(core.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -776,8 +775,8 @@ class ModelFuncs(core.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
-        # drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        # drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -897,7 +896,7 @@ class ModelFuncs(core.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -980,9 +979,9 @@ class ModelFuncs(core.ModelFuncs):
 
         :return:
         """
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
-        drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
-        energy_slot = int(self.SysConfSlots.ENERGY_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
+        energy_slot = int(self.sys_conf_slots.ENERGY_SLOT)
         ith_energy_and_drift = self.ith_energy_and_drift
 
         @jit(nopython=True, cache=True)
@@ -1025,7 +1024,7 @@ class ModelFuncs(core.ModelFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -1136,7 +1135,7 @@ class ModelFuncs(core.ModelFuncs):
 
         :return:
         """
-        pos_slot = int(self.SysConfSlots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.POS_SLOT)
 
         # noinspection PyUnusedLocal
         @jit(nopython=True, cache=True)

@@ -25,7 +25,7 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
     function.
     """
     # The slots available in a single particle configuration.
-    sys_conf_slots = core.SysConfSlots
+    sys_conf_slots = core.SysConfSlot
 
     def __init__(self, model: core.Model,
                  params: Mapping[str, float]):

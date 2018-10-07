@@ -119,19 +119,19 @@ def test_qmc_funcs():
     epp = energy_v / nop
     print("The energy per particle is: {:.6g}".format(epp))
 
-    drift_values = out_sys_conf[model.SysConfSlots.DRIFT_SLOT, :]
+    drift_values = out_sys_conf[model.sys_conf_slots.DRIFT_SLOT, :]
     print("The drift is: {}".format(drift_values))
 
     # Testing that the array function do not modify its inputs
-    in_pos_values = sys_conf[model.SysConfSlots.POS_SLOT, :]
-    out_pos_values = out_sys_conf[model.SysConfSlots.POS_SLOT, :]
+    in_pos_values = sys_conf[model.sys_conf_slots.POS_SLOT, :]
+    out_pos_values = out_sys_conf[model.sys_conf_slots.POS_SLOT, :]
     assert np.alltrue(out_pos_values == in_pos_values)
 
     with pytest.raises(AssertionError):
         # Testing that the array function modified the output array
         # where expected.
-        in_pos_values = sys_conf[model.SysConfSlots.DRIFT_SLOT, :]
-        out_pos_values = out_sys_conf[model.SysConfSlots.DRIFT_SLOT, :]
+        in_pos_values = sys_conf[model.sys_conf_slots.DRIFT_SLOT, :]
+        out_pos_values = out_sys_conf[model.sys_conf_slots.DRIFT_SLOT, :]
         assert np.alltrue(out_pos_values == in_pos_values)
 
 
@@ -148,7 +148,8 @@ def test_gufunc():
     func_args = model.func_args
     energy_args = model.energy_args
     flat_func_args = model.flat_func_args
-    sys_conf = model.init_get_sys_conf(dist_type=model.SysConfDistType.REGULAR)
+    dist_type_regular = model.sys_conf_dist_type.REGULAR
+    sys_conf = model.init_get_sys_conf(dist_type=dist_type_regular)
 
     # Instantiate a universal function
     wf_abs_log = qmc_funcs.wf_abs_log
