@@ -72,7 +72,7 @@ def test_base_sampling():
 
     wf_abs_log = model.core_funcs.wf_abs_log
     wf_abs_log_guf = WFGUFunc(wf_abs_log)
-    wf_abs_log_chain_gu = wf_abs_log_guf(sys_conf_chain, model.flat_func_args)
+    wf_abs_log_chain_gu = wf_abs_log_guf(sys_conf_chain, model.gufunc_args)
 
     assert wf_abs_log_chain.shape == wf_abs_log_chain_gu.shape
     assert np.allclose(wf_abs_log_chain.shape, wf_abs_log_chain_gu.shape)

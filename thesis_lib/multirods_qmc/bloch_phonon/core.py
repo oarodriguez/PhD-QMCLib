@@ -9,12 +9,13 @@ from numba import jit
 
 from thesis_lib import ideal, qmc_lib
 from thesis_lib.qmc_lib.utils import min_distance
-from thesis_lib.utils import cached_property, get_random_rng_seed
+from thesis_lib.utils import (cached_property, get_random_rng_seed)
 from .. import jastrow, trial_funcs as tf
 
 __all__ = [
     'ArrayGUFunc',
     'ArrayGUPureFunc',
+    'EnergyGUFunc',
     'Model',
     'ModelCoreFuncs',
     'ModelParams',
@@ -22,7 +23,8 @@ __all__ = [
     'Sampling',
     'UniformSampling',
     'ScalarGUFunc',
-    'ScalarGUPureFunc'
+    'ScalarGUPureFunc',
+    'WFGUFunc'
 ]
 
 # Some alias..
@@ -122,7 +124,7 @@ class Model(jastrow.Model):
         return v0, r, gn
 
     @property
-    def flat_func_args(self):
+    def gufunc_args(self):
         """Concatenate the :attr:`Model.core_func_args` tuples and returns
         a single tuple. Intended to be used with generalized universal
         functions (gufunc).
@@ -353,3 +355,28 @@ class ScalarGUPureFunc(ArrayGUPureFunc, qmc_lib.jastrow.ScalarGUPureFunc,
     def __init__(self, base_func, target=None):
         """"""
         super().__init__(base_func, target)
+
+
+class WFGUFunc(ScalarGUPureFunc):
+    """Generalized version of the wave function."""
+    pass
+
+
+class EnergyGUFunc(ScalarGUFunc):
+    """"""
+
+    @property
+    def as_func_args(self):
+        """"""
+
+        @jit(nopython=True, cache=True)
+        def _as_func_args(func_params):
+            """"""
+            v0_ = func_params[0]
+            r_ = func_params[1]
+            gn_ = func_params[2]
+            func_args_0 = v0_, r_, gn_
+
+            return func_args_0,
+
+        return _as_func_args
