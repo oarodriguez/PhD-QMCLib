@@ -9,7 +9,7 @@ from numba import jit
 
 from thesis_lib.utils import cached_property
 from .. import core
-from ..utils import min_distance, sign
+from ..utils import sign
 
 __all__ = [
     'Model',
@@ -387,7 +387,7 @@ class ModelFuncs(core.ModelFuncs):
         """
         is_free = self.is_free
         is_ideal = self.is_ideal
-        supercell_size = self.supercell_size
+        real_distance = self.real_distance
         pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
@@ -411,7 +411,6 @@ class ModelFuncs(core.ModelFuncs):
             """
             ith_wf_abs_log = 0.
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            sc_size = supercell_size(model_params)
 
             if not is_free(model_params):
                 # Gas subject to external potential.
@@ -424,7 +423,7 @@ class ModelFuncs(core.ModelFuncs):
                 z_i = sys_conf[pos_slot, i_]
                 for j_ in range(i_ + 1, nop):
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = min_distance(z_i, z_j, sc_size)
+                    z_ij = real_distance(z_i, z_j, model_params)
                     tbv = two_body_func(fabs(z_ij), *tbf_params)
 
                     ith_wf_abs_log += log(fabs(tbv))
@@ -506,7 +505,7 @@ class ModelFuncs(core.ModelFuncs):
         """
         is_free = self.is_free
         is_ideal = self.is_ideal
-        supercell_size = self.supercell_size
+        real_distance = self.real_distance
         pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
@@ -531,7 +530,6 @@ class ModelFuncs(core.ModelFuncs):
             """
             delta_wf_abs_log = 0.
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            sc_size = supercell_size(model_params)
 
             if is_free(model_params) and is_ideal(model_params):
                 return delta_wf_abs_log
@@ -554,8 +552,8 @@ class ModelFuncs(core.ModelFuncs):
                         continue
 
                     z_i = sys_conf[pos_slot, i_]
-                    r_ki = fabs(min_distance(z_k, z_i, sc_size))
-                    r_ki_upd = fabs(min_distance(z_k_upd, z_i, sc_size))
+                    r_ki = fabs(real_distance(z_k, z_i, model_params))
+                    r_ki_upd = fabs(real_distance(z_k_upd, z_i, model_params))
 
                     tbv = two_body_func(r_ki, *tbf_params)
                     tbv_upd = two_body_func(r_ki_upd, *tbf_params)
@@ -573,7 +571,7 @@ class ModelFuncs(core.ModelFuncs):
         """
         is_free = self.is_free
         is_ideal = self.is_ideal
-        supercell_size = self.supercell_size
+        real_distance = self.real_distance
         pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -603,7 +601,6 @@ class ModelFuncs(core.ModelFuncs):
             # Unpack the parameters.
             ith_drift = 0.
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            sc_size = supercell_size(model_params)
 
             if not is_free(model_params):
                 # Case with external potential.
@@ -622,7 +619,7 @@ class ModelFuncs(core.ModelFuncs):
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = min_distance(z_i, z_j, sc_size)
+                    z_ij = real_distance(z_i, z_j, model_params)
                     sgn = sign(z_ij)
 
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_ij),
@@ -682,7 +679,7 @@ class ModelFuncs(core.ModelFuncs):
         """
         is_free = self.is_free
         is_ideal = self.is_ideal
-        supercell_size = self.supercell_size
+        real_distance = self.real_distance
         pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -709,7 +706,6 @@ class ModelFuncs(core.ModelFuncs):
             """
             delta_ith_drift = 0.
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            sc_size = supercell_size(model_params)
 
             if is_free(model_params) and is_ideal(model_params):
                 return delta_ith_drift
@@ -724,8 +720,8 @@ class ModelFuncs(core.ModelFuncs):
                     return delta_ith_drift
 
                 z_i = sys_conf[pos_slot, i_]
-                z_ki_upd = min_distance(z_k_upd, z_i, sc_size)
-                z_ki = min_distance(z_k, z_i, sc_size)
+                z_ki_upd = real_distance(z_k_upd, z_i, model_params)
+                z_ki = real_distance(z_k, z_i, model_params)
 
                 # TODO: Move th sign to the function.
                 sgn = sign(z_ki)
@@ -754,8 +750,8 @@ class ModelFuncs(core.ModelFuncs):
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_kj = min_distance(z_k, z_j, sc_size)
-                    z_kj_upd = min_distance(z_k_upd, z_j, sc_size)
+                    z_kj = real_distance(z_k, z_j, model_params)
+                    z_kj_upd = real_distance(z_k_upd, z_j, model_params)
 
                     sgn = sign(z_kj)
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_kj),
@@ -779,7 +775,7 @@ class ModelFuncs(core.ModelFuncs):
         """
         is_free = self.is_free
         is_ideal = self.is_ideal
-        supercell_size = self.supercell_size
+        real_distance = self.real_distance
         pos_slot = int(self.SysConfSlots.POS_SLOT)
         # drift_slot = int(self.SysConfSlots.DRIFT_SLOT)
 
@@ -813,7 +809,6 @@ class ModelFuncs(core.ModelFuncs):
                 return 0.
 
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            sc_size = supercell_size(model_params)
 
             # Unpack the parameters.
             kin_energy = 0.
@@ -840,7 +835,7 @@ class ModelFuncs(core.ModelFuncs):
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = min_distance(z_i, z_j, sc_size)
+                    z_ij = real_distance(z_i, z_j, model_params)
                     sgn = sign(z_ij)
 
                     tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij),
@@ -901,7 +896,7 @@ class ModelFuncs(core.ModelFuncs):
         """
         is_free = self.is_free
         is_ideal = self.is_ideal
-        supercell_size = self.supercell_size
+        real_distance = self.real_distance
         pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         potential = self.potential
@@ -934,7 +929,6 @@ class ModelFuncs(core.ModelFuncs):
                 return 0.
 
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            sc_size = supercell_size(model_params)
 
             # Unpack the parameters.
             kin_energy = 0.
@@ -961,7 +955,7 @@ class ModelFuncs(core.ModelFuncs):
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = min_distance(z_i, z_j, sc_size)
+                    z_ij = real_distance(z_i, z_j, model_params)
                     sgn = sign(z_ij)
 
                     tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij),
@@ -1028,7 +1022,7 @@ class ModelFuncs(core.ModelFuncs):
         """
         is_free = self.is_free
         is_ideal = self.is_ideal
-        supercell_size = self.supercell_size
+        real_distance = self.real_distance
         pos_slot = int(self.SysConfSlots.POS_SLOT)
 
         one_body_func = self.one_body_func
@@ -1063,7 +1057,6 @@ class ModelFuncs(core.ModelFuncs):
             # average over all possible particle displacements.
             ith_obd_log = 0.
             nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            sc_size = supercell_size(model_params)
             sz, = func_params
 
             if not is_free(model_params):
@@ -1086,11 +1079,11 @@ class ModelFuncs(core.ModelFuncs):
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = min_distance(z_i, z_j, sc_size)
+                    z_ij = real_distance(z_i, z_j, model_params)
                     tb_fn = two_body_func(fabs(z_ij), *tbf_params)
 
                     # Shifted difference.
-                    z_ij = min_distance(z_i_sft, z_j, sc_size)
+                    z_ij = real_distance(z_i_sft, z_j, model_params)
                     tb_fn_shift = two_body_func(fabs(z_ij), *tbf_params)
 
                     ith_obd_log += (log(tb_fn_shift) - log(tb_fn))

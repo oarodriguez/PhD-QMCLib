@@ -8,6 +8,7 @@ from math import sqrt
 from numba import jit
 
 from thesis_lib import ideal, qmc_lib
+from thesis_lib.qmc_lib.utils import min_distance
 from thesis_lib.utils import cached_property, get_random_rng_seed
 from .. import jastrow, trial_funcs as tf
 
@@ -158,6 +159,20 @@ class ModelFuncs(jastrow.ModelFuncs):
     def __init__(self):
         """"""
         super().__init__()
+
+    @cached_property
+    def real_distance(self):
+        """"""
+        supercell_size = self.supercell_size
+
+        # noinspection PyUnusedLocal
+        @jit(nopython=True, cache=True)
+        def _real_distance(z_i, z_j, model_args):
+            """The real distance between two bosons."""
+            sc_size = supercell_size(model_args)
+            return min_distance(z_i, z_j, sc_size)
+
+        return _real_distance
 
     @cached_property
     def one_body_func(self):

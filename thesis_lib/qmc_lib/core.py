@@ -225,6 +225,11 @@ class ModelFuncs(Cached, metaclass=ModelFuncsMeta):
 
     @property
     @abstractmethod
+    def real_distance(self):
+        pass
+
+    @property
+    @abstractmethod
     def wf_abs_log(self):
         pass
 
