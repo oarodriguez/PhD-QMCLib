@@ -15,8 +15,9 @@ from numba.config import reload_config
 from tzlocal import get_localzone
 
 
-class CachedProperty(property):
+class CachedProperty(object):
     """An object that acts as a property attribute with its value cached."""
+    # Do not inherit from property...
 
     # TODO: Add __repr__
 
@@ -26,9 +27,9 @@ class CachedProperty(property):
         :param name:
         :param func:
         """
-        super().__init__(func)
         self.__name__ = name or func.__name__
         self.func = func
+        self.__doc__ = func.__doc__
 
     def __get__(self, obj: 'Cached', type_=None):
         """
@@ -59,7 +60,11 @@ class CachedProperty(property):
 
     def __set__(self, obj, value):
         """Make read-only data descriptor."""
-        raise AttributeError
+        raise AttributeError("can't set attribute")
+
+    def __delete__(self, obj):
+        """Make read-only data descriptor."""
+        raise AttributeError("can't delete attribute")
 
 
 def cached_property(func, name=None):
