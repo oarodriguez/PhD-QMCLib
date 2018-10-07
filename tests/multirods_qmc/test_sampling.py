@@ -1,3 +1,6 @@
+import numpy as np
+from numba import jit
+
 from thesis_lib.multirods_qmc import bloch_phonon
 
 v0, r, gn = 100, 1, 1
@@ -14,6 +17,31 @@ model_params = dict(lattice_depth=v0,
 var_params = dict(tbf_contact_cutoff=rm)
 
 
+class WFGUFunc(bloch_phonon.ScalarGUPureFunc):
+    """"""
+    pass
+
+
+class EnergyGUFunc(bloch_phonon.ScalarGUFunc):
+    """"""
+
+    @property
+    def as_func_args(self):
+        """"""
+
+        @jit(nopython=True, cache=True)
+        def _as_func_args(func_params):
+            """"""
+            v0_ = func_params[0]
+            r_ = func_params[1]
+            gn_ = func_params[2]
+            func_args_0 = v0_, r_, gn_
+
+            return func_args_0,
+
+        return _as_func_args
+
+
 def test_base_sampling():
     """
 
@@ -22,16 +50,29 @@ def test_base_sampling():
     # TODO: Improve this test.
     model = bloch_phonon.Model(model_params, var_params)
 
+    ncs, nbs = 10000, 0
     ini_sys_conf = model.init_get_sys_conf()
     sampling_params = dict(move_spread=0.05,
                            ini_sys_conf=ini_sys_conf,
-                           chain_samples=10,
-                           burn_in_samples=0,
+                           chain_samples=ncs,
+                           burn_in_samples=nbs,
                            rng_seed=1)
     sampling = bloch_phonon.UniformSampling(model, sampling_params)
+    ar = 0
     for data in sampling:
         sys_conf, wfv, stat = data
-        print(sys_conf[model.SysConfSlots.POS_SLOT], stat)
+        ar += stat
+    ar /= ncs
 
     chain_data = sampling.as_chain()
-    print(chain_data)
+    sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
+
+    assert sys_conf_chain.shape == (ncs, model.num_sys_conf_slots, nop)
+    assert ar == ar_
+
+    wf_abs_log = model.funcs.wf_abs_log
+    wf_abs_log_guf = WFGUFunc(wf_abs_log)
+    wf_abs_log_chain_gu = wf_abs_log_guf(sys_conf_chain, model.flat_func_args)
+
+    assert wf_abs_log_chain.shape == wf_abs_log_chain_gu.shape
+    assert np.allclose(wf_abs_log_chain.shape, wf_abs_log_chain_gu.shape)
