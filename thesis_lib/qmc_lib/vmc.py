@@ -62,9 +62,16 @@ class SamplingParam(core.ParamNameEnum):
     RNG_SEED = 'rng_seed'
 
 
+class SamplingParamDefault(Enum):
+    """"""
+    BURN_IN_SAMPLES = 0
+    RNG_SEED = None
+
+
 class SamplingParams(core.ParamsSet):
     """"""
     names = SamplingParam
+    defaults = SamplingParamDefault
 
 
 class Sampling(core.MHSampling, metaclass=ABCMeta):
@@ -309,9 +316,16 @@ class UniformSamplingParam(core.ParamNameEnum):
     RNG_SEED = 'rng_seed'
 
 
-class UniformSamplingParams(core.ParamsSet):
+class UniformSamplingParamDefault(Enum):
+    """"""
+    BURN_IN_SAMPLES = 0
+    RNG_SEED = None
+
+
+class UniformSamplingParams(SamplingParams):
     """"""
     names = UniformSamplingParam
+    defaults = UniformSamplingParamDefault
 
 
 class UniformSampling(Sampling, metaclass=ABCMeta):

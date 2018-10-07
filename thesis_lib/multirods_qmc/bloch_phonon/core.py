@@ -8,7 +8,7 @@ from math import sqrt
 from numba import jit
 
 from thesis_lib import ideal, qmc_lib
-from thesis_lib.utils import cached_property
+from thesis_lib.utils import cached_property, get_random_rng_seed
 from .. import jastrow, trial_funcs as tf
 
 __all__ = [
@@ -220,13 +220,17 @@ class Sampling(qmc_lib.jastrow.vmc.PBCSampling):
         :return:
         """
         names = self.params_cls.names
+        rng_seed = self.params[names.RNG_SEED]
+        if rng_seed is None:
+            rng_seed = get_random_rng_seed()
+
         return (
             self.model.func_args,
             self.ppf_args,
             self.params[names.INI_SYS_CONF],
             self.params[names.CHAIN_SAMPLES],
             self.params[names.BURN_IN_SAMPLES],
-            self.params[names.RNG_SEED]
+            rng_seed
         )
 
 

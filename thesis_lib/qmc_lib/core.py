@@ -48,8 +48,11 @@ class ParamsSet(Mapping):
     """Base class for parameters. Implements a read-only mapping
     interface.
     """
-    #
+    # Enum with the allowed parameters.
     names: Type[Enum] = None
+
+    # Enum with the default values (if necessary) of the parameters.
+    defaults: Type[Enum] = None
 
     # Names are important as they restrict the set of
     # allowed parameters.
@@ -64,18 +67,34 @@ class ParamsSet(Mapping):
         :param args:
         :param kwargs:
         """
-        if self.names is None:
+        self_names = self.names
+        if self_names is None:
             raise TypeError("'names' attribute must not be None")
-        elif not issubclass(self.names, Enum):
+        elif not issubclass(self_names, Enum):
             raise TypeError("'names' attribute must be an enumeration")
 
-        ord_names = [name.value for name in self.names]
-        data = dict([(name, None) for name in ord_names])
-        strict_update(data, dict(*args, **kwargs), full=True)
+        defaults = self.defaults
+        if defaults is None:
+            ext_data = dict(*args, **kwargs)
+        else:
+            ext_data = {}
+            for default in defaults:
+                default_name = default.name
+                if default_name not in self_names.__members__:
+                    raise KeyError("unexpected default: "
+                                   "'{}'".format(default_name))
+                name = self_names[default_name]
+                default = defaults[name.name]
+                ext_data[name.value] = default.value
+            ext_data.update(*args, **kwargs)
+
+        ord_names = [name.value for name in self_names]
+        self_data = dict([(name.value, None) for name in self_names])
+        strict_update(self_data, ext_data, full=True)
 
         # The order in which the mapping will be iterated.
         self._ord_names = tuple(ord_names)
-        self._data = data
+        self._data = self_data
 
     def __getitem__(self, name):
         # Items come from the attributes.
