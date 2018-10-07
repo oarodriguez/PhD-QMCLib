@@ -415,8 +415,6 @@ class MHSampling(Iterable, Cached, metaclass=MHSamplingMeta):
         """
         pass
 
-    @property
-    @abstractmethod
     def as_chain(self):
         """Builds a JIT-compiled function to generate a Markov chain
         that samples the probability distribution function.

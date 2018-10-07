@@ -227,7 +227,7 @@ class Sampling(core.MHSampling, metaclass=ABCMeta):
         return _generator
 
     @cached_property
-    def as_chain(self):
+    def _as_chain(self):
         """JIT-compiled function to generate a Markov chain with the
         sampling of the probability density function.
 
@@ -237,12 +237,12 @@ class Sampling(core.MHSampling, metaclass=ABCMeta):
         generator = self.generator
 
         @jit(nopython=True, cache=True, nogil=True)
-        def _as_chain(wf_args: Tuple[Any, ...],
-                      ppf_args: Tuple[Any, ...],
-                      ini_sys_conf: np.ndarray,
-                      chain_samples: int,
-                      burn_in_samples: int,
-                      rng_seed: int):
+        def __as_chain(wf_args: Tuple[Any, ...],
+                       ppf_args: Tuple[Any, ...],
+                       ini_sys_conf: np.ndarray,
+                       chain_samples: int,
+                       burn_in_samples: int,
+                       rng_seed: int):
             """Routine to samples the probability density function.
 
             :param wf_args: A tuple with the parameters needed to
@@ -284,7 +284,11 @@ class Sampling(core.MHSampling, metaclass=ABCMeta):
             accept_rate = accepted / chain_samples
             return sys_conf_chain, wf_abs_log_chain, accept_rate
 
-        return _as_chain
+        return __as_chain
+
+    def as_chain(self):
+        """Returns the sampling results as a whole."""
+        return self._as_chain(*self.gen_args)
 
     def __iter__(self):
         """"""

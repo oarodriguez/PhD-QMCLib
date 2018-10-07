@@ -19,6 +19,7 @@ def test_base_sampling():
 
     :return:
     """
+    # TODO: Improve this test.
     model = bloch_phonon.Model(model_params, var_params)
 
     ini_sys_conf = model.init_get_sys_conf()
@@ -31,3 +32,6 @@ def test_base_sampling():
     for data in sampling:
         sys_conf, wfv, stat = data
         print(sys_conf[model.SysConfSlots.POS_SLOT], stat)
+
+    chain_data = sampling.as_chain()
+    print(chain_data)
