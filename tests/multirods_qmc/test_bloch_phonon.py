@@ -100,19 +100,19 @@ def test_qmc_funcs():
     # We have an ideal system...
     new_params['interaction_strength'] = 0.
     model = bloch_phonon.Model(new_params, var_params)
-    qmc_funcs = model.funcs
+    core_funcs = model.core_funcs
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model.init_get_sys_conf()
-    func_args = model.func_args
+    func_args = model.core_func_args
     energy_args = model.energy_args
 
     # Testing a scalar function with own arguments
-    energy_func = qmc_funcs.energy
+    energy_func = core_funcs.energy
     energy_v = energy_func(sys_conf, energy_args, *func_args)
 
     # Testing an array function with no own arguments
-    drift = qmc_funcs.drift
+    drift = core_funcs.drift
     out_sys_conf = sys_conf.copy()
     drift(sys_conf, *func_args, out_sys_conf)
 
@@ -142,23 +142,23 @@ def test_gufunc():
     var_params = dict(tbf_contact_cutoff=rm)
 
     model = bloch_phonon.Model(new_params, var_params)
-    qmc_funcs = model.funcs
+    core_funcs = model.core_funcs
 
     # Generate a random configuration, pick the model parameters.
-    func_args = model.func_args
+    core_func_args = model.core_func_args
     energy_args = model.energy_args
     flat_func_args = model.flat_func_args
     dist_type_regular = model.sys_conf_dist_type.REGULAR
     sys_conf = model.init_get_sys_conf(dist_type=dist_type_regular)
 
     # Instantiate a universal function
-    wf_abs_log = qmc_funcs.wf_abs_log
-    energy = qmc_funcs.energy
+    wf_abs_log = core_funcs.wf_abs_log
+    energy = core_funcs.energy
     wf_abs_log_gufunc = WFGUFunc(wf_abs_log)
     energy_gufunc = EnergyGUFunc(energy)
 
-    energy_v = energy(sys_conf, energy_args, *func_args)
-    wf_abs_log_v = wf_abs_log(sys_conf, *func_args)
+    energy_v = energy(sys_conf, energy_args, *core_func_args)
+    wf_abs_log_v = wf_abs_log(sys_conf, *core_func_args)
 
     energy_gv = energy_gufunc(sys_conf, energy_args, flat_func_args)
     wf_abs_log_gv = wf_abs_log_gufunc(sys_conf, flat_func_args)

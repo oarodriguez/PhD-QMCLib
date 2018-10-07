@@ -45,7 +45,7 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
     @cached_property
     def wf_abs_log(self):
         """"""
-        return self.model.funcs.wf_abs_log
+        return self.model.core_funcs.wf_abs_log
 
     @property
     def ppf_args(self):

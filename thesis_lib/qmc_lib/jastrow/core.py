@@ -13,7 +13,7 @@ from ..utils import sign
 
 __all__ = [
     'Model',
-    'ModelFuncs',
+    'ModelCoreFuncs',
     'ModelParams',
     'ModelVarParams',
     'SysConfSlot',
@@ -262,11 +262,11 @@ class Model(core.Model):
 
     @property
     @abstractmethod
-    def funcs(self) -> 'ModelFuncs':
+    def core_funcs(self) -> 'ModelCoreFuncs':
         pass
 
 
-class ModelFuncs(core.ModelFuncs):
+class ModelCoreFuncs(core.ModelCoreFuncs):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical
     functions to realize a Quantum Monte Carlo calculation for a QMC model
     with a trial-wave function of the Bijl-Jastrow type.

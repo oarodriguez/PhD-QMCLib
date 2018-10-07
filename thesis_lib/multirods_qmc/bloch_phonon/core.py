@@ -16,7 +16,7 @@ __all__ = [
     'ArrayGUFunc',
     'ArrayGUPureFunc',
     'Model',
-    'ModelFuncs',
+    'ModelCoreFuncs',
     'ModelParams',
     'ModelVarParams',
     'Sampling',
@@ -106,7 +106,7 @@ class Model(jastrow.Model):
         return obf_args, tbf_args
 
     @property
-    def func_args(self):
+    def core_func_args(self):
         """"""
         self_args = self.args
         obf_args = self.obf_args
@@ -123,11 +123,11 @@ class Model(jastrow.Model):
 
     @property
     def flat_func_args(self):
-        """Concatenate the :attr:`Model.func_args` tuples and returns
+        """Concatenate the :attr:`Model.core_func_args` tuples and returns
         a single tuple. Intended to be used with generalized universal
         functions (gufunc).
         """
-        return reduce(operator.add, self.func_args)
+        return reduce(operator.add, self.core_func_args)
 
     @property
     def var_params_bounds(self):
@@ -143,12 +143,12 @@ class Model(jastrow.Model):
         return OrderedDict(bounds)
 
     @cached_property
-    def funcs(self):
+    def core_funcs(self):
         """"""
-        return ModelFuncs()
+        return ModelCoreFuncs()
 
 
-class ModelFuncs(jastrow.ModelFuncs):
+class ModelCoreFuncs(jastrow.ModelCoreFuncs):
     """Functions of a QMC model for a system with a trial wave function
     of the Bijl-Jastrow type.
     """
@@ -240,7 +240,7 @@ class Sampling(qmc_lib.jastrow.vmc.PBCSampling):
             rng_seed = get_random_rng_seed()
 
         return (
-            self.model.func_args,
+            self.model.core_func_args,
             self.ppf_args,
             self.params[names.INI_SYS_CONF],
             self.params[names.CHAIN_SAMPLES],
@@ -258,7 +258,7 @@ class UniformSampling(Sampling, qmc_lib.jastrow.vmc.PBCUniformSampling):
 def _as_model_args(model_full_params):
     """Takes the model parameters from the array, and group them
     in tuples. The constructed tuples are returned to the caller so
-    they an be user as arguments for a ``ModelFuncs`` function.
+    they an be user as arguments for a ``ModelCoreFuncs`` function.
     """
     # TODO: Is there a better way to do this?
     v0 = model_full_params[0]

@@ -70,7 +70,7 @@ def test_base_sampling():
     assert sys_conf_chain.shape == (ncs, model.num_sys_conf_slots, nop)
     assert ar == ar_
 
-    wf_abs_log = model.funcs.wf_abs_log
+    wf_abs_log = model.core_funcs.wf_abs_log
     wf_abs_log_guf = WFGUFunc(wf_abs_log)
     wf_abs_log_chain_gu = wf_abs_log_guf(sys_conf_chain, model.flat_func_args)
 

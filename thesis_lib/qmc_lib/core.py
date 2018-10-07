@@ -11,8 +11,8 @@ __all__ = [
     'MHSampling',
     'MHSamplingMeta',
     'Model',
-    'ModelFuncs',
-    'ModelFuncsMeta',
+    'ModelCoreFuncs',
+    'ModelCoreFuncsMeta',
     'ModelMeta',
     'ParamNameEnum',
     'ParamsSet',
@@ -186,26 +186,28 @@ class Model(Cached, metaclass=ModelMeta):
 
     @property
     @abstractmethod
-    def func_args(self):
+    def core_func_args(self):
         """Tuple to be used as part of the arguments of the functions
-        in the corresponding :class:`ModelFuncs` instance of the model
-        (:attr:`Model.funcs` attribute).
+        in the corresponding :class:`ModelCoreFuncs` instance of the model
+        (:attr:`Model.core_funcs` attribute).
         """
-        return
+        pass
 
     @property
     @abstractmethod
-    def funcs(self):
-        """The QMC functions associated to the model."""
+    def core_funcs(self):
+        """Performance-critical (JIT-compiled) implementations of the basic
+        QMC functions associated with the model.
+        """
         pass
 
 
-class ModelFuncsMeta(CachedMeta):
-    """Metaclass for :class:`ModelFuncs` abstract base class."""
+class ModelCoreFuncsMeta(CachedMeta):
+    """Metaclass for :class:`ModelCoreFuncs` abstract base class."""
     pass
 
 
-class ModelFuncs(Cached, metaclass=ModelFuncsMeta):
+class ModelCoreFuncs(Cached, metaclass=ModelCoreFuncsMeta):
     """"""
 
     @property
