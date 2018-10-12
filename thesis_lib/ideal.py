@@ -14,7 +14,7 @@ def energy_relation(lattice_depth: float,
     gas and the momentum of the bosons.
 
     :param lattice_depth: The potential magnitude.
-    :param lattice_ratio: The ration width/separation of two consecutive
+    :param lattice_ratio: The ratio width/separation of two consecutive
                             barriers of th e potential.
     :param energy: The energy of the bosons.
     :param momentum: The momentum of the bosons.
