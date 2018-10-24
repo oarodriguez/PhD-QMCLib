@@ -9,50 +9,50 @@
 \label{sec:the-ideal-bose-gas-within-a-kronig-penney-potential}
 
 We have studied~\cite{bib:rodriguez-msc-thesis.2014,
-  bib:rodriguez-j-low-temp-phys.175.2014,
-  bib:rodriguez-j-low-temp-phys.183.2016} the properties of a noninteracting 3D
+	bib:rodriguez-j-low-temp-phys.175.2014,
+	bib:rodriguez-j-low-temp-phys.183.2016} the properties of a noninteracting 3D
 Bose gas within a periodic potential composed of multiple slabs of width $b$
 separated a distance $a$ one from each other. The slabs distribute all over
 the space transversely to the $z$ direction, and extend all over the space in
 the $x$ and $y$ directions. We model this system through a Kronig-Penny
 potential~\cite{bib:kronig-proc-roy-soc-lond.130.1931} in the $z$ direction
 composed of potential barriers of width $b$ and separation $a$ with a
-magnitude $\vzero$. The period of the potential is $l \equiv a + b$. The
-magnitude of the potential determines how probable the tunneling of the bosons
-through the barriers is. In the $x$ and $y$ directions we consider that the
-bosons do not interact with any external potential so they behave as free
-particles.
+magnitude $\vzero$. The period of the potential is $l \equiv a + b$. The magnitude
+of the potential determines how probable the tunneling of the bosons through
+the barriers is. In the $x$ and $y$ directions we consider that the bosons do
+not interact with any external potential so they behave as free particles.
 %
 \begin{figure}[h!]
-  \centering
-  \includegraphics[width=0.6\linewidth]{./figures/kp-potential}
-  \caption{Kronig-Penney potential schematic.}\label{fig:kp-potential}
+	\centering
+	\includegraphics[width=0.6\linewidth]{./figures/kp-potential}
+	\caption{Kronig-Penney potential schematic.}\label{fig:kp-potential}
 \end{figure}
 %
 
 The Schrödinger equation of the system is
 %
 \begin{equation}
-  -\frac{\hbar^2}{2m} \nabla^2 \Psi(\vec r) + \VKP(\vec r) \Psi(\vec r) = \etot \Psi(\vec r),
+	-\frac{\hbar^2}{2m} \nabla^2 \Psi(\vec r) + \VKP(\vec r) \Psi(\vec r) = \etot \Psi(\vec r),
 \end{equation}
 %
 where $\VKP(\vec r)$ is the {\KP} potential whose definition is
 %
 \begin{equation}
-  \label{eq:kronig-penney-potential}
-  \VKP(\vec r) = \begin{cases}
-    0   & 0 < z - nl < a  \\
-    V_0 & a < z - nl < l,
-  \end{cases}
+	\label{eq:kronig-penney-potential}
+	\VKP(\vec r) = \begin{cases}
+		0   & nl < z < nl + a      \\
+		V_0 & nl + a < z < (n+1)l,
+	\end{cases}
 \end{equation}
 %
 with $n$ being an integer. As the potential extends all over the space $n$ goes
-from $-\infty$ to $\infty$. Because the bosons in the gas do not interact
-between them, the whole wave function can be decomposed in three components, one
-for each direction:
+from $-\infty$ to $\infty$.
+
+Because the bosons that form the gas do not interact between them, the whole
+wave function can be decomposed in three components, one for each direction:
 %
 \begin{equation}
-  \Psi(\vec r) \equiv \Psi_x(x) \Psi_y(y) \Psi_z(z).
+	\Psi(\vec r) \equiv \Psi_x(x) \Psi_y(y) \Psi_z(z).
 \end{equation}
 %
 As a consequence, the total energy is also decomposed in three contributions:
@@ -62,31 +62,31 @@ directions the energy per boson contribution over these axis correspond to that
 of the free particle,
 %
 \begin{equation}
-  \ex = \frac{\hbar^2 k_x^2}{2m},  \qquad \ey = \frac{\hbar^2 k_y^2}{2m},
+	\ex = \frac{\hbar^2 k_x^2}{2m},  \qquad \ey = \frac{\hbar^2 k_y^2}{2m},
 \end{equation}
 %
 while in the $z$ direction the Schrödinger becomes
 %
 \begin{equation}
-  -\frac{\hbar^2}{2m} \frac{d^2 \Psi_z}{dz^2} + \VKP(z) \Psi_z(z) = \ez \Psi_z(z),
+	-\frac{\hbar^2}{2m} \frac{d^2 \Psi_z}{dz^2} + \VKP(z) \Psi_z(z) = \ez \Psi_z(z),
 \end{equation}
 %
 where only appear the component that corresponds to wave function in the $z$
 coordinate, $\Psi_z(z)$, and the corresponding energy contribution, $\ez$.
 
-Given that the {\KP} potential $\VKP(z)$ is periodic the solutions of the
+Given that the {\KP} potential $\VKP$ is periodic the solutions of the
 differential equation for $\Psi_z(z)$ are Bloch states,
 %
 \begin{equation}
-  \label{eq:bloch-wave}
-  \Psi_z(z) \equiv e^{i k_z z} \phi_{k_z}(z),
+	\label{eq:bloch-wave}
+	\Psi_z(z) \equiv e^{i k_z z} \phi_{k_z}(z),
 \end{equation}
 %
 with $k_z$ being the quasi-momentum of the particles and $\phi_{k_z}(z)$ a
 periodic function with the same period of the potential, hence
 %
 \begin{equation}
-  \phi_{k_z}(z + l) = \phi_{k_z}(z).
+	\phi_{k_z}(z + l) = \phi_{k_z}(z).
 \end{equation}
 %
 We solve the Schrödinger equation by applying the boundary conditions of
@@ -95,8 +95,8 @@ of the wave function. The energy contribution in this direction $\ez$ is then
 given by the implicit relation~\cite{bib:kronig-proc-roy-soc-lond.130.1931}
 %
 \begin{equation}
-  \label{eq:kronig-penney-energy}
-  \frac{\kappa^2 - \alpha^2}{2 \alpha \kappa} \sinh(\kappa b) \sin(\alpha a) + \cosh(\kappa b) \cos(\alpha a) = \cos \kz(a+b),
+	\label{eq:kronig-penney-energy}
+	\frac{\kappa^2 - \alpha^2}{2 \alpha \kappa} \sinh(\kappa b) \sin(\alpha a) + \cosh(\kappa b) \cos(\alpha a) = \cos \kz(a+b),
 \end{equation}
 %
 where $\hbar\kappa = \sqrt{2m(\vzero - \ez)}$ y $\hbar \alpha = \sqrt{2m\ez}$.
@@ -120,15 +120,15 @@ lengths $a$ and $b$.
 
 \begin{SCfigure}
   \centering
-  \includegraphics[width=0.5\textwidth]{./figures/energy-spectrum[ideal]_r-1}
-  \caption{(Color online) Energy spectrum of a particle within a multi-slabs
-    structure as a function of the potential magnitude $\vzero$ (in units of $\ER
-      = \hbar^2 \pi^2/ 2ml^2$) for a square lattice $b = a$. The filled regions
-    indicate the allowed energy bands of the particle, while the blank regions
-    indicate the forbidden bands. The dashed line indicates $\ez = \vzero$. As the
-    potential magnitude increases de energy bands become narrower, and for high
-    enough potential barriers the bands effectively become energy
-    levels.}\label{fig:ideal-energy-per-boson-as-u0-r-1}
+  \includegraphics[width=0.6\textwidth]{./figures/energy-spectrum[ideal]_r-1}
+	\caption{(Color online) Energy spectrum of a particle within a multi-slabs
+  structure as a function of the potential magnitude $\vzero$ (in units of
+  $\hbar^2 / 2m(a+b)^2$) for a square lattice $a=b$. The filled regions indicate
+  the allowed energy bands of the particle, while the blank regions indicate the
+  forbidden bands. The dashed line indicates $\ez = \vzero$. As the potential
+  magnitude increases de energy bands become narrower, and for high enough
+  potential barriers the bands effectively become energy
+  levels.}\label{fig:ideal-energy-per-boson-as-u0-r-1}
 \end{SCfigure}
 
 Some results for the energy as a function of the potential magnitude $V_0$ are
@@ -154,9 +154,9 @@ equation
 \cite{bib:rodriguez-msc-thesis.2014}
 %
 \begin{align}
-  \label{eq:ideal-internal-energy}
-  \nonumber \frac{E}{N} = \ez[0] - \frac{m V}{N (2\pi)^2 \hbar^2} \kbz T & \int_{-\infty}^{\infty} d\kz \; (\ez - \ez[0]) \ln(1 - e^{-(\ez - \mu) / \kbz T}) +                    \\
-                                                                         & \frac{2 m V}{N (2\pi)^2 \hbar^2} (\kbz T)^2 \int_{-\infty}^{\infty} d\kz g_2(e^{-(\ez - \mu)/\kbz T}),
+	\label{eq:ideal-internal-energy}
+	\nonumber \frac{E}{N} = \ez[0] - \frac{m V}{N (2\pi)^2 \hbar^2} \kbz T & \int_{-\infty}^{\infty} d\kz \; (\ez - \ez[0]) \ln(1 - e^{-(\ez - \mu) / \kbz T}) +                    \\
+	                                                                       & \frac{2 m V}{N (2\pi)^2 \hbar^2} (\kbz T)^2 \int_{-\infty}^{\infty} d\kz g_2(e^{-(\ez - \mu)/\kbz T}),
 \end{align}
 %
 where $\kbz$ is the Boltzmann constant, $\mu$ is the chemical potential of the
@@ -166,8 +166,8 @@ explicitly and implicitly because of the chemical potential dependence on the
 temperature, which is given by
 %
 \begin{equation}
-  \label{eq:ideal-number-of-bosons}
-  N = \frac{1}{e^{(\ez[0] - \mu)/\kbz T} - 1} + \frac{m V}{(2\pi)^2 \hbar^2} \kbz T \int_{-\infty}^{\infty} d\kz \; \ln(1 - e^{-(\ez - \mu)/\kbz T}).
+	\label{eq:ideal-number-of-bosons}
+	N = \frac{1}{e^{(\ez[0] - \mu)/\kbz T} - 1} + \frac{m V}{(2\pi)^2 \hbar^2} \kbz T \int_{-\infty}^{\infty} d\kz \; \ln(1 - e^{-(\ez - \mu)/\kbz T}).
 \end{equation}
 %
 The first term of this equation may be interpreted as the number of bosons
@@ -206,8 +206,8 @@ $N$ particles interacting via a contact potential. The Hamiltonian of this
 system is
 %
 \begin{equation}
-  \label{eq:lieb-liniger-hamiltonian}
-  \qmop{H}_{\mathrm{LL}} = -\frac{\hbar^2}{2m} \sum_{i=1}^{N} \partial^2_{z_i} + g_{1\mathrm{D}} \sum_{i=1}^{N} \sum_{j < k} \delta(z_j - z_k),
+	\label{eq:lieb-liniger-hamiltonian}
+	\qmop{H}_{\mathrm{LL}} = -\frac{\hbar^2}{2m} \sum_{i=1}^{N} \partial^2_{z_i} + g_{1\mathrm{D}} \sum_{i=1}^{N} \sum_{j < k} \delta(z_j - z_k),
 \end{equation}
 %
 where $g_{1\mathrm{D}} = 2\hbar^2 / m \asonedim$ is the strength factor of the
@@ -225,7 +225,7 @@ The Lieb-Liniger gas is a system that can be solve analytically via a Bethe
 ansatz,
 %
 \begin{equation}
-  \psi(z_1, \ldots, z_N) = \sum_{P} a(P) \, e^{i \sum_{j=1}^{N} k_j z_j}.
+	\psi(z_1, \ldots, z_N) = \sum_{P} a(P) \, e^{i \sum_{j=1}^{N} k_j z_j}.
 \end{equation}
 %
 The wave numbers $k_1, \ldots, k_N$ form an ordered set and the summation
@@ -234,8 +234,8 @@ depends on the permutation. The ground state of the Bose gas at zero temperature
 can be expressed as
 %
 \begin{equation}
-  \label{eq:lieb-liniger-energy}
-  E =\frac{\hbar^2}{2m} N \densityone^2 e(\gamma(\densityone)),
+	\label{eq:lieb-liniger-energy}
+	E =\frac{\hbar^2}{2m} N \densityone^2 e(\gamma(\densityone)),
 \end{equation}
 %
 with $\densityone$ being the average linear density. Unlike the Gross-Pitaevskii
@@ -247,23 +247,23 @@ The function $e(\gamma(\densityone))$ is given by
 \cite{bib:lieb-phys-rev.130.1605.1963}
 %
 \begin{equation}
-  \label{eq:lieb-liniger-energy-egamma}
-  e(\gamma) = \frac{\gamma^3}{\lambda^3(\gamma)} \int_{-1}^{+1} g(x, \gamma) x^2 \; dx,
+	\label{eq:lieb-liniger-energy-egamma}
+	e(\gamma) = \frac{\gamma^3}{\lambda^3(\gamma)} \int_{-1}^{+1} g(x, \gamma) x^2 \; dx,
 \end{equation}
 %
 with $\gamma = 2 / \densityone \asonedim$. The functions $g$ and $\lambda$ are
 determined from the equations
 %
 \begin{equation}
-  \label{eq:lieb-kernel-equation}
-  g(x, \gamma) - \frac{1}{2\pi} = \frac{\lambda(\gamma)}{\pi} \int_{-1}^{+1} \frac{g(x', \gamma)}{\lambda^2(\gamma) + (x - x')^2} \; dx'
+	\label{eq:lieb-kernel-equation}
+	g(x, \gamma) - \frac{1}{2\pi} = \frac{\lambda(\gamma)}{\pi} \int_{-1}^{+1} \frac{g(x', \gamma)}{\lambda^2(\gamma) + (x - x')^2} \; dx'
 \end{equation}
 %
 and
 %
 \begin{equation}
-  \label{eq:lieb-lambda-definition}
-  \lambda(\gamma) = \gamma \int_{-1}^{+1} g(x, \gamma) \; dx.
+	\label{eq:lieb-lambda-definition}
+	\lambda(\gamma) = \gamma \int_{-1}^{+1} g(x, \gamma) \; dx.
 \end{equation}
 %
 The Eq. \eqref{eq:lieb-kernel-equation} is a Fredholm integral equation of the
@@ -279,37 +279,37 @@ quadrature rule with $M$ abscissas $x_i$ an its corresponding $w_i$ weights. Any
 integral can be approximated through a quadrature as
 %
 \begin{equation}
-  \int_{-1}^{+1} f(x) \, dx \approx \sum_{j=1}^{M} w_j f(x_j).
+	\int_{-1}^{+1} f(x) \, dx \approx \sum_{j=1}^{M} w_j f(x_j).
 \end{equation}
 %
 The accuracy of the approximation will depend on the type of quadrature used.
 The abscissas belong to the open interval  $(-1, 1)$ in order to avoid
 singularities at the integration limits. Arbitrary integration limits can be
 brought to the unit interval through the change of variable $x(t) = (b - a)t/2
-  + (b - a)/2$, hence
+	+ (b - a)/2$, hence
 %
 \begin{equation}
-  \int_{a}^{b} f(x) \, dx = \frac{b-a}{2} \int_{-1}^{+1} (f \circ x)(t) \, dt.
+	\int_{a}^{b} f(x) \, dx = \frac{b-a}{2} \int_{-1}^{+1} (f \circ x)(t) \, dt.
 \end{equation}
 %
 We rewrite equation \eqref{eq:lieb-kernel-equation} as
 %
 \begin{equation}
-  \label{eq:lieb-kernel-equation-two}
-  g(x, \gamma) - \frac{1}{2\pi} = \frac{\lambda(\gamma)}{\pi} \int_{-1}^{+1} K(x, x') g(x', \gamma) \; dx',
+	\label{eq:lieb-kernel-equation-two}
+	g(x, \gamma) - \frac{1}{2\pi} = \frac{\lambda(\gamma)}{\pi} \int_{-1}^{+1} K(x, x') g(x', \gamma) \; dx',
 \end{equation}
 %
 where the kernel of the integral equation is
 %
 \begin{equation}
-  K(x, x') = \frac{\lambda(\gamma)}{\lambda^2(\gamma) + (x - x')^2}.
+	K(x, x') = \frac{\lambda(\gamma)}{\lambda^2(\gamma) + (x - x')^2}.
 \end{equation}
 %
 As a quadrature, Eq. \eqref{eq:lieb-kernel-equation-two} becomes approximately
 %
 \begin{equation}
-  \label{eq:lieb-kernel-equation-quad}
-  g(x, \gamma) - \frac{1}{\pi} \sum_{j=1}^{M} w_j K(x, x_j)  g(x_j, \gamma) = \frac{1}{2\pi}.
+	\label{eq:lieb-kernel-equation-quad}
+	g(x, \gamma) - \frac{1}{\pi} \sum_{j=1}^{M} w_j K(x, x_j)  g(x_j, \gamma) = \frac{1}{2\pi}.
 \end{equation}
 %
 If we assume that points $g(x_j, \gamma)$ are solutions of
@@ -317,17 +317,17 @@ If we assume that points $g(x_j, \gamma)$ are solutions of
 equation must hold:
 %
 \begin{equation}
-  \label{eq:lieb-kernel-equation-quad-equation}
-  g(x_i, \gamma) - \frac{1}{\pi} \sum_{j=1}^{M} w_j K(x_i, x_j)  g(x_j, \gamma) = \frac{1}{2\pi}.
+	\label{eq:lieb-kernel-equation-quad-equation}
+	g(x_i, \gamma) - \frac{1}{\pi} \sum_{j=1}^{M} w_j K(x_i, x_j)  g(x_j, \gamma) = \frac{1}{2\pi}.
 \end{equation}
 %
 Considering the whole set of abscissas $x_i$ we have a system of $M$ linear
 equations that we can write in matrix notation as
 %
 \begin{equation}
-  \label{eq:lieb-kernel-linear-equation-system}
-  \left( \mathbf{I} - \frac{1}{\pi} \mathbf{K} \mathbf{D_w} \right)\mathbf{\tilde{g}} =
-  \frac{1}{2\pi} \mathbf{1},
+	\label{eq:lieb-kernel-linear-equation-system}
+	\left( \mathbf{I} - \frac{1}{\pi} \mathbf{K} \mathbf{D_w} \right)\mathbf{\tilde{g}} =
+	\frac{1}{2\pi} \mathbf{1},
 \end{equation}
 %
 where $\mathbf{\tilde g}$ is the column vector with components $g(x_j)$,
@@ -337,13 +337,13 @@ and $\mathbf{D_w}$ is the diagonal matrix whose diagonal element
 $(\mathbf{D_w})_{ii}$ is the weight $w_i$.
 %
 \begin{figure}[t!]
-  \centering
-  \includegraphics[width=0.85\linewidth]{./figures/lieb-liniger-theory_energy-as-gamma}
-  \caption{ Plot of the function $e(\gamma)$ as a function of $\gamma = 2 /
-      \densityone \asonedim$ for the Lieb-Liniger theory
-    \eqref{eq:lieb-liniger-energy-egamma}. As $\gamma$ increases the function
-    tends to the Tonks-Girardeau limit $\pi^2/3$ (dashed horizontal line). }
-  \label{fig:lieb-liniger-theory-energy-as-gamma}
+	\centering
+	\includegraphics[width=0.85\linewidth]{./figures/lieb-liniger-theory_energy-as-gamma}
+	\caption{ Plot of the function $e(\gamma)$ as a function of $\gamma = 2 /
+			\densityone \asonedim$ for the Lieb-Liniger theory
+		\eqref{eq:lieb-liniger-energy-egamma}. As $\gamma$ increases the function
+		tends to the Tonks-Girardeau limit $\pi^2/3$ (dashed horizontal line). }
+	\label{fig:lieb-liniger-theory-energy-as-gamma}
 \end{figure}
 %
 The solution of the system \eqref{eq:lieb-kernel-linear-equation-system} for a
@@ -353,13 +353,13 @@ quadrature abscissas and weights in order to calculate the corresponding value
 of $\gamma$ through \eqref{eq:lieb-lambda-definition},
 %
 \begin{equation}
-  \gamma \approx \lambda \left( \sum_{j=1}^{M} w_j \, g(x_j) \right)^{-1},
+	\gamma \approx \lambda \left( \sum_{j=1}^{M} w_j \, g(x_j) \right)^{-1},
 \end{equation}
 %
 and finally we calculate the function $e(\gamma)$ as
 %
 \begin{equation}
-  e(\gamma) \approx \left(\frac{\gamma}{\lambda}\right)^3 \sum_{j=1}^{M} w_j \, g(x_j) x_j^2.
+	e(\gamma) \approx \left(\frac{\gamma}{\lambda}\right)^3 \sum_{j=1}^{M} w_j \, g(x_j) x_j^2.
 \end{equation}
 
 %Unlike the Mean-Field theory, the interaction parameter $\gonedim$ can take any
@@ -370,15 +370,15 @@ the limits when the interaction is very small and when it is too large. In the
 high density limit $\densityone \asonedim \gg 1$ the system enters  the
 mean-field regime, $\gonedim / \densityone \ll 1$. The Lieb-Liniger theory
 yields that $e(\gamma) \approx \gamma$ and the energy per boson is $E/N =
-  \hbar^2 \densityone / m \asonedim$, or equivalently, $E/N = \gonedim \densityone
-  / 2$. This result is the same as the one obtained through mean-field theory,
+	\hbar^2 \densityone / m \asonedim$, or equivalently, $E/N = \gonedim \densityone
+	/ 2$. This result is the same as the one obtained through mean-field theory,
 i.e. the Gross-Pitaevskii equation applied to a one-dimensional system, as we
 will see in detail in section \ref{sec:mean-field-theory-in-one-dimension}.
 
 In the opposite limit, when $\gonedim / \densityone \gg 1$ the system enters in
 the Tonks-Girardeau regime. This is a very important limit as the system behaves
 more and more like a gas of impenetrable bosons. In the limit when $\gonedim \to
-  \infty$ (impenetrable bosons) the systems manifests the so-called
+	\infty$ (impenetrable bosons) the systems manifests the so-called
 \textit{fermionization} \cite{bib:girardeau-j-math-phys.1960}, in the sense that
 there is a one-to-one correspondence between the wave function of the gas of
 impenetrable bosons in one dimension with the wave function of a one-dimensional
@@ -386,12 +386,12 @@ gas of noninteracting fermions. The energy of the system becomes independent of
 the interaction parameter and it is exactly the same as that of the Fermi gas,
 %
 \begin{equation}
-  \label{eq:tonks-girardeau-energy}
-  E = N \frac{\hbar^2 \pi^2 \densityone^2 }{6m}.
+	\label{eq:tonks-girardeau-energy}
+	E = N \frac{\hbar^2 \pi^2 \densityone^2 }{6m}.
 \end{equation}
 %
 The asymptotic behavior of the ground state energy is such that $e(\gamma)
-  \rightarrow \pi^2 / 3$.
+	\rightarrow \pi^2 / 3$.
 
 
 \section{The weakly-interacting Bose gas in constant potentials}
@@ -410,7 +410,7 @@ tool to study interacting systems.
 Among the solutions to the GP equation one can find localized solutions like
 \textit{solitons} in one and three dimensions
 \cite{bib:seaman-phys-rev-A.71.033609.2005,
-  bib:wang-ying-ying-mod-phys-lett-B.27.12.2013} and even Bloch-wave functions,
+	bib:wang-ying-ying-mod-phys-lett-B.27.12.2013} and even Bloch-wave functions,
 i.e, periodic functions with the same period as the potential
 \cite{bib:smerzi-phys-rev-E.70.016605.2004}. This solutions may be stable or
 unstable depending on whether the interaction is attractive or repulsive, and
@@ -421,7 +421,7 @@ functions closely related to the elliptic integrals and can be seen as
 generalizations of the circular functions. Although the Gross-Pitaevskii
 equation can be solved numerically
 \cite{bib:berg-molmer-phys-rev-A.58.1480.1998,
-  bib:adhikari-j-of-phys-B.36.12.2003}, these are some of the few systems where
+	bib:adhikari-j-of-phys-B.36.12.2003}, these are some of the few systems where
 the wave function can be expressed in terms of an analytic function.
 
 To study periodic systems one popular choice is the Dirac-comb potential in one,
@@ -429,8 +429,8 @@ two, and three dimensions. This potential is composed by an infinite arrange of
 evenly spaced Dirac deltas times a strength factor,
 %
 \begin{equation}
-  \label{eq:dirac-comb-potential}
-  V(z) = U_0 \sum_{j=-\infty}^{\infty} \delta(z - j a)
+	\label{eq:dirac-comb-potential}
+	V(z) = U_0 \sum_{j=-\infty}^{\infty} \delta(z - j a)
 \end{equation}
 %
 where $V_0$ is the strength factor, $a$ the distance between two consecutive
@@ -440,7 +440,7 @@ over a finite or infinite region of the space with adequate boundary conditions.
 The thermodynamics of a 3D noninteracting Bose gas subject to this kind of
 potential has been studied extensively
 \cite{bib:p-salas-phys-rev-A.82.033632.2010,
-  bib:salas-j-low-temp-phys.159.5.2010}, including (but not limited to) the
+	bib:salas-j-low-temp-phys.159.5.2010}, including (but not limited to) the
 Bose-Einstein condensation temperature and the heat capacity. For an interacting
 system the problem is a lot more difficult even at zero temperature. Mean-field
 theory and the Gross-Pitaevskii equation are tools commonly used to study the
@@ -459,18 +459,18 @@ bands. None of these structures appear in the noninteracting case.
 
 %
 \begin{figure}[h!]
-  \centering
-  \fcapside{
-    \includegraphics[width=0.95\linewidth]{./figures/seaman-carr-fig-4}
-  }{ \caption{ Energy per particle as a function of the quasimomentum wave
-      number for the first three bands of a weakly attractive condensate in a
-      repulsive lattice generated by a Dirac-comb potential. The noninteracting
-      linear band structure is given by the dashed curves
-      \cite{bib:seaman-phys-rev-A.71.033622.2005}
-      %(Seaman and Carr, Phys. Rev. A. \textbf{71}, 033622 (2005)
-      ). }
-    \label{fig:seaman-carr-fig-4}
-  }
+	\centering
+	\fcapside{
+		\includegraphics[width=0.95\linewidth]{./figures/seaman-carr-fig-4}
+	}{ \caption{ Energy per particle as a function of the quasimomentum wave
+			number for the first three bands of a weakly attractive condensate in a
+			repulsive lattice generated by a Dirac-comb potential. The noninteracting
+			linear band structure is given by the dashed curves
+			\cite{bib:seaman-phys-rev-A.71.033622.2005}
+			%(Seaman and Carr, Phys. Rev. A. \textbf{71}, 033622 (2005)
+			). }
+		\label{fig:seaman-carr-fig-4}
+	}
 \end{figure}
 
 % Aquí falta agregar otra referencia sobre el tema

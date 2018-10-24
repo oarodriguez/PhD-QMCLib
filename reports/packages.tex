@@ -8,18 +8,18 @@
 \usepackage{ifluatex}
 
 \ifxetex
-  \usepackage{polyglossia}
-  \usepackage{graphicx}
+	\usepackage{polyglossia}
+	\usepackage{graphicx}
 \else
-  \usepackage[english, activeacute]{babel}
-  \usepackage[utf8x]{inputenc}
-  %\usepackage[T1]{fontenc}
-  \usepackage{graphicx}
+	\usepackage[english, activeacute]{babel}
+	\usepackage[utf8x]{inputenc}
+	%\usepackage[T1]{fontenc}
+	\usepackage{graphicx}
 
-  % Use Times font both in text and math mode
-  \usepackage{times}
-  %\usepackage{mathptmx}
-  %\usepackage{ae, aecompl}
+	% Use Times font both in text and math mode
+	\usepackage{times}
+	%\usepackage{mathptmx}
+	%\usepackage{ae, aecompl}
 \fi
 
 \usepackage{epsfig}
@@ -46,8 +46,7 @@
 \usepackage{listings}
 \usepackage[numbers]{natbib}    % Force numbers in bibliography
 
-\let\newfloat\undefined
-
+\let \newfloat \undefined
 \usepackage[capbesideposition={bottom,outside},facing=yes,capbesidesep=quad]{floatrow}
 
 \usepackage{lipsum}
@@ -64,7 +63,7 @@
 
 % Add reference to page number at which bibliography entry is cited.
 %\usepackage{cite}
-\usepackage[dvipsnames, svgnames]{xcolor}
+\usepackage[usenames, dvipsnames, svgnames, table]{xcolor}
 \usepackage{documentstyle-b}
 \usepackage{mciteplus}
 
@@ -74,29 +73,29 @@
 
 % PDF hyperlinks
 \ifpdf
-  \pdfcompresslevel=5
-  \pdfimageresolution=600
-  \newcommand{\pdfres}{600}
+	\pdfcompresslevel=5
+	\pdfimageresolution=600
+	\newcommand{\pdfres}{600}
 
-  \usepackage{thumbpdf}
-  \usepackage[
-    plainpages=false,
-    pdfpagelabels,
-    bookmarksnumbered,
-    pdftitle={PhD. Candidature},
-    pdfauthor={Omar Abel Rodr\'iguez L\'opez},
-    colorlinks=true,%
-    linkcolor=MidnightBlue,%
-    citecolor=MidnightBlue,%
-    filecolor=MidnightBlue,%
-    pagecolor=MidnightBlue,%
-    urlcolor=MidnightBlue,%
-    pdftex,%
-    unicode
-  ]{hyperref}
+	\usepackage{thumbpdf}
+	\usepackage[
+		plainpages=false,
+		pdfpagelabels,
+		bookmarksnumbered,
+		pdftitle={PhD. Candidature},
+		pdfauthor={Omar Abel Rodr\'iguez L\'opez},
+		colorlinks=true,%
+		linkcolor=midnightblue,%
+		citecolor=midnightblue,%
+		filecolor=midnightblue,%
+		pagecolor=midnightblue,%
+		urlcolor=midnightblue,%
+		pdftex,%
+		unicode
+	]{hyperref}
 
 \else   %% Apply to XeTeX
-  \usepackage[
-    hidelinks
-  ]{hyperref}
+	\usepackage[
+		hidelinks
+	]{hyperref}
 \fi
