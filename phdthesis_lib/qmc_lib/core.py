@@ -5,7 +5,7 @@ from typing import Callable as TCallable, Mapping as T_Mapping, Sequence, Type
 
 import numpy as np
 
-from thesis_lib.utils import Cached, CachedMeta, strict_update
+from phdthesis_lib.utils import Cached, CachedMeta, strict_update
 
 __all__ = [
     'GUFunc',

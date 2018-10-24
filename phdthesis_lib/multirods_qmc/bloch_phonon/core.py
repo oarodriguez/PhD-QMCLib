@@ -7,9 +7,9 @@ from math import sqrt
 
 from numba import jit
 
-from thesis_lib import ideal, qmc_lib
-from thesis_lib.qmc_lib.utils import min_distance
-from thesis_lib.utils import (cached_property, get_random_rng_seed)
+from phdthesis_lib import ideal, qmc_lib
+from phdthesis_lib.qmc_lib.utils import min_distance
+from phdthesis_lib.utils import (cached_property, get_random_rng_seed)
 from .. import jastrow, trial_funcs as tf
 
 __all__ = [

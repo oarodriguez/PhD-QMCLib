@@ -24,9 +24,9 @@ setup(
         version='0.3.0',
         url='https://bitbucket.org/oarodriguez/phdthesis-lib',
         packages=[
-            'thesis_lib',
-            'thesis_lib.qmc_lib',
-            'thesis_lib.multirods_qmc'
+            'phdthesis_lib',
+            'phdthesis_lib.qmc_lib',
+            'phdthesis_lib.multirods_qmc'
         ],
         license='BSD-3',
         author='Omar Abel Rodríguez-López',
