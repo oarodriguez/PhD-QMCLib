@@ -38,7 +38,7 @@ setup(
         include_package_data=True,
         zip_safe=False,
         platforms='any',
-        python_requires='>=3.6',
+        python_requires='>=3.6.1',
         install_requires=[
             'numpy>=0.10',
             'scipy>=0.17.0',
