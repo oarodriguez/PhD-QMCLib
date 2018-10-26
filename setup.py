@@ -24,9 +24,9 @@ setup(
         version='0.3.0',
         url='https://bitbucket.org/oarodriguez/phdthesis-lib',
         packages=[
-            'thesis_lib',
-            'thesis_lib.qmc_lib',
-            'thesis_lib.multirods_qmc'
+            'phdthesis_lib',
+            'phdthesis_lib.qmc_lib',
+            'phdthesis_lib.multirods_qmc'
         ],
         license='BSD-3',
         author='Omar Abel Rodríguez-López',
@@ -38,12 +38,12 @@ setup(
         include_package_data=True,
         zip_safe=False,
         platforms='any',
-        python_requires='>=3.6',
+        python_requires='>=3.6.1',
         install_requires=[
-            'numpy>=0.10',
-            'scipy>=0.17.0',
+            'numpy>=1.10',
+            'scipy>=1.0',
             'matplotlib>=2.2',
-            'numba>=0.35',
+            'numba>=0.39',
             'h5py>=2.5.0',
             'pytables>=3.4',
             'mpmath>=1.0',
@@ -54,7 +54,9 @@ setup(
             'distributed>=1.2',
             'PyYAML>=3.10',
             'jinja2>=2.10',
-            'decorator'
+            'decorator>=4.2',
+            'pytest>=3.4',
+            'gmpy2>=2.0'
         ],
         classifiers=[
             'Development Status :: 3 - Alpha',

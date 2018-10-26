@@ -1,4 +1,5 @@
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
+from typing import Tuple
 
 from numba import jit
 from scipy.optimize import brentq
@@ -89,7 +90,11 @@ def unpack_tbf_params(params_array):
     return rm, scs, k2, beta, r_off, am
 
 
-def two_body_func_match_params(gn, nop, rm, scs):
+def two_body_func_match_params(gn: float,
+                               nop: int,
+                               rm: float,
+                               scs: float) -> (
+        Tuple[float, float, float, float]):
     """Calculate the unknown constants that join the two pieces of the
     two-body functions of the Jastrow trial function at the point `zm_var`.
     The parameters are a function of the boson interaction magnitude `g`
@@ -153,5 +158,5 @@ def two_body_func_match_params(gn, nop, rm, scs):
     # The coefficient `am` is fixed by the rest of the parameters.
     # am = sin(pi * rm) ** beta / cos(k2 * (rm - r_off))
     # Return momentum and length in units of lattice period.
-    return k2 / scs, beta, r_off * scs, am
     # return k2, beta, r_off, am
+    return k2 / scs, beta, r_off * scs, am
