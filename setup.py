@@ -26,7 +26,7 @@ setup(
         url='https://bitbucket.org/oarodriguez/phdresearch-libs/',
         packages=[
             'phd_research_libs',
-            'phd_research_libs.qmc_lib',
+            'phd_research_libs.qmc_base',
             'phd_research_libs.multirods_qmc'
         ],
         license='BSD-3',

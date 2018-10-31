@@ -1,6 +1,6 @@
 """
-    phd_research_libs.qmc_lib
-    ~~~~~~~~~~~~~~~~~~~~~~~~~
+    phd_research_libs.qmc_base
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     Main package for Quantum Monte Carlo routines.
 """

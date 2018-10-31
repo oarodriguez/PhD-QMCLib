@@ -3,7 +3,7 @@ from enum import unique
 
 from numba import jit
 
-from phd_research_libs.qmc_lib import core, jastrow
+from phd_research_libs.qmc_base import core, jastrow
 from phd_research_libs.utils import cached_property
 
 __all__ = [

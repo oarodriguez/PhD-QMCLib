@@ -1,6 +1,6 @@
 """
-    phd_research_libs.qmc_lib.vmc
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    phd_research_libs.qmc_base.vmc
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     Contains the basic classes and routines used to estimate the ground
     state properties of a quantum gas using the Variational Monte Carlo (VMC)
