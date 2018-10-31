@@ -1,5 +1,5 @@
 """
-    phd_research_libs.multirods_qmc
+    phd_research_libs.multirods.qmc
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 #

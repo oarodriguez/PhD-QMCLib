@@ -10,7 +10,7 @@ from numba import jit
 from phd_research_libs import ideal, qmc_base
 from phd_research_libs.qmc_base.utils import min_distance
 from phd_research_libs.utils import (cached_property, get_random_rng_seed)
-from .. import jastrow, trial_funcs as tf
+from phd_research_libs.multirods.qmc import trial_funcs as tf, jastrow
 
 __all__ = [
     'ArrayGUFunc',
