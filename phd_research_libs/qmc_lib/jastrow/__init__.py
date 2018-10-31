@@ -1,6 +1,6 @@
 """
-    phdthesis_lib.qmc_lib.jastrow
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    phd_research_libs.qmc_lib.jastrow
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
 #

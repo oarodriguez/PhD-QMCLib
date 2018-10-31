@@ -1,5 +1,5 @@
 """
-    phdthesis_lib.multirods_qmc.bloch_phonon
+    phd_research_libs.multirods_qmc.bloch_phonon
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 #
