@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from numba import guvectorize, jit
 
-from phd_research_libs.utils import cached_property
+from my_research_libs.utils import cached_property
 from . import core
 
 __all__ = [

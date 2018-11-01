@@ -1,6 +1,6 @@
 """
-    PhDResearch-Libs
-    ~~~~~~~~~~~~~~~~
+    MyResearch-Libs
+    ~~~~~~~~~~~~~~~
 
     A collection of libraries to estimate the physical properties of an
     interacting, quantum many-body system. These libraries are part of
@@ -23,11 +23,11 @@ DESCRIPTION = 'A collection of libraries to estimate ' \
 setup(
         name='Ph.D. Thesis Code Libraries',
         version='0.3.0',
-        url='https://bitbucket.org/oarodriguez/phdresearch-libs/',
+        url='https://bitbucket.org/oarodriguez/myresearch-libs/',
         packages=[
-            'phd_research_libs',
-            'phd_research_libs.qmc_base',
-            'phd_research_libs.multirods_qmc'
+            'my_research_libs',
+            'my_research_libs.qmc_base',
+            'my_research_libs.multirods_qmc'
         ],
         license='BSD-3',
         author='Omar Abel Rodríguez-López',

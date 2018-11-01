@@ -7,10 +7,10 @@ from math import sqrt
 
 from numba import jit
 
-from phd_research_libs import ideal, qmc_base
-from phd_research_libs.qmc_base.utils import min_distance
-from phd_research_libs.utils import (cached_property, get_random_rng_seed)
-from phd_research_libs.multirods.qmc import trial_funcs as tf, jastrow
+from my_research_libs import ideal, qmc_base
+from my_research_libs.multirods.qmc import jastrow, trial_funcs as tf
+from my_research_libs.qmc_base.utils import min_distance
+from my_research_libs.utils import (cached_property, get_random_rng_seed)
 
 __all__ = [
     'ArrayGUFunc',

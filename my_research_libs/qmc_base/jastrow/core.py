@@ -7,7 +7,7 @@ import numpy as np
 import numpy.random as random
 from numba import jit
 
-from phd_research_libs.utils import cached_property
+from my_research_libs.utils import cached_property
 from .. import core
 from ..utils import sign
 

@@ -4,7 +4,7 @@ from typing import Sequence
 import numba
 import numpy as np
 
-from phd_research_libs.qmc_base import gufunc
+from my_research_libs.qmc_base import gufunc
 
 
 @numba.njit

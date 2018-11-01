@@ -3,8 +3,8 @@ from enum import unique
 
 from numba import jit
 
-from phd_research_libs.qmc_base import core, jastrow
-from phd_research_libs.utils import cached_property
+from my_research_libs.qmc_base import core, jastrow
+from my_research_libs.utils import cached_property
 
 __all__ = [
     'Model',
