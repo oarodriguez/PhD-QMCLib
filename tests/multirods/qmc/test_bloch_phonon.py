@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numba import jit
 
-from phdthesis_lib.multirods_qmc import bloch_phonon
+from my_research_libs.multirods.qmc import bloch_phonon
 
 v0, r, gn = 100, 1, 1
 nop = 100

@@ -5,7 +5,7 @@ from typing import Mapping, Tuple
 import numpy as np
 from numba import jit
 
-from phdthesis_lib.utils import cached_property
+from my_research_libs.utils import cached_property
 from . import core
 from .. import vmc
 from ..utils import recast_to_supercell

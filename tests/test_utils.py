@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from phdthesis_lib.utils import strict_update
+from my_research_libs.utils import strict_update
 
 
 def test_strict_update():
