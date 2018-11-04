@@ -4,12 +4,16 @@ from collections import OrderedDict
 from enum import unique
 from functools import reduce
 from math import sqrt
+from typing import ClassVar
 
+import numpy as np
+from attr import attrs
 from numba import jit
+from numpy import random
 
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
-from my_research_libs.utils import (cached_property, get_random_rng_seed)
+from my_research_libs.utils import cached_property, get_random_rng_seed
 from .. import jastrow, trial_funcs as tf
 
 __all__ = [
@@ -29,6 +33,8 @@ __all__ = [
 
 # Some alias..
 _two_body_func_params = tf.two_body_func_match_params
+DIST_RAND = qmc_base.jastrow.SysConfDistType.RANDOM
+DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
 
 
 @unique
@@ -63,13 +69,143 @@ class ModelVarParams(qmc_base.ParamsSet):
     names = VarParamName
 
 
-class Model(jastrow.Model):
-    """QMC model for a system with a trial wave function of the
-    Bijl-Jastrow type.
+# NOTE: slots=True avoids adding more attributes
+@attrs(auto_attribs=True, init=False, slots=True)
+class Model(qmc_base.jastrow.Model):
+    """The parameters of the Bloch-Phonon QMC model.
+
+    Defines the parameters and related properties of a quantum system in a
+    Multi-Rods periodic structure with repulsive, contact interactions,
+    with a trial wave function of the Bijl-Jastrow type.
     """
     #
-    params_cls = ModelParams
-    var_params_cls = ModelVarParams
+    lattice_depth: float
+    lattice_ratio: float
+    interaction_strength: float
+    boson_number: int
+    supercell_size: float
+    tbf_contact_cutoff: float
+
+    params_cls: ClassVar = ModelParams
+    var_params_cls: ClassVar = ModelVarParams
+
+    def __init__(self, lattice_depth: float,
+                 lattice_ratio: float,
+                 interaction_strength: float,
+                 boson_number: float,
+                 supercell_size: float,
+                 tbf_contact_cutoff: float):
+        """
+
+        :param lattice_depth:
+        :param lattice_ratio:
+        :param interaction_strength:
+        :param boson_number:
+        :param supercell_size:
+        :param tbf_contact_cutoff:
+        """
+        self.lattice_depth = lattice_depth
+        self.lattice_ratio = lattice_ratio
+        self.interaction_strength = interaction_strength
+        self.boson_number = boson_number
+        self.supercell_size = supercell_size
+        self.tbf_contact_cutoff = tbf_contact_cutoff
+
+    @property
+    def boundaries(self):
+        """"""
+        sc_size = self.supercell_size
+        return 0., 1. * sc_size
+
+    @property
+    def well_width(self):
+        """"""
+        r = self.lattice_ratio
+        return 1 / (1 + r)
+
+    @property
+    def barrier_width(self):
+        """"""
+        r = self.lattice_ratio
+        return r / (1 + r)
+
+    @property
+    def is_free(self):
+        """"""
+        v0 = self.lattice_depth
+        r = self.lattice_ratio
+        if v0 <= 1e-10:
+            return True
+        elif r <= 1e-10:
+            return True
+        else:
+            return False
+
+    @property
+    def is_ideal(self):
+        """"""
+        gn = self.interaction_strength
+        if gn <= 1e-10:
+            return True
+        else:
+            return False
+
+    @property
+    def sys_conf_shape(self):
+        """The shape of the array/buffer that stores the configuration
+        of the particles (positions, velocities, etc.)
+        """
+        # NOTE: Should we allocate space for the DRIFT_SLOT?
+        # TODO: Fix NUM_SLOTS if DRIFT_SLOT becomes really unnecessary.
+        nop = self.boson_number
+        ns = self.num_sys_conf_slots
+        return ns, nop
+
+    def get_sys_conf_buffer(self):
+        """Creates an empty array/buffer to store the configuration
+        of the particles of the system.
+
+        :return: A ``np.ndarray`` with zero-filled entries.
+        """
+        sc_shape = self.sys_conf_shape
+        return np.zeros(sc_shape, dtype=np.float64)
+
+    def init_get_sys_conf(self, dist_type=DIST_RAND, offset=None):
+        """Creates and initializes a system configuration with the
+        positions of the particles arranged in the order specified
+        by ``dist_type`` argument.
+
+        :param dist_type:
+        :param offset:
+        :return:
+        """
+        nop = self.boson_number
+        sc_size = self.supercell_size
+        z_min, z_max = self.boundaries
+        sys_conf_slots = qmc_base.jastrow.SysConfSlot
+        sys_conf = self.get_sys_conf_buffer()
+        pos_slot = sys_conf_slots.POS_SLOT
+        offset = offset or 0.
+
+        if dist_type is DIST_RAND:
+            spread = sc_size * random.random_sample(nop)
+        elif dist_type is DIST_REGULAR:
+            spread = np.linspace(0, sc_size, nop, endpoint=False)
+        else:
+            raise ValueError("unrecognized '{}' dist_type".format(dist_type))
+
+        sys_conf[pos_slot, :] = z_min + (offset + spread) % sc_size
+        return sys_conf
+
+    @property
+    def args(self):
+        """"""
+        # NOTE: Keep the order in which the attributes were defined.
+        return (self.lattice_depth,
+                self.lattice_ratio,
+                self.interaction_strength,
+                self.boson_number,
+                self.supercell_size)
 
     @property
     def obf_args(self):
@@ -93,11 +229,10 @@ class Model(jastrow.Model):
         gn = self.interaction_strength
         nop = self.boson_number
         sc_size = self.supercell_size
-        var_params = self.var_params
 
         # Convert to float, as numba jit-functions will not accept
         # other type.
-        rm = float(var_params[self.var_params_cls.names.TBF_CONTACT_CUTOFF])
+        rm = float(self.tbf_contact_cutoff)
         return (rm, sc_size) + _two_body_func_params(gn, nop, rm, sc_size)
 
     @property

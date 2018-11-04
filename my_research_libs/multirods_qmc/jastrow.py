@@ -7,7 +7,6 @@ from my_research_libs.qmc_base import core, jastrow
 from my_research_libs.utils import cached_property
 
 __all__ = [
-    'Model',
     'ModelCoreFuncs',
     'ModelParams',
     'potential_func'
@@ -29,60 +28,6 @@ class ParamName(core.ParamNameEnum):
 class ModelParams(core.ParamsSet):
     """Represents the parameters of the model."""
     names = ParamName
-
-
-class Model(jastrow.Model, metaclass=ABCMeta):
-    """"""
-    #
-    params_cls = ModelParams
-
-    @property
-    def lattice_depth(self) -> float:
-        """"""
-        return self.params[self.params_cls.names.LATTICE_DEPTH]
-
-    @property
-    def lattice_ratio(self) -> float:
-        """"""
-        return self.params[self.params_cls.names.LATTICE_RATIO]
-
-    @property
-    def interaction_strength(self) -> float:
-        """"""
-        return self.params[self.params_cls.names.INTERACTION_STRENGTH]
-
-    @property
-    def well_width(self):
-        """"""
-        r = self.lattice_ratio
-        return 1 / (1 + r)
-
-    @property
-    def barrier_width(self):
-        """"""
-        r = self.lattice_ratio
-        return r / (1 + r)
-
-    @property
-    def is_free(self):
-        """"""
-        v0 = self.lattice_depth
-        r = self.lattice_ratio
-        if v0 <= 1e-10:
-            return True
-        elif r <= 1e-10:
-            return True
-        else:
-            return False
-
-    @property
-    def is_ideal(self):
-        """"""
-        gn = self.interaction_strength
-        if gn <= 1e-10:
-            return True
-        else:
-            return False
 
 
 class ModelCoreFuncs(jastrow.ModelCoreFuncs, metaclass=ABCMeta):
