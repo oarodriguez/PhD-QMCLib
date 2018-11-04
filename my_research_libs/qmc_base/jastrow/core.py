@@ -1,10 +1,9 @@
 from abc import abstractmethod
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
-from typing import Mapping as TMapping
+from typing import ClassVar
 
 import numpy as np
-import numpy.random as random
 from numba import jit
 
 from my_research_libs.utils import cached_property
@@ -94,60 +93,19 @@ class Model(core.Model):
     """Abstract Base Class that represents a Quantum Monte Carlo model
     with a trial-wave function of the Bijl-Jastrow type.
     """
-    #
-    params_cls = ModelParams
+    __slots__ = ()
 
     #
-    var_params_cls = ModelVarParams
+    params_cls: ClassVar = ModelParams
 
     #
-    sys_conf_slots = SysConfSlot
+    var_params_cls: ClassVar = ModelVarParams
 
     #
-    sys_conf_dist_type = SysConfDistType
+    sys_conf_slots: ClassVar = SysConfSlot
 
-    def __init__(self, params: TMapping[str, float],
-                 var_params: TMapping[str, float]):
-        """
-
-        :param params:
-        :param var_params:
-        """
-        super().__init__()
-        self._params = self._init_params(params)
-        self._var_params = self._init_var_params(var_params)
-
-    def _init_params(self, params):
-        """Initializes the model parameters.
-
-        :param params:
-        :return:
-        """
-        return self.params_cls(params)
-
-    def _init_var_params(self, var_params):
-        """Initializes the model variational parameters.
-
-        :param var_params:
-        :return:
-        """
-        return self.var_params_cls(var_params)
-
-    @property
-    def boson_number(self):
-        """"""
-        return self.params[self.params_cls.names.BOSON_NUMBER]
-
-    @property
-    def supercell_size(self):
-        """"""
-        return self.params[self.params_cls.names.SUPERCELL_SIZE]
-
-    @property
-    def boundaries(self):
-        """"""
-        sc_size = self.supercell_size
-        return 0., 1. * sc_size
+    #
+    sys_conf_dist_type: ClassVar = SysConfDistType
 
     @property
     @abstractmethod
@@ -162,53 +120,8 @@ class Model(core.Model):
         pass
 
     @property
-    def params(self):
-        """The model parameters."""
-        return self._params
-
-    def update_params(self, params: TMapping):
-        """
-
-        :param params:
-        :return:
-        """
-        self._params = self.params_cls(self.params, **params)
-
-    @property
-    def args(self):
-        return tuple(self._params.values())
-
-    @property
-    def var_params(self):
-        """The variational parameters."""
-        return self._var_params
-
-    def update_var_params(self, params: TMapping = None):
-        """
-
-        :param params:
-        :return:
-        """
-        self._var_params = self.var_params_cls(self.var_params, **params)
-
-    @property
-    def var_args(self):
-        return tuple(self._var_params.values())
-
-    @property
     def num_sys_conf_slots(self):
         return len([_ for _ in self.sys_conf_slots])
-
-    @property
-    def sys_conf_shape(self):
-        """The shape of the array/buffer that stores the configuration
-        of the particles (positions, velocities, etc.)
-        """
-        # NOTE: Should we allocate space for the DRIFT_SLOT?
-        # TODO: Fix NUM_SLOTS if DRIFT_SLOT becomes really unnecessary.
-        nop = self.boson_number
-        ns = self.num_sys_conf_slots
-        return ns, nop
 
     def get_sys_conf_buffer(self):
         """Creates an empty array/buffer to store the configuration
@@ -218,32 +131,6 @@ class Model(core.Model):
         """
         sc_shape = self.sys_conf_shape
         return np.zeros(sc_shape, dtype=np.float64)
-
-    def init_get_sys_conf(self, dist_type=DIST_RAND, offset=None):
-        """Creates and initializes a system configuration with the
-        positions of the particles arranged in the order specified
-        by ``dist_type`` argument.
-
-        :param dist_type:
-        :param offset:
-        :return:
-        """
-        nop = self.params[self.params_cls.names.BOSON_NUMBER]
-        z_min, z_max = self.boundaries
-        pos_slot = self.sys_conf_slots.POS_SLOT
-        sys_conf = self.get_sys_conf_buffer()
-        sc_size = z_max - z_min
-        offset = offset or 0.
-
-        if dist_type is DIST_RAND:
-            spread = sc_size * random.random_sample(nop)
-        elif dist_type is DIST_REGULAR:
-            spread = np.linspace(0, sc_size, nop, endpoint=False)
-        else:
-            raise ValueError("unrecognized '{}' dist_type".format(dist_type))
-
-        sys_conf[pos_slot, :] = z_min + (offset + spread) % sc_size
-        return sys_conf
 
     @property
     @abstractmethod

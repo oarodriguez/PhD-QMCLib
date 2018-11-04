@@ -116,22 +116,13 @@ class ModelMeta(CachedMeta):
     pass
 
 
-class Model(Cached, metaclass=ModelMeta):
+class Model(metaclass=ModelMeta):
     """Represents a Quantum Monte Carlo model for a physical quantum
     system. This abstract base class that defines the most common
     methods/functions used in a QMC simulation to estimate the properties
     of a physical system.
     """
-
-    @property
-    @abstractmethod
-    def boson_number(self):
-        pass
-
-    @property
-    @abstractmethod
-    def supercell_size(self):
-        pass
+    __slots__ = ()
 
     @property
     @abstractmethod
@@ -140,22 +131,7 @@ class Model(Cached, metaclass=ModelMeta):
 
     @property
     @abstractmethod
-    def params(self):
-        pass
-
-    @property
-    @abstractmethod
     def args(self):
-        pass
-
-    @property
-    @abstractmethod
-    def var_params(self):
-        return
-
-    @property
-    @abstractmethod
-    def var_args(self):
         pass
 
     @property

@@ -55,7 +55,8 @@ setup(
             'jinja2>=2.10',
             'decorator>=4.2',
             'pytest>=3.4',
-            'gmpy2>=2.0'
+            'gmpy2>=2.0',
+            'attrs>=18.0'
         ],
         classifiers=[
             'Development Status :: 3 - Alpha',

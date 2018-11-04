@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numba import jit
 
-from my_research_libs.multirods.qmc import bloch_phonon
+from my_research_libs.multirods_qmc import bloch_phonon
 
 v0, r, gn = 100, 1, 1
 nop = 100
@@ -10,32 +10,19 @@ sc_size = 100
 rm = .25 * sc_size
 
 # Well-formed parameters.
-correct_params = dict(lattice_depth=v0,
-                      lattice_ratio=r,
-                      interaction_strength=gn,
-                      boson_number=nop,
-                      supercell_size=sc_size)
+spec_items = dict(lattice_depth=v0,
+                  lattice_ratio=r,
+                  interaction_strength=gn,
+                  boson_number=nop,
+                  supercell_size=sc_size,
+                  tbf_contact_cutoff=rm)
 
 
 def test_init():
     """"""
 
-    with pytest.raises(KeyError):
-        # Extra parameter. This will fail.
-        params = dict(correct_params, extra_param=True)
-        var_params = dict(tbf_contact_cutoff=rm)
-        bloch_phonon.Model(params, var_params)
-
-    with pytest.raises(KeyError):
-        # Missing parameter. This will fail too.
-        params = dict(correct_params)
-        params.pop('boson_number')
-        var_params = dict(tbf_contact_cutoff=rm)
-        bloch_phonon.Model(params, var_params)
-
-    # This passes.
-    var_params = dict(tbf_contact_cutoff=rm)
-    bloch_phonon.Model(correct_params, var_params)
+    model_spec = bloch_phonon.Model(**spec_items)
+    print(repr(model_spec))
 
 
 def test_update_params():
@@ -43,28 +30,12 @@ def test_update_params():
 
     :return:
     """
-    var_params = dict(tbf_contact_cutoff=rm)
-    model = bloch_phonon.Model(correct_params, var_params)
-    with pytest.raises(KeyError):
+    model_spec = bloch_phonon.Model(**spec_items)
+    with pytest.raises(AttributeError):
         # Extra parameter. This will fail.
-        new_params = dict(correct_params, extra_param=True)
-        model.update_params(new_params)
-
-    # Missing parameter. This should not fail.
-    new_params = dict(correct_params)
-    new_params.pop('boson_number')
-    model.update_params(new_params)
-
-    # Current parameter should remain intact
-    assert model.params[model.params_cls.names.BOSON_NUMBER] == nop
-
-    # This will pass...
-    model = bloch_phonon.Model(correct_params, var_params)
-    var_params = dict(tbf_contact_cutoff=rm)
-    model.update_var_params(var_params)
-
-    var_param_names = model.var_params_cls.names
-    assert model.var_params[var_param_names.TBF_CONTACT_CUTOFF] == rm
+        new_params = dict(spec_items, extra_param=True)
+        for name, value in new_params.items():
+            setattr(model_spec, name, value)
 
 
 class WFGUFunc(bloch_phonon.ScalarGUPureFunc):
@@ -94,13 +65,10 @@ class EnergyGUFunc(bloch_phonon.ScalarGUFunc):
 
 def test_qmc_funcs():
     """"""
-    new_params = dict(correct_params)
-    var_params = dict(tbf_contact_cutoff=rm)
 
     # We have an ideal system...
-    new_params['interaction_strength'] = 0.
-    model = bloch_phonon.Model(new_params, var_params)
-    core_funcs = model.core_funcs
+    model = bloch_phonon.Model(**spec_items)
+    core_funcs = bloch_phonon.ModelCoreFuncs()
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model.init_get_sys_conf()
@@ -138,11 +106,8 @@ def test_qmc_funcs():
 def test_gufunc():
     """Testing the behavior of the generalized universal functions."""
 
-    new_params = dict(correct_params)
-    var_params = dict(tbf_contact_cutoff=rm)
-
-    model = bloch_phonon.Model(new_params, var_params)
-    core_funcs = model.core_funcs
+    model = bloch_phonon.Model(**spec_items)
+    core_funcs = bloch_phonon.ModelCoreFuncs()
 
     # Generate a random configuration, pick the model parameters.
     core_func_args = model.core_func_args
