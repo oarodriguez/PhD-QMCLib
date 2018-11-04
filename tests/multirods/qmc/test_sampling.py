@@ -1,7 +1,7 @@
 import numpy as np
 from numba import jit
 
-from thesis_lib.multirods_qmc import bloch_phonon
+from my_research_libs.multirods_qmc import bloch_phonon
 
 v0, r, gn = 100, 1, 1
 nop = 100

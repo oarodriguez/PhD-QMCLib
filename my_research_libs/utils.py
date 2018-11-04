@@ -17,6 +17,7 @@ from tzlocal import get_localzone
 
 class CachedProperty(object):
     """An object that acts as a property attribute with its value cached."""
+
     # Do not inherit from property...
 
     # TODO: Add __repr__

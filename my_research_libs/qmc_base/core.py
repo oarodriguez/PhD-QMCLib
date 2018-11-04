@@ -3,7 +3,9 @@ from collections import Callable, Iterable, Mapping
 from enum import Enum
 from typing import Callable as TCallable, Mapping as T_Mapping, Sequence, Type
 
-from thesis_lib.utils import Cached, CachedMeta, strict_update
+import numpy as np
+
+from my_research_libs.utils import Cached, CachedMeta, strict_update
 
 __all__ = [
     'GUFunc',
@@ -358,7 +360,7 @@ class GUFunc(Cached, Callable, metaclass=GUFuncMeta):
         pass
 
     @abstractmethod
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> np.ndarray:
         """"""
         pass
 

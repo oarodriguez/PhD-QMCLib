@@ -1,4 +1,4 @@
-# Ph.D. Thesis Code Library
+# My Research Libraries
 
 Repository with the software libraries used in my Doctoral Thesis work.
 

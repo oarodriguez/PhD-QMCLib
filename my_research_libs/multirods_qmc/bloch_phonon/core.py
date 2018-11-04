@@ -7,9 +7,9 @@ from math import sqrt
 
 from numba import jit
 
-from thesis_lib import ideal, qmc_lib
-from thesis_lib.qmc_lib.utils import min_distance
-from thesis_lib.utils import (cached_property, get_random_rng_seed)
+from my_research_libs import ideal, qmc_base
+from my_research_libs.qmc_base.utils import min_distance
+from my_research_libs.utils import (cached_property, get_random_rng_seed)
 from .. import jastrow, trial_funcs as tf
 
 __all__ = [
@@ -32,7 +32,7 @@ _two_body_func_params = tf.two_body_func_match_params
 
 
 @unique
-class ParamName(qmc_lib.core.ParamNameEnum):
+class ParamName(qmc_base.core.ParamNameEnum):
     """Enumerates the parameters of the model (Bijl-Jastrow type) of a
     quantum system in a Multi-Rods periodic structure with repulsive,
     contact interactions.
@@ -44,13 +44,13 @@ class ParamName(qmc_lib.core.ParamNameEnum):
     SUPERCELL_SIZE = 'supercell_size'
 
 
-class ModelParams(qmc_lib.ParamsSet):
+class ModelParams(qmc_base.ParamsSet):
     """Represents the parameters of the model."""
     names = ParamName
 
 
 @unique
-class VarParamName(qmc_lib.ParamNameEnum):
+class VarParamName(qmc_base.ParamNameEnum):
     """Enumerates the variational parameters of the wave function of the
     model (Bijl-Jastrow type) of a quantum system in a Multi-Rods periodic
     structure with repulsive, contact interactions.
@@ -58,7 +58,7 @@ class VarParamName(qmc_lib.ParamNameEnum):
     TBF_CONTACT_CUTOFF = 'tbf_contact_cutoff'
 
 
-class ModelVarParams(qmc_lib.ParamsSet):
+class ModelVarParams(qmc_base.ParamsSet):
     """Represents the variational parameters of the model"""
     names = VarParamName
 
@@ -225,7 +225,7 @@ class ModelCoreFuncs(jastrow.ModelCoreFuncs):
         return tf.phonon_two_body_func_log_dz2
 
 
-class Sampling(qmc_lib.jastrow.vmc.PBCSampling):
+class Sampling(qmc_base.jastrow.vmc.PBCSampling):
     """Sampling of the probability density of the Bloch-Phonon model with
     a multi-rods external potential.
     """
@@ -251,7 +251,7 @@ class Sampling(qmc_lib.jastrow.vmc.PBCSampling):
         )
 
 
-class UniformSampling(Sampling, qmc_lib.jastrow.vmc.PBCUniformSampling):
+class UniformSampling(Sampling, qmc_base.jastrow.vmc.PBCUniformSampling):
     """"""
     pass
 
@@ -295,7 +295,7 @@ def _as_model_args(model_full_params):
     return model_params, obf_params, tbf_params
 
 
-class ArrayGUFunc(qmc_lib.jastrow.ArrayGUFunc, metaclass=ABCMeta):
+class ArrayGUFunc(qmc_base.jastrow.ArrayGUFunc, metaclass=ABCMeta):
     """"""
 
     signatures = ['void(f8[:,:],f8[:],f8[:],f8[:,:])']
@@ -315,7 +315,7 @@ class ArrayGUFunc(qmc_lib.jastrow.ArrayGUFunc, metaclass=ABCMeta):
         super().__init__(base_func, target)
 
 
-class ScalarGUFunc(ArrayGUFunc, qmc_lib.jastrow.ScalarGUFunc,
+class ScalarGUFunc(ArrayGUFunc, qmc_base.jastrow.ScalarGUFunc,
                    metaclass=ABCMeta):
     """"""
     signatures = ['void(f8[:,:],f8[:],f8[:],f8[:])']
@@ -326,7 +326,7 @@ class ScalarGUFunc(ArrayGUFunc, qmc_lib.jastrow.ScalarGUFunc,
         super().__init__(base_func, target)
 
 
-class ArrayGUPureFunc(qmc_lib.jastrow.ArrayGUPureFunc, metaclass=ABCMeta):
+class ArrayGUPureFunc(qmc_base.jastrow.ArrayGUPureFunc, metaclass=ABCMeta):
     """"""
 
     signatures = ['void(f8[:,:],f8[:],f8[:,:])']
@@ -346,7 +346,7 @@ class ArrayGUPureFunc(qmc_lib.jastrow.ArrayGUPureFunc, metaclass=ABCMeta):
         super().__init__(base_func, target)
 
 
-class ScalarGUPureFunc(ArrayGUPureFunc, qmc_lib.jastrow.ScalarGUPureFunc,
+class ScalarGUPureFunc(ArrayGUPureFunc, qmc_base.jastrow.ScalarGUPureFunc,
                        metaclass=ABCMeta):
     """"""
     signatures = ['void(f8[:,:],f8[:],f8[:])']

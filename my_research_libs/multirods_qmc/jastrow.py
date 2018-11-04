@@ -3,8 +3,8 @@ from enum import unique
 
 from numba import jit
 
-from thesis_lib.qmc_lib import core, jastrow
-from thesis_lib.utils import cached_property
+from my_research_libs.qmc_base import core, jastrow
+from my_research_libs.utils import cached_property
 
 __all__ = [
     'Model',
@@ -37,17 +37,17 @@ class Model(jastrow.Model, metaclass=ABCMeta):
     params_cls = ModelParams
 
     @property
-    def lattice_depth(self):
+    def lattice_depth(self) -> float:
         """"""
         return self.params[self.params_cls.names.LATTICE_DEPTH]
 
     @property
-    def lattice_ratio(self):
+    def lattice_ratio(self) -> float:
         """"""
         return self.params[self.params_cls.names.LATTICE_RATIO]
 
     @property
-    def interaction_strength(self):
+    def interaction_strength(self) -> float:
         """"""
         return self.params[self.params_cls.names.INTERACTION_STRENGTH]
 

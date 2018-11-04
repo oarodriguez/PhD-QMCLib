@@ -1,6 +1,6 @@
 """
-    thesis_lib.qmc_lib.vmc
-    ~~~~~~~~~~~~~~~~~~~~~~
+    my_research_libs.qmc_base.vmc
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     Contains the basic classes and routines used to estimate the ground
     state properties of a quantum gas using the Variational Monte Carlo (VMC)
@@ -16,7 +16,7 @@ import numpy as np
 from numba import jit
 from numpy import random as random
 
-from thesis_lib.utils import (
+from my_research_libs.utils import (
     cached_property
 )
 from . import core
