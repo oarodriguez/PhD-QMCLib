@@ -9,12 +9,12 @@ sc_size = 100
 rm = .25 * sc_size
 
 # Well-formed parameters.
-model_params = dict(lattice_depth=v0,
-                    lattice_ratio=r,
-                    interaction_strength=gn,
-                    boson_number=nop,
-                    supercell_size=sc_size)
-var_params = dict(tbf_contact_cutoff=rm)
+spec_items = dict(lattice_depth=v0,
+                  lattice_ratio=r,
+                  interaction_strength=gn,
+                  boson_number=nop,
+                  supercell_size=sc_size,
+                  tbf_contact_cutoff=rm)
 
 
 class WFGUFunc(bloch_phonon.ScalarGUPureFunc):
@@ -48,9 +48,9 @@ def test_base_sampling():
     :return:
     """
     # TODO: Improve this test.
-    model = bloch_phonon.Model(model_params, var_params)
+    model = bloch_phonon.Model(**spec_items)
 
-    ncs, nbs = 10000, 0
+    ncs, nbs = 1000, 0
     ini_sys_conf = model.init_get_sys_conf()
     sampling_params = dict(move_spread=0.05,
                            ini_sys_conf=ini_sys_conf,

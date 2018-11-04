@@ -279,9 +279,10 @@ class Model(qmc_base.jastrow.Model):
         ]
         return OrderedDict(bounds)
 
-    @cached_property
+    @property
     def core_funcs(self):
         """"""
+        # TODO: Remove this method...
         return ModelCoreFuncs()
 
 
