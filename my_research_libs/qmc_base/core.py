@@ -1,7 +1,7 @@
 from abc import abstractmethod
-from collections import Callable, Iterable, Mapping
+from collections import Callable, Mapping
 from enum import Enum
-from typing import Callable as TCallable, Mapping as T_Mapping, Sequence, Type
+from typing import Callable as TCallable, Sequence, Type
 
 import numpy as np
 
@@ -10,12 +10,10 @@ from my_research_libs.utils import Cached, CachedMeta, strict_update
 __all__ = [
     'GUFunc',
     'GUFuncMeta',
-    'MHSampling',
-    'MHSamplingMeta',
-    'Model',
+    'ModelSpec',
     'ModelCoreFuncs',
     'ModelCoreFuncsMeta',
-    'ModelMeta',
+    'ModelSpecMeta',
     'ParamNameEnum',
     'ParamsSet',
     'QMCFuncsNames'
@@ -111,12 +109,12 @@ class ParamsSet(Mapping):
         return iter(self._ord_names)
 
 
-class ModelMeta(CachedMeta):
-    """Metaclass for :class:`Model` abstract base class."""
+class ModelSpecMeta(CachedMeta):
+    """Metaclass for :class:`ModelSpec` abstract base class."""
     pass
 
 
-class Model(metaclass=ModelMeta):
+class ModelSpec(metaclass=ModelSpecMeta):
     """Represents a Quantum Monte Carlo model for a physical quantum
     system. This abstract base class that defines the most common
     methods/functions used in a QMC simulation to estimate the properties
@@ -167,7 +165,7 @@ class Model(metaclass=ModelMeta):
     def core_func_args(self):
         """Tuple to be used as part of the arguments of the functions
         in the corresponding :class:`ModelCoreFuncs` instance of the model
-        (:attr:`Model.core_funcs` attribute).
+        (:attr:`ModelSpec.core_funcs` attribute).
         """
         pass
 
@@ -338,70 +336,4 @@ class GUFunc(Cached, Callable, metaclass=GUFuncMeta):
     @abstractmethod
     def __call__(self, *args, **kwargs) -> np.ndarray:
         """"""
-        pass
-
-
-class MHSamplingMeta(CachedMeta):
-    """Metaclass for :class:`MHSampling` abstract base class."""
-    pass
-
-
-class MHSampling(Iterable, Cached, metaclass=MHSamplingMeta):
-    """The interface that represents the sampling of an arbitrary
-    probability density function (p.d.f) using the Metropolis-Hastings
-    algorithm.
-    """
-
-    @property
-    @abstractmethod
-    def params(self):
-        """The parameters of the sampling."""
-        pass
-
-    @abstractmethod
-    def update_params(self, params: T_Mapping):
-        """Updates the sampling parameters."""
-        pass
-
-    @property
-    @abstractmethod
-    def wf_abs_log(self):
-        """The probability density function (p.d.f.) to sample."""
-        pass
-
-    @property
-    @abstractmethod
-    def ppf_args(self):
-        """The set of parameters for the transition proposal
-        probability function.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def sys_conf_ppf(self):
-        """The transition proposal probability function."""
-        pass
-
-    @property
-    @abstractmethod
-    def gen_args(self):
-        """
-
-        :return:
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def generator(self):
-        """A generator object for the sampling configurations that follow
-        the p.d.f.
-        """
-        pass
-
-    def as_chain(self):
-        """Builds a JIT-compiled function to generate a Markov chain
-        that samples the probability distribution function.
-        """
         pass

@@ -21,7 +21,7 @@ spec_items = dict(lattice_depth=v0,
 def test_init():
     """"""
 
-    model_spec = bloch_phonon.Model(**spec_items)
+    model_spec = bloch_phonon.ModelSpec(**spec_items)
     print(repr(model_spec))
 
 
@@ -30,7 +30,7 @@ def test_update_params():
 
     :return:
     """
-    model_spec = bloch_phonon.Model(**spec_items)
+    model_spec = bloch_phonon.ModelSpec(**spec_items)
     with pytest.raises(AttributeError):
         # Extra parameter. This will fail.
         new_params = dict(spec_items, extra_param=True)
@@ -67,13 +67,13 @@ def test_qmc_funcs():
     """"""
 
     # We have an ideal system...
-    model = bloch_phonon.Model(**spec_items)
+    model_spec = bloch_phonon.ModelSpec(**spec_items)
     core_funcs = bloch_phonon.ModelCoreFuncs()
 
     # Generate a random configuration, pick the model parameters.
-    sys_conf = model.init_get_sys_conf()
-    func_args = model.core_func_args
-    energy_args = model.energy_args
+    sys_conf = model_spec.init_get_sys_conf()
+    func_args = model_spec.core_func_args
+    energy_args = model_spec.energy_args
 
     # Testing a scalar function with own arguments
     energy_func = core_funcs.energy
@@ -87,26 +87,26 @@ def test_qmc_funcs():
     epp = energy_v / nop
     print("The energy per particle is: {:.6g}".format(epp))
 
-    drift_values = out_sys_conf[model.sys_conf_slots.DRIFT_SLOT, :]
+    drift_values = out_sys_conf[model_spec.sys_conf_slots.DRIFT_SLOT, :]
     print("The drift is: {}".format(drift_values))
 
     # Testing that the array function do not modify its inputs
-    in_pos_values = sys_conf[model.sys_conf_slots.POS_SLOT, :]
-    out_pos_values = out_sys_conf[model.sys_conf_slots.POS_SLOT, :]
+    in_pos_values = sys_conf[model_spec.sys_conf_slots.POS_SLOT, :]
+    out_pos_values = out_sys_conf[model_spec.sys_conf_slots.POS_SLOT, :]
     assert np.alltrue(out_pos_values == in_pos_values)
 
     with pytest.raises(AssertionError):
         # Testing that the array function modified the output array
         # where expected.
-        in_pos_values = sys_conf[model.sys_conf_slots.DRIFT_SLOT, :]
-        out_pos_values = out_sys_conf[model.sys_conf_slots.DRIFT_SLOT, :]
+        in_pos_values = sys_conf[model_spec.sys_conf_slots.DRIFT_SLOT, :]
+        out_pos_values = out_sys_conf[model_spec.sys_conf_slots.DRIFT_SLOT, :]
         assert np.alltrue(out_pos_values == in_pos_values)
 
 
 def test_gufunc():
     """Testing the behavior of the generalized universal functions."""
 
-    model = bloch_phonon.Model(**spec_items)
+    model = bloch_phonon.ModelSpec(**spec_items)
     core_funcs = bloch_phonon.ModelCoreFuncs()
 
     # Generate a random configuration, pick the model parameters.
