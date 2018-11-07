@@ -12,10 +12,10 @@ __all__ = [
     'GUFuncMeta',
     'MHSampling',
     'MHSamplingMeta',
-    'Model',
+    'ModelSpec',
     'ModelCoreFuncs',
     'ModelCoreFuncsMeta',
-    'ModelMeta',
+    'ModelSpecMeta',
     'ParamNameEnum',
     'ParamsSet',
     'QMCFuncsNames'
@@ -111,12 +111,12 @@ class ParamsSet(Mapping):
         return iter(self._ord_names)
 
 
-class ModelMeta(CachedMeta):
-    """Metaclass for :class:`Model` abstract base class."""
+class ModelSpecMeta(CachedMeta):
+    """Metaclass for :class:`ModelSpec` abstract base class."""
     pass
 
 
-class Model(metaclass=ModelMeta):
+class ModelSpec(metaclass=ModelSpecMeta):
     """Represents a Quantum Monte Carlo model for a physical quantum
     system. This abstract base class that defines the most common
     methods/functions used in a QMC simulation to estimate the properties
@@ -167,7 +167,7 @@ class Model(metaclass=ModelMeta):
     def core_func_args(self):
         """Tuple to be used as part of the arguments of the functions
         in the corresponding :class:`ModelCoreFuncs` instance of the model
-        (:attr:`Model.core_funcs` attribute).
+        (:attr:`ModelSpec.core_funcs` attribute).
         """
         pass
 

@@ -11,7 +11,7 @@ from .. import core
 from ..utils import sign
 
 __all__ = [
-    'Model',
+    'ModelSpec',
     'ModelCoreFuncs',
     'ModelParams',
     'ModelVarParams',
@@ -89,7 +89,7 @@ SYS_CONF_SLOTS_DIM = 0
 SYS_CONF_PARTICLE_INDEX_DIM = 1
 
 
-class Model(core.Model):
+class ModelSpec(core.ModelSpec):
     """Abstract Base Class that represents a Quantum Monte Carlo model
     with a trial-wave function of the Bijl-Jastrow type.
     """

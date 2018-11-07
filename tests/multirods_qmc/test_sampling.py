@@ -48,16 +48,16 @@ def test_base_sampling():
     :return:
     """
     # TODO: Improve this test.
-    model = bloch_phonon.Model(**spec_items)
+    model_spec = bloch_phonon.ModelSpec(**spec_items)
 
     ncs, nbs = 1000, 0
-    ini_sys_conf = model.init_get_sys_conf()
+    ini_sys_conf = model_spec.init_get_sys_conf()
     sampling_params = dict(move_spread=0.05,
                            ini_sys_conf=ini_sys_conf,
                            chain_samples=ncs,
                            burn_in_samples=nbs,
                            rng_seed=1)
-    sampling = bloch_phonon.UniformSampling(model, sampling_params)
+    sampling = bloch_phonon.UniformSampling(model_spec, sampling_params)
     ar = 0
     for data in sampling:
         sys_conf, wfv, stat = data
@@ -67,12 +67,13 @@ def test_base_sampling():
     chain_data = sampling.as_chain()
     sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
 
-    assert sys_conf_chain.shape == (ncs, model.num_sys_conf_slots, nop)
+    assert sys_conf_chain.shape == (ncs, model_spec.num_sys_conf_slots, nop)
     assert ar == ar_
 
-    wf_abs_log = model.core_funcs.wf_abs_log
+    wf_abs_log = model_spec.core_funcs.wf_abs_log
     wf_abs_log_guf = WFGUFunc(wf_abs_log)
-    wf_abs_log_chain_gu = wf_abs_log_guf(sys_conf_chain, model.gufunc_args)
+    wf_abs_log_chain_gu = wf_abs_log_guf(sys_conf_chain,
+                                         model_spec.gufunc_args)
 
     assert wf_abs_log_chain.shape == wf_abs_log_chain_gu.shape
     assert np.allclose(wf_abs_log_chain.shape, wf_abs_log_chain_gu.shape)

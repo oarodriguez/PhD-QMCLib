@@ -20,7 +20,7 @@ __all__ = [
     'ArrayGUFunc',
     'ArrayGUPureFunc',
     'EnergyGUFunc',
-    'Model',
+    'ModelSpec',
     'ModelCoreFuncs',
     'ModelParams',
     'ModelVarParams',
@@ -71,7 +71,7 @@ class ModelVarParams(qmc_base.ParamsSet):
 
 # NOTE: slots=True avoids adding more attributes
 @attrs(auto_attribs=True, init=False, slots=True)
-class Model(qmc_base.jastrow.Model):
+class ModelSpec(qmc_base.jastrow.ModelSpec):
     """The parameters of the Bloch-Phonon QMC model.
 
     Defines the parameters and related properties of a quantum system in a
@@ -260,7 +260,7 @@ class Model(qmc_base.jastrow.Model):
 
     @property
     def gufunc_args(self):
-        """Concatenate the :attr:`Model.core_func_args` tuples and returns
+        """Concatenate the :attr:`ModelSpec.core_func_args` tuples and returns
         a single tuple. Intended to be used with generalized universal
         functions (gufunc).
         """
