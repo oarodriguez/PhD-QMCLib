@@ -516,3 +516,7 @@ class EnergyGUFunc(ScalarGUFunc):
             return func_args_0,
 
         return _as_func_args
+
+
+# Global object with most general model core functions.
+core_funcs = ModelCoreFuncs()
