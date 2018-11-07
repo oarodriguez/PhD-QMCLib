@@ -9,6 +9,7 @@
 
 import math
 from abc import ABCMeta, abstractmethod
+from collections import Iterable
 from enum import Enum, IntEnum, unique
 from typing import Any, Mapping, Tuple
 
@@ -16,9 +17,7 @@ import numpy as np
 from numba import jit
 from numpy import random as random
 
-from my_research_libs.utils import (
-    cached_property
-)
+from my_research_libs.utils import Cached, CachedMeta, cached_property
 from . import core
 
 __all__ = [
@@ -26,6 +25,7 @@ __all__ = [
     'PBCUniformSampling',
     'RandDisplaceStat',
     'Sampling',
+    'SamplingMeta',
     'SamplingParams',
     'UniformSampling',
     'UniformSamplingParams'
@@ -74,8 +74,15 @@ class SamplingParams(core.ParamsSet):
     defaults = SamplingParamDefault
 
 
-class Sampling(core.MHSampling, metaclass=ABCMeta):
-    """Performs the sampling of the probability density of a QMC model
+class SamplingMeta(CachedMeta):
+    """Metaclass for :class:`Sampling` abstract base class."""
+    pass
+
+
+class Sampling(Iterable, Cached, metaclass=SamplingMeta):
+    """The interface to realize a VMC sampling.
+
+    Performs the sampling of the probability density of a QMC model
     using the Metropolis-Hastings algorithm. It uses a normal distribution
     to generate random numbers.
     """
@@ -107,9 +114,24 @@ class Sampling(core.MHSampling, metaclass=ABCMeta):
         self._params = self.params_cls(self.params, **params)
 
     @property
-    def args(self):
-        """"""
-        return tuple(self.params.values())
+    @abstractmethod
+    def wf_abs_log(self):
+        """The probability density function (p.d.f.) to sample."""
+        pass
+
+    @property
+    @abstractmethod
+    def ppf_args(self):
+        """The set of parameters for the transition proposal
+        probability function.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def sys_conf_ppf(self):
+        """The transition proposal probability function."""
+        pass
 
     @cached_property
     def rand_displace(self):
@@ -134,9 +156,24 @@ class Sampling(core.MHSampling, metaclass=ABCMeta):
 
         return _rand_displace
 
+    @property
+    def args(self):
+        """"""
+        return tuple(self.params.values())
+
+    @property
+    @abstractmethod
+    def gen_args(self):
+        """
+
+        :return:
+        """
+        pass
+
     @cached_property
     def generator(self):
-        """
+        """A generator object for the sampling configurations that follow
+        the p.d.f.
 
         :return:
         """
