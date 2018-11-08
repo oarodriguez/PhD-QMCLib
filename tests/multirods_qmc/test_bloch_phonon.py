@@ -21,7 +21,7 @@ spec_items = dict(lattice_depth=v0,
 def test_init():
     """"""
 
-    model_spec = bloch_phonon.ModelSpec(**spec_items)
+    model_spec = bloch_phonon.Spec(**spec_items)
     print(repr(model_spec))
 
 
@@ -30,7 +30,7 @@ def test_update_params():
 
     :return:
     """
-    model_spec = bloch_phonon.ModelSpec(**spec_items)
+    model_spec = bloch_phonon.Spec(**spec_items)
     with pytest.raises(AttributeError):
         # Extra parameter. This will fail.
         new_params = dict(spec_items, extra_param=True)
@@ -67,8 +67,8 @@ def test_qmc_funcs():
     """"""
 
     # We have an ideal system...
-    model_spec = bloch_phonon.ModelSpec(**spec_items)
-    core_funcs = bloch_phonon.ModelCoreFuncs()
+    model_spec = bloch_phonon.Spec(**spec_items)
+    core_funcs = bloch_phonon.CoreFuncs()
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model_spec.init_get_sys_conf()
@@ -106,8 +106,8 @@ def test_qmc_funcs():
 def test_gufunc():
     """Testing the behavior of the generalized universal functions."""
 
-    model = bloch_phonon.ModelSpec(**spec_items)
-    core_funcs = bloch_phonon.ModelCoreFuncs()
+    model = bloch_phonon.Spec(**spec_items)
+    core_funcs = bloch_phonon.CoreFuncs()
 
     # Generate a random configuration, pick the model parameters.
     core_func_args = model.core_func_args

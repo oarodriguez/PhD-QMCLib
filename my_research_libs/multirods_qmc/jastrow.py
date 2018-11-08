@@ -3,18 +3,18 @@ from enum import unique
 
 from numba import jit
 
-from my_research_libs.qmc_base import core, jastrow
+from my_research_libs.qmc_base import jastrow, model
 from my_research_libs.utils import cached_property
 
 __all__ = [
-    'ModelCoreFuncs',
+    'CoreFuncs',
     'ModelParams',
     'potential_func'
 ]
 
 
 @unique
-class ParamName(core.ParamNameEnum):
+class ParamName(model.ParamNameEnum):
     """Enumerates the parameters of the model (Bijl-Jastrow type) of a
     quantum system in a Multi-Rods periodic structure.
     """
@@ -25,12 +25,12 @@ class ParamName(core.ParamNameEnum):
     SUPERCELL_SIZE = 'supercell_size'
 
 
-class ModelParams(core.ParamsSet):
+class ModelParams(model.ParamsSet):
     """Represents the parameters of the model."""
     names = ParamName
 
 
-class ModelCoreFuncs(jastrow.ModelCoreFuncs, metaclass=ABCMeta):
+class CoreFuncs(jastrow.CoreFuncs, metaclass=ABCMeta):
     """"""
 
     params_cls = ModelParams
