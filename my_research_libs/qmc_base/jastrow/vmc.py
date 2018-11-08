@@ -6,7 +6,7 @@ import numpy as np
 from numba import jit
 
 from my_research_libs.utils import cached_property
-from . import core
+from . import model
 from .. import vmc
 from ..utils import recast_to_supercell
 
@@ -25,9 +25,9 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
     function.
     """
     # The slots available in a single particle configuration.
-    sys_conf_slots = core.SysConfSlot
+    sys_conf_slots = model.SysConfSlot
 
-    def __init__(self, model: core.ModelSpec,
+    def __init__(self, model: model.ModelSpec,
                  params: Mapping[str, float]):
         """
 
@@ -93,7 +93,7 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
 
         :return:
         """
-        boson_index_dim = int(core.SYS_CONF_PARTICLE_INDEX_DIM)
+        boson_index_dim = int(model.SYS_CONF_PARTICLE_INDEX_DIM)
         ith_sys_conf_ppf = self.ith_sys_conf_ppf
 
         @jit(nopython=True, cache=True)

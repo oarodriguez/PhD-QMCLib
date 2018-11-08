@@ -18,7 +18,7 @@ from numba import jit
 from numpy import random as random
 
 from my_research_libs.utils import Cached, CachedMeta, cached_property
-from . import core
+from . import model
 
 __all__ = [
     'PBCSampling',
@@ -53,7 +53,7 @@ STAT_ACCEPTED = int(RandDisplaceStat.ACCEPTED)
 
 
 @unique
-class SamplingParam(core.ParamNameEnum):
+class SamplingParam(model.ParamNameEnum):
     """"""
     TIME_STEP = 'time_step'
     INI_SYS_CONF = 'ini_sys_conf'
@@ -68,7 +68,7 @@ class SamplingParamDefault(Enum):
     RNG_SEED = None
 
 
-class SamplingParams(core.ParamsSet):
+class SamplingParams(model.ParamsSet):
     """"""
     names = SamplingParam
     defaults = SamplingParamDefault
@@ -348,7 +348,7 @@ class PBCSampling(Sampling, metaclass=ABCMeta):
 
 
 @unique
-class UniformSamplingParam(core.ParamNameEnum):
+class UniformSamplingParam(model.ParamNameEnum):
     """The parameters to realize a UniformSampling."""
     MOVE_SPREAD = 'move_spread'
     INI_SYS_CONF = 'ini_sys_conf'

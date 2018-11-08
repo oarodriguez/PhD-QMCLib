@@ -7,7 +7,7 @@
 from . import vmc
 
 #
-from .core import *
+from .gufunc import *
 
 #
-from .gufunc import *
+from .model import *

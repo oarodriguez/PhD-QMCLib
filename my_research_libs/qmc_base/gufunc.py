@@ -5,7 +5,7 @@ import numpy as np
 from numba import guvectorize, jit
 
 from my_research_libs.utils import cached_property
-from . import core
+from . import model
 
 __all__ = [
     'ArrayGUFunc',
@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 
-class ArrayGUFunc(core.GUFunc, metaclass=ABCMeta):
+class ArrayGUFunc(model.GUFunc, metaclass=ABCMeta):
     """Generalized universal function interface for functions that
     evaluate an "array" (non-scalar) property over a system configuration.
     """
@@ -88,7 +88,7 @@ class ScalarGUFunc(ArrayGUFunc, metaclass=ABCMeta):
         return _elem_func
 
 
-class ArrayGUPureFunc(core.GUFunc, metaclass=ABCMeta):
+class ArrayGUPureFunc(model.GUFunc, metaclass=ABCMeta):
     """Generalized universal function interface for functions that
     evaluate an "array" (non-scalar) property over a system configuration.
     """

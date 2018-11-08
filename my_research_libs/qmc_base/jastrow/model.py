@@ -7,7 +7,7 @@ import numpy as np
 from numba import jit
 
 from my_research_libs.utils import cached_property
-from .. import core
+from .. import model
 from ..utils import sign
 
 __all__ = [
@@ -41,27 +41,27 @@ class SysConfDistType(Enum):
 
 
 @unique
-class ParamName(core.ParamNameEnum):
+class ParamName(model.ParamNameEnum):
     """Enumerates the common parameters of a model of Bijl-Jastrow type.
     """
     BOSON_NUMBER = 'boson_number'
     SUPERCELL_SIZE = 'supercell_size'
 
 
-class ModelParams(core.ParamsSet):
+class ModelParams(model.ParamsSet):
     """Represents the common parameters of a Bijl-Jastrow model."""
     names = ParamName
 
 
 @unique
-class VarParamName(core.ParamNameEnum):
+class VarParamName(model.ParamNameEnum):
     """Enumerates the common variational parameters of a model of
     Bijl-Jastrow type.
     """
     pass
 
 
-class ModelVarParams(core.ParamsSet):
+class ModelVarParams(model.ParamsSet):
     """Represents the common variational parameters of the wave function
     of a model of Bijl-Jastrow type."""
     names = VarParamName
@@ -89,7 +89,7 @@ SYS_CONF_SLOTS_DIM = 0
 SYS_CONF_PARTICLE_INDEX_DIM = 1
 
 
-class ModelSpec(core.ModelSpec):
+class ModelSpec(model.ModelSpec):
     """Abstract Base Class that represents a Quantum Monte Carlo model
     with a trial-wave function of the Bijl-Jastrow type.
     """
@@ -153,7 +153,7 @@ class ModelSpec(core.ModelSpec):
         pass
 
 
-class ModelCoreFuncs(core.ModelCoreFuncs):
+class ModelCoreFuncs(model.ModelCoreFuncs):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical
     functions to realize a Quantum Monte Carlo calculation for a QMC model
     with a trial-wave function of the Bijl-Jastrow type.

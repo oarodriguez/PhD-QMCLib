@@ -38,7 +38,7 @@ DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
 
 
 @unique
-class ParamName(qmc_base.core.ParamNameEnum):
+class ParamName(qmc_base.model.ParamNameEnum):
     """Enumerates the parameters of the model (Bijl-Jastrow type) of a
     quantum system in a Multi-Rods periodic structure with repulsive,
     contact interactions.

@@ -4,7 +4,7 @@ import numpy as np
 from numba import guvectorize, jit
 
 from my_research_libs.utils import cached_property
-from .. import core
+from .. import model
 
 __all__ = [
     'ArrayGUFunc',
@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 
-class ArrayGUFunc(core.GUFunc, metaclass=ABCMeta):
+class ArrayGUFunc(model.GUFunc, metaclass=ABCMeta):
     """"""
 
     @property
@@ -120,7 +120,7 @@ class ScalarGUFunc(ArrayGUFunc, metaclass=ABCMeta):
         return _elem_func
 
 
-class ArrayGUPureFunc(core.GUFunc, metaclass=ABCMeta):
+class ArrayGUPureFunc(model.GUFunc, metaclass=ABCMeta):
     """"""
 
     @property
