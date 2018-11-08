@@ -19,9 +19,9 @@ from .. import jastrow, trial_funcs as tf
 __all__ = [
     'ArrayGUFunc',
     'ArrayGUPureFunc',
+    'CoreFuncs',
     'EnergyGUFunc',
-    'ModelSpec',
-    'ModelCoreFuncs',
+    'Spec',
     'ModelParams',
     'ModelVarParams',
     'Sampling',
@@ -71,7 +71,7 @@ class ModelVarParams(qmc_base.ParamsSet):
 
 # NOTE: slots=True avoids adding more attributes
 @attrs(auto_attribs=True, init=False, slots=True)
-class ModelSpec(qmc_base.jastrow.ModelSpec):
+class Spec(qmc_base.jastrow.Spec):
     """The parameters of the Bloch-Phonon QMC model.
 
     Defines the parameters and related properties of a quantum system in a
@@ -260,7 +260,7 @@ class ModelSpec(qmc_base.jastrow.ModelSpec):
 
     @property
     def gufunc_args(self):
-        """Concatenate the :attr:`ModelSpec.core_func_args` tuples and returns
+        """Concatenate the :attr:`Spec.core_func_args` tuples and returns
         a single tuple. Intended to be used with generalized universal
         functions (gufunc).
         """
@@ -283,10 +283,10 @@ class ModelSpec(qmc_base.jastrow.ModelSpec):
     def core_funcs(self):
         """"""
         # TODO: Remove this method...
-        return ModelCoreFuncs()
+        return CoreFuncs()
 
 
-class ModelCoreFuncs(jastrow.ModelCoreFuncs):
+class CoreFuncs(jastrow.CoreFuncs):
     """Functions of a QMC model for a system with a trial wave function
     of the Bijl-Jastrow type.
     """
@@ -378,7 +378,7 @@ class Sampling(qmc_base.jastrow.vmc.PBCSampling):
             rng_seed = get_random_rng_seed()
 
         return (
-            self.model.core_func_args,
+            self.model_spec.core_func_args,
             self.ppf_args,
             self.params[names.INI_SYS_CONF],
             self.params[names.CHAIN_SAMPLES],
@@ -396,7 +396,7 @@ class UniformSampling(Sampling, qmc_base.jastrow.vmc.PBCUniformSampling):
 def _as_model_args(model_full_params):
     """Takes the model parameters from the array, and group them
     in tuples. The constructed tuples are returned to the caller so
-    they an be user as arguments for a ``ModelCoreFuncs`` function.
+    they an be user as arguments for a ``CoreFuncs`` function.
     """
     # TODO: Is there a better way to do this?
     v0 = model_full_params[0]
@@ -519,4 +519,4 @@ class EnergyGUFunc(ScalarGUFunc):
 
 
 # Global object with most general model core functions.
-core_funcs = ModelCoreFuncs()
+core_funcs = CoreFuncs()

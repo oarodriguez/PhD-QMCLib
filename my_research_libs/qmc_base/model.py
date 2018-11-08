@@ -8,12 +8,12 @@ import numpy as np
 from my_research_libs.utils import Cached, CachedMeta, strict_update
 
 __all__ = [
+    'CoreFuncs',
+    'CoreFuncsMeta',
     'GUFunc',
     'GUFuncMeta',
-    'ModelSpec',
-    'ModelCoreFuncs',
-    'ModelCoreFuncsMeta',
-    'ModelSpecMeta',
+    'Spec',
+    'SpecMeta',
     'ParamNameEnum',
     'ParamsSet',
     'QMCFuncsNames'
@@ -109,16 +109,18 @@ class ParamsSet(Mapping):
         return iter(self._ord_names)
 
 
-class ModelSpecMeta(CachedMeta):
-    """Metaclass for :class:`ModelSpec` abstract base class."""
+class SpecMeta(CachedMeta):
+    """Metaclass for :class:`Spec` abstract base class."""
     pass
 
 
-class ModelSpec(metaclass=ModelSpecMeta):
-    """Represents a Quantum Monte Carlo model for a physical quantum
-    system. This abstract base class that defines the most common
-    methods/functions used in a QMC simulation to estimate the properties
-    of a physical system.
+class Spec(metaclass=SpecMeta):
+    """ABC for a QMC model specification.
+
+    Represents the specification of a Quantum Monte Carlo model for a
+    physical quantum system. This abstract base class that defines the
+    most common methods/functions used in a QMC simulation to estimate
+    the properties of a physical system.
     """
     __slots__ = ()
 
@@ -164,8 +166,8 @@ class ModelSpec(metaclass=ModelSpecMeta):
     @abstractmethod
     def core_func_args(self):
         """Tuple to be used as part of the arguments of the functions
-        in the corresponding :class:`ModelCoreFuncs` instance of the model
-        (:attr:`ModelSpec.core_funcs` attribute).
+        in the corresponding :class:`CoreFuncs` instance of the model
+        (:attr:`Spec.core_funcs` attribute).
         """
         pass
 
@@ -178,12 +180,12 @@ class ModelSpec(metaclass=ModelSpecMeta):
         pass
 
 
-class ModelCoreFuncsMeta(CachedMeta):
-    """Metaclass for :class:`ModelCoreFuncs` abstract base class."""
+class CoreFuncsMeta(CachedMeta):
+    """Metaclass for :class:`CoreFuncs` abstract base class."""
     pass
 
 
-class ModelCoreFuncs(Cached, metaclass=ModelCoreFuncsMeta):
+class CoreFuncs(Cached, metaclass=CoreFuncsMeta):
     """"""
 
     @property

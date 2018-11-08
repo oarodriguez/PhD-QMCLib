@@ -11,10 +11,10 @@ from .. import model
 from ..utils import sign
 
 __all__ = [
-    'ModelSpec',
-    'ModelCoreFuncs',
+    'CoreFuncs',
     'ModelParams',
     'ModelVarParams',
+    'Spec',
     'SysConfSlot',
     'SysConfDistType',
     'SYS_CONF_SLOTS_DIM',
@@ -89,7 +89,7 @@ SYS_CONF_SLOTS_DIM = 0
 SYS_CONF_PARTICLE_INDEX_DIM = 1
 
 
-class ModelSpec(model.ModelSpec):
+class Spec(model.Spec):
     """Abstract Base Class that represents a Quantum Monte Carlo model
     with a trial-wave function of the Bijl-Jastrow type.
     """
@@ -149,11 +149,11 @@ class ModelSpec(model.ModelSpec):
 
     @property
     @abstractmethod
-    def core_funcs(self) -> 'ModelCoreFuncs':
+    def core_funcs(self) -> 'CoreFuncs':
         pass
 
 
-class ModelCoreFuncs(model.ModelCoreFuncs):
+class CoreFuncs(model.CoreFuncs):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical
     functions to realize a Quantum Monte Carlo calculation for a QMC model
     with a trial-wave function of the Bijl-Jastrow type.

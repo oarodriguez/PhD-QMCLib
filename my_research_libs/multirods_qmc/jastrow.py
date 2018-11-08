@@ -7,7 +7,7 @@ from my_research_libs.qmc_base import jastrow, model
 from my_research_libs.utils import cached_property
 
 __all__ = [
-    'ModelCoreFuncs',
+    'CoreFuncs',
     'ModelParams',
     'potential_func'
 ]
@@ -30,7 +30,7 @@ class ModelParams(model.ParamsSet):
     names = ParamName
 
 
-class ModelCoreFuncs(jastrow.ModelCoreFuncs, metaclass=ABCMeta):
+class CoreFuncs(jastrow.CoreFuncs, metaclass=ABCMeta):
     """"""
 
     params_cls = ModelParams

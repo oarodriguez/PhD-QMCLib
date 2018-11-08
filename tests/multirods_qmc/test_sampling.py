@@ -48,7 +48,7 @@ def test_base_sampling():
     :return:
     """
     # TODO: Improve this test.
-    model_spec = bloch_phonon.ModelSpec(**spec_items)
+    model_spec = bloch_phonon.Spec(**spec_items)
 
     ncs, nbs = 1000, 0
     ini_sys_conf = model_spec.init_get_sys_conf()

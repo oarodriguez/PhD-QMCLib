@@ -27,25 +27,25 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
     # The slots available in a single particle configuration.
     sys_conf_slots = model.SysConfSlot
 
-    def __init__(self, model: model.ModelSpec,
+    def __init__(self, model_spec: model.Spec,
                  params: Mapping[str, float]):
         """
 
-        :param model:
+        :param model_spec:
         :param params:
         """
         super().__init__(params)
-        self._model = model
+        self._model = model_spec
 
     @property
-    def model(self):
+    def model_spec(self):
         """"""
         return self._model
 
     @cached_property
     def wf_abs_log(self):
         """"""
-        return self.model.core_funcs.wf_abs_log
+        return self.model_spec.core_funcs.wf_abs_log
 
     @property
     def ppf_args(self):
@@ -124,7 +124,7 @@ class PBCSampling(Sampling, vmc.PBCSampling, metaclass=ABCMeta):
     def ppf_args(self):
         """Set of parameters for the proposal probability function."""
         time_step = self.params[self.params_cls.names.TIME_STEP]
-        z_min, z_max = self.model.boundaries
+        z_min, z_max = self.model_spec.boundaries
         move_spread = sqrt(time_step)
         return move_spread, z_min, z_max
 
@@ -195,5 +195,5 @@ class PBCUniformSampling(PBCSampling, UniformSampling,
     def ppf_args(self):
         """Set of parameters for the proposal probability function."""
         move_spread = self.params[self.params_cls.names.MOVE_SPREAD]
-        z_min, z_max = self.model.boundaries
+        z_min, z_max = self.model_spec.boundaries
         return move_spread, z_min, z_max
