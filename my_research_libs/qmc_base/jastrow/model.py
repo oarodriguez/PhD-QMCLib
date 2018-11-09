@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
-from typing import ClassVar
+from typing import ClassVar, NamedTuple
 
 import numpy as np
 from numba import jit
@@ -11,10 +11,13 @@ from .. import model
 from ..utils import sign
 
 __all__ = [
+    'CFCSpecNT',
     'CoreFuncs',
-    'ModelParams',
     'ModelVarParams',
+    'OBFSpecNT',
     'Spec',
+    'SpecNT',
+    'TBFSpecNT',
     'SysConfSlot',
     'SysConfDistType',
     'SYS_CONF_SLOTS_DIM',
@@ -87,6 +90,33 @@ DIST_REGULAR = SysConfDistType.REGULAR
 # TODO: Put these in an IntEnum
 SYS_CONF_SLOTS_DIM = 0
 SYS_CONF_PARTICLE_INDEX_DIM = 1
+
+
+class SpecNT(NamedTuple):
+    """The common fields a Jastrow model spec should implement."""
+    boson_number: int
+    supercell_size: float
+    is_free: bool
+    is_ideal: bool
+
+
+class OBFSpecNT(NamedTuple):
+    """Fields of the one-body function spec."""
+    # Help with typing and nothing more.
+    pass
+
+
+class TBFSpecNT(NamedTuple):
+    """Fields of the two-body function spec."""
+    # Help with typing and nothing more.
+    pass
+
+
+class CFCSpecNT(NamedTuple):
+    """The common structure of the spec of a core function."""
+    model_spec: SpecNT
+    obf_spec: OBFSpecNT
+    tbf_spec: TBFSpecNT
 
 
 class Spec(model.Spec):
@@ -271,47 +301,43 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        is_free = self.is_free
-        is_ideal = self.is_ideal
         real_distance = self.real_distance
         pos_slot = int(self.sys_conf_slots.POS_SLOT)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
 
-        # TODO: Add an underscore as a prefix.
         @jit(nopython=True, cache=True)
-        def _ith_wf_abs_log(i_, sys_conf,
-                            model_params,
-                            obf_params,
-                            tbf_params):
+        def _ith_wf_abs_log(i_: int, sys_conf: np.ndarray,
+                            cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of bosons in
             a specific configuration.
 
             :param i_:
             :param sys_conf:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return:
             """
-            ith_wf_abs_log = 0.
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
+            model_spec = cfc_spec.model_spec
+            obf_spec = cfc_spec.obf_spec
+            tbf_spec = cfc_spec.tbf_spec
 
-            if not is_free(model_params):
+            ith_wf_abs_log = 0.
+            nop = model_spec.boson_number
+
+            if not model_spec.is_free:
                 # Gas subject to external potential.
                 z_i = sys_conf[pos_slot, i_]
-                obv = one_body_func(z_i, *obf_params)
+                obv = one_body_func(z_i, obf_spec)
                 ith_wf_abs_log += log(fabs(obv))
 
-            if not is_ideal(model_params):
+            if not model_spec.is_ideal:
                 # Gas with interactions.
                 z_i = sys_conf[pos_slot, i_]
                 for j_ in range(i_ + 1, nop):
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_params)
-                    tbv = two_body_func(fabs(z_ij), *tbf_params)
-
+                    z_ij = real_distance(z_i, z_j, model_spec)
+                    tbv = two_body_func(fabs(z_ij), tbf_spec)
                     ith_wf_abs_log += log(fabs(tbv))
 
             return ith_wf_abs_log
@@ -324,33 +350,27 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        is_free = self.is_free
-        is_ideal = self.is_ideal
         ith_wf_abs_log = self.ith_wf_abs_log
 
         @jit(nopython=True, cache=True)
-        def _wf_abs_log(sys_conf,
-                        model_params,
-                        obf_params,
-                        tbf_params):
+        def _wf_abs_log(sys_conf: np.ndarray,
+                        cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of bosons in
             a specific configuration.
 
             :param sys_conf:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return:
             """
+            model_spec = cfc_spec.model_spec
+            nop = model_spec.boson_number
+
+            if model_spec.is_free and model_spec.is_ideal:
+                return 0.
+
             wf_abs_log = 0.
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-
-            if is_free(model_params) and is_ideal(model_params):
-                return wf_abs_log
-
             for i_ in range(nop):
-                wf_abs_log += ith_wf_abs_log(i_, sys_conf, model_params,
-                                             obf_params, tbf_params)
+                wf_abs_log += ith_wf_abs_log(i_, sys_conf, cfc_spec)
             return wf_abs_log
 
         return _wf_abs_log
@@ -364,21 +384,16 @@ class CoreFuncs(model.CoreFuncs):
         wf_abs_log = self.wf_abs_log
 
         @jit(nopython=True, cache=True)
-        def _wf_abs(sys_conf,
-                    model_params,
-                    obf_params,
-                    tbf_params):
+        def _wf_abs(sys_conf: np.ndarray,
+                    cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of
             bosons in a specific configuration.
 
             :param sys_conf:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return:
             """
-            wf_abs_log_ = wf_abs_log(sys_conf, model_params, obf_params,
-                                     tbf_params)
+            wf_abs_log_ = wf_abs_log(sys_conf, cfc_spec)
             return exp(wf_abs_log_)
 
         return _wf_abs
