@@ -294,9 +294,7 @@ class CoreFuncs(model.CoreFuncs):
             model_spec = cfc_spec.model_spec
             obf_spec = cfc_spec.obf_spec
             tbf_spec = cfc_spec.tbf_spec
-
             ith_wf_abs_log = 0.
-            nop = model_spec.boson_number
 
             if not model_spec.is_free:
                 # Gas subject to external potential.
@@ -307,6 +305,7 @@ class CoreFuncs(model.CoreFuncs):
             if not model_spec.is_ideal:
                 # Gas with interactions.
                 z_i = sys_conf[pos_slot, i_]
+                nop = model_spec.boson_number
                 for j_ in range(i_ + 1, nop):
                     z_j = sys_conf[pos_slot, j_]
                     z_ij = real_distance(z_i, z_j, model_spec)
@@ -336,12 +335,12 @@ class CoreFuncs(model.CoreFuncs):
             :return:
             """
             model_spec = cfc_spec.model_spec
-            nop = model_spec.boson_number
+            wf_abs_log = 0.
 
             if model_spec.is_free and model_spec.is_ideal:
-                return 0.
+                return wf_abs_log
 
-            wf_abs_log = 0.
+            nop = model_spec.boson_number
             for i_ in range(nop):
                 wf_abs_log += ith_wf_abs_log(i_, sys_conf, cfc_spec)
             return wf_abs_log
@@ -392,8 +391,8 @@ class CoreFuncs(model.CoreFuncs):
             after displacing the `k-th` particle by a distance ``z_k_delta``.
 
             :param k_:
-            :param sys_conf:
             :param z_k_delta:
+            :param sys_conf:
             :param cfc_spec:
             :return:
             """
@@ -402,6 +401,7 @@ class CoreFuncs(model.CoreFuncs):
             tbf_spec = cfc_spec.tbf_spec
             delta_wf_abs_log = 0.
 
+            # NOTE: Is it better to use this conditional from external loops?
             if model_spec.is_free and model_spec.is_ideal:
                 return delta_wf_abs_log
 
@@ -465,6 +465,7 @@ class CoreFuncs(model.CoreFuncs):
             tbf_spec = cfc_spec.tbf_spec
             ith_drift = 0.
 
+            # NOTE: Is it better to use this conditional from external loops?
             if model_spec.is_free and model_spec.is_ideal:
                 return ith_drift
 
@@ -502,6 +503,7 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
+        # TODO: Rename to drift
         pos_slot = int(self.sys_conf_slots.pos)
         drift_slot = int(self.sys_conf_slots.drift)
         ith_drift = self.ith_drift
@@ -509,21 +511,25 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True, cache=True)
         def _drift(sys_conf: np.ndarray,
                    cfc_spec: CFCSpecNT,
-                   result: np.ndarray):
+                   result: np.ndarray = None):
             """
 
             :param sys_conf:
+            :param cfc_spec:
             :param result:
             :return:
             """
-            # Set the position first
+            if result is None:
+                result = np.zeros_like(sys_conf)
+
+            # Set the position first, then the drift.
             result[pos_slot, :] = sys_conf[pos_slot, :]
 
-            # Set the drift next.
-            model_spec = cfc_spec.model_spec
-            nop = model_spec.boson_number
+            nop = cfc_spec.model_spec.boson_number
             for i_ in range(nop):
                 result[drift_slot, i_] = ith_drift(i_, sys_conf, cfc_spec)
+
+            return result
 
         return _drift
 
@@ -549,7 +555,9 @@ class CoreFuncs(model.CoreFuncs):
 
             :param i_:
             :param k_:
+            :param z_k_delta:
             :param sys_conf:
+            :param cfc_spec:
             :return:
             """
             model_spec = cfc_spec.model_spec
@@ -584,6 +592,7 @@ class CoreFuncs(model.CoreFuncs):
                 return delta_ith_drift
 
             delta_ith_drift = 0.
+            # NOTE: Is it better to use this conditional from external loops?
             if model_spec.is_free and model_spec.is_ideal:
                 return delta_ith_drift
 
