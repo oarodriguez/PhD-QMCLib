@@ -131,11 +131,6 @@ class Spec(metaclass=SpecMeta):
 
     @property
     @abstractmethod
-    def args(self):
-        pass
-
-    @property
-    @abstractmethod
     def num_sys_conf_slots(self):
         pass
 
@@ -154,17 +149,17 @@ class Spec(metaclass=SpecMeta):
 
     @property
     @abstractmethod
-    def wf_args(self):
-        pass
-
-    @property
-    @abstractmethod
     def var_params_bounds(self):
         pass
 
     @property
     @abstractmethod
-    def core_func_args(self):
+    def as_named_tuple(self):
+        pass
+
+    @property
+    @abstractmethod
+    def cfc_spec_nt(self):
         """Tuple to be used as part of the arguments of the functions
         in the corresponding :class:`CoreFuncs` instance of the model
         (:attr:`Spec.core_funcs` attribute).
@@ -187,11 +182,6 @@ class CoreFuncsMeta(CachedMeta):
 
 class CoreFuncs(Cached, metaclass=CoreFuncsMeta):
     """"""
-
-    @property
-    @abstractmethod
-    def boson_number(self):
-        pass
 
     @property
     @abstractmethod

@@ -164,17 +164,12 @@ class Spec(model.Spec):
 
     @property
     @abstractmethod
-    def obf_args(self):
+    def obf_spec_nt(self):
         pass
 
     @property
     @abstractmethod
-    def tbf_args(self):
-        pass
-
-    @property
-    @abstractmethod
-    def energy_args(self):
+    def tbf_spec_nt(self):
         pass
 
     @property
@@ -196,18 +191,6 @@ class CoreFuncs(model.CoreFuncs):
 
     #
     sys_conf_slots = SysConfSlot
-
-    @cached_property
-    def boson_number(self):
-        """"""
-        param_loc = int(self.params_cls.names.BOSON_NUMBER.loc)
-
-        @jit(nopython=True, cache=True)
-        def _boson_number(model_params):
-            """"""
-            return model_params[param_loc]
-
-        return _boson_number
 
     @cached_property
     def supercell_size(self):

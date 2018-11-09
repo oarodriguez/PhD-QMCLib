@@ -22,32 +22,24 @@ class Spec(jastrow.Spec):
         return False
 
     @property
-    def obf_args(self):
+    def as_named_tuple(self):
+        return jastrow.SpecNT(self.boson_number,
+                              self.supercell_size,
+                              self.is_free,
+                              self.is_ideal)
+
+    @property
+    def obf_spec_nt(self):
         return jastrow.OBFSpecNT()
 
     @property
-    def tbf_args(self):
+    def tbf_spec_nt(self):
         return jastrow.TBFSpecNT()
-
-    @property
-    def energy_args(self):
-        return self.args
-
-    @property
-    def core_funcs(self) -> 'CoreFuncs':
-        return CoreFuncs()
 
     @property
     def boundaries(self):
         sc_size = self.supercell_size
         return 0., 1. * sc_size
-
-    @property
-    def args(self):
-        return jastrow.SpecNT(self.boson_number,
-                              self.supercell_size,
-                              self.is_free,
-                              self.is_ideal)
 
     @property
     def sys_conf_shape(self):
@@ -72,18 +64,18 @@ class Spec(jastrow.Spec):
         return sys_conf
 
     @property
-    def wf_args(self):
-        return self.obf_args, self.tbf_args
-
-    @property
     def var_params_bounds(self):
         return None
 
     @property
-    def core_func_args(self):
-        return jastrow.CFCSpecNT(self.args,
-                                 self.obf_args,
-                                 self.tbf_args)
+    def cfc_spec_nt(self):
+        return jastrow.CFCSpecNT(self.as_named_tuple,
+                                 self.obf_spec_nt,
+                                 self.tbf_spec_nt)
+
+    @property
+    def core_funcs(self) -> 'CoreFuncs':
+        return CoreFuncs()
 
 
 class CoreFuncs(jastrow.CoreFuncs):
@@ -218,7 +210,7 @@ def test_ith_wf_abs_log():
     nop, sc_size = 100, 100
     model_spec = Spec(nop, sc_size)
     sys_conf = model_spec.init_get_sys_conf()
-    cfc_spec = model_spec.core_func_args
+    cfc_spec = model_spec.cfc_spec_nt
 
     core_funcs = CoreFuncs()
     wf_v1 = core_funcs.ith_wf_abs_log(0, sys_conf, cfc_spec)

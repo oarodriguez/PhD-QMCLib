@@ -72,7 +72,7 @@ def test_qmc_funcs():
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model_spec.init_get_sys_conf()
-    func_args = model_spec.core_func_args
+    func_args = model_spec.cfc_spec_nt
     energy_args = model_spec.energy_args
 
     # Testing a scalar function with own arguments
@@ -110,7 +110,7 @@ def test_gufunc():
     core_funcs = bloch_phonon.CoreFuncs()
 
     # Generate a random configuration, pick the model parameters.
-    core_func_args = model.core_func_args
+    core_func_args = model.cfc_spec_nt
     energy_args = model.energy_args
     gufunc_args = model.gufunc_args
     dist_type_regular = model.sys_conf_dist_type.REGULAR
