@@ -125,10 +125,10 @@ class Spec(model.Spec):
     """
     __slots__ = ()
 
-    #
+    #: The slots of the system configuration array.
     sys_conf_slots: ClassVar = SysConfSlot
 
-    #
+    #: The ways to arrange the positions of the system configuration.
     sys_conf_dist_type: ClassVar = SysConfDistType
 
     @property
@@ -377,8 +377,6 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        is_free = self.is_free
-        is_ideal = self.is_ideal
         real_distance = self.real_distance
         pos_slot = int(self.sys_conf_slots.pos)
 
@@ -386,51 +384,50 @@ class CoreFuncs(model.CoreFuncs):
         two_body_func = self.two_body_func
 
         @jit(nopython=True, cache=True)
-        def _delta_wf_abs_log_kth_move(k_, sys_conf,
-                                       func_params,
-                                       model_params,
-                                       obf_params,
-                                       tbf_params):
+        def _delta_wf_abs_log_kth_move(k_: int,
+                                       z_k_delta: float,
+                                       sys_conf: np.ndarray,
+                                       cfc_spec: CFCSpecNT):
             """Computes the change of the logarithm of the wave function
             after displacing the `k-th` particle by a distance ``z_k_delta``.
 
             :param k_:
             :param sys_conf:
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param z_k_delta:
+            :param cfc_spec:
             :return:
             """
+            model_spec = cfc_spec.model_spec
+            obf_spec = cfc_spec.obf_spec
+            tbf_spec = cfc_spec.tbf_spec
             delta_wf_abs_log = 0.
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
-            if is_free(model_params) and is_ideal(model_params):
+            if model_spec.is_free and model_spec.is_ideal:
                 return delta_wf_abs_log
 
-            # Unpack the parameters of the function.
-            z_k_delta, = func_params
+            # k-nth particle position.
             z_k = sys_conf[pos_slot, k_]
             z_k_upd = z_k + z_k_delta
 
-            if not is_free(model_params):
+            if not model_spec.is_free:
                 # Gas subject to external potential.
-                obv = one_body_func(z_k, *obf_params)
-                obv_upd = one_body_func(z_k_upd, *obf_params)
+                obv = one_body_func(z_k, obf_spec)
+                obv_upd = one_body_func(z_k_upd, obf_spec)
                 delta_wf_abs_log += log(fabs(obv_upd / obv))
 
-            if not is_ideal(model_params):
+            if not model_spec.is_ideal:
                 # Gas with interactions.
+                nop = model_spec.boson_number
                 for i_ in range(nop):
                     if i_ == k_:
                         continue
 
                     z_i = sys_conf[pos_slot, i_]
-                    r_ki = fabs(real_distance(z_k, z_i, model_params))
-                    r_ki_upd = fabs(real_distance(z_k_upd, z_i, model_params))
+                    r_ki = fabs(real_distance(z_k, z_i, model_spec))
+                    r_ki_upd = fabs(real_distance(z_k_upd, z_i, model_spec))
 
-                    tbv = two_body_func(r_ki, *tbf_params)
-                    tbv_upd = two_body_func(r_ki_upd, *tbf_params)
+                    tbv = two_body_func(r_ki, tbf_spec)
+                    tbv_upd = two_body_func(r_ki_upd, tbf_spec)
                     delta_wf_abs_log += log(fabs(tbv_upd / tbv))
 
             return delta_wf_abs_log
@@ -443,8 +440,6 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        is_free = self.is_free
-        is_ideal = self.is_ideal
         real_distance = self.real_distance
         pos_slot = int(self.sys_conf_slots.pos)
 
@@ -452,10 +447,9 @@ class CoreFuncs(model.CoreFuncs):
         two_body_func_log_dz = self.two_body_func_log_dz
 
         @jit(nopython=True, cache=True)
-        def _ith_drift(i_, sys_conf,
-                       model_params,
-                       obf_params,
-                       tbf_params):
+        def _ith_drift(i_: int,
+                       sys_conf: np.ndarray,
+                       cfc_spec: CFCSpecNT):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -463,41 +457,37 @@ class CoreFuncs(model.CoreFuncs):
             :param i_:
             :param sys_conf: The current configuration of the positions of the
                    particles.
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return: The local energy.
             """
-
-            if is_free(model_params) and is_ideal(model_params):
-                return 0.
-
-            # Unpack the parameters.
+            model_spec = cfc_spec.model_spec
+            obf_spec = cfc_spec.obf_spec
+            tbf_spec = cfc_spec.tbf_spec
             ith_drift = 0.
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
 
-            if not is_free(model_params):
+            if model_spec.is_free and model_spec.is_ideal:
+                return ith_drift
+
+            # i-nth particle position.
+            z_i = sys_conf[pos_slot, i_]
+
+            if not model_spec.is_free:
                 # Case with external potential.
-                z_i = sys_conf[pos_slot, i_]
-                ob_fn_ldz = one_body_func_log_dz(z_i, *obf_params)
-
+                ob_fn_ldz = one_body_func_log_dz(z_i, obf_spec)
                 ith_drift += ob_fn_ldz
 
-            if not is_ideal(model_params):
+            if not model_spec.is_ideal:
                 # Case with interactions.
-                z_i = sys_conf[pos_slot, i_]
-
+                nop = model_spec.boson_number
                 for j_ in range(nop):
                     # Do not account diagonal terms.
                     if j_ == i_:
                         continue
-
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_params)
+                    z_ij = real_distance(z_i, z_j, model_spec)
                     sgn = sign(z_ij)
-
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_ij),
-                                                     *tbf_params) * sgn
+                                                     tbf_spec) * sgn
 
                     ith_drift += tb_fn_ldz
 
@@ -517,31 +507,23 @@ class CoreFuncs(model.CoreFuncs):
         ith_drift = self.ith_drift
 
         @jit(nopython=True, cache=True)
-        def _drift(sys_conf,
-                   model_params,
-                   obf_params,
-                   tbf_params,
-                   result):
+        def _drift(sys_conf: np.ndarray,
+                   cfc_spec: CFCSpecNT,
+                   result: np.ndarray):
             """
 
             :param sys_conf:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
             :param result:
             :return:
             """
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-
             # Set the position first
-            for i_ in range(nop):
-                result[pos_slot, i_] = sys_conf[pos_slot, i_]
+            result[pos_slot, :] = sys_conf[pos_slot, :]
 
-            # Set the drift later.
+            # Set the drift next.
+            model_spec = cfc_spec.model_spec
+            nop = model_spec.boson_number
             for i_ in range(nop):
-                result[drift_slot, i_] = ith_drift(i_, sys_conf,
-                                                   model_params,
-                                                   obf_params, tbf_params)
+                result[drift_slot, i_] = ith_drift(i_, sys_conf, cfc_spec)
 
         return _drift
 
@@ -551,8 +533,6 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        is_free = self.is_free
-        is_ideal = self.is_ideal
         real_distance = self.real_distance
         pos_slot = int(self.sys_conf_slots.pos)
 
@@ -560,80 +540,79 @@ class CoreFuncs(model.CoreFuncs):
         two_body_func_log_dz = self.two_body_func_log_dz
 
         @jit(nopython=True, cache=True)
-        def _delta_ith_drift_kth_move(i_, k_,
-                                      sys_conf,
-                                      func_params,
-                                      model_params,
-                                      obf_params,
-                                      tbf_params):
+        def _delta_ith_drift_kth_move(i_: int, k_: int,
+                                      z_k_delta: float,
+                                      sys_conf: np.ndarray,
+                                      cfc_spec: CFCSpecNT):
             """Computes the change of the i-th component of the drift
             after displacing the k-th particle by a distance ``z_k_delta``.
 
             :param i_:
             :param k_:
             :param sys_conf:
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
             :return:
             """
-            delta_ith_drift = 0.
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
+            model_spec = cfc_spec.model_spec
+            obf_spec = cfc_spec.obf_spec
+            tbf_spec = cfc_spec.tbf_spec
 
-            if is_free(model_params) and is_ideal(model_params):
-                return delta_ith_drift
-
-            z_k_delta, = func_params
             z_k = sys_conf[pos_slot, k_]
             z_k_upd = z_k + z_k_delta
 
-            if i_ != k_:
+            if not i_ == k_:
                 #
-                if is_ideal(model_params):
+                delta_ith_drift = 0.
+
+                if model_spec.is_ideal:
                     return delta_ith_drift
 
+                # Only a gas with interactions contributes in this case.
                 z_i = sys_conf[pos_slot, i_]
-                z_ki_upd = real_distance(z_k_upd, z_i, model_params)
-                z_ki = real_distance(z_k, z_i, model_params)
+                z_ki_upd = real_distance(z_k_upd, z_i, model_spec)
+                z_ki = real_distance(z_k, z_i, model_spec)
 
                 # TODO: Move th sign to the function.
                 sgn = sign(z_ki)
                 ob_fn_ldz = two_body_func_log_dz(fabs(z_ki),
-                                                 *tbf_params) * sgn
+                                                 tbf_spec) * sgn
 
                 sgn = sign(z_ki_upd)
                 ob_fn_ldz_upd = two_body_func_log_dz(fabs(z_ki_upd),
-                                                     *tbf_params) * sgn
+                                                     tbf_spec) * sgn
 
                 delta_ith_drift += -(ob_fn_ldz_upd - ob_fn_ldz)
                 return delta_ith_drift
 
-            if not is_free(model_params):
+            delta_ith_drift = 0.
+            if model_spec.is_free and model_spec.is_ideal:
+                return delta_ith_drift
+
+            if not model_spec.is_free:
                 #
-                ob_fn_ldz = one_body_func_log_dz(z_k, *obf_params)
-                ob_fn_ldz_upd = one_body_func_log_dz(z_k_upd, *obf_params)
+                ob_fn_ldz = one_body_func_log_dz(z_k, obf_spec)
+                ob_fn_ldz_upd = one_body_func_log_dz(z_k_upd, obf_spec)
 
                 delta_ith_drift += ob_fn_ldz_upd - ob_fn_ldz
 
-            if not is_ideal(model_params):
+            if not model_spec.is_ideal:
                 # Gas with interactions.
+                nop = model_spec.boson_number
                 for j_ in range(nop):
                     #
                     if j_ == k_:
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_kj = real_distance(z_k, z_j, model_params)
-                    z_kj_upd = real_distance(z_k_upd, z_j, model_params)
+                    z_kj = real_distance(z_k, z_j, model_spec)
+                    z_kj_upd = real_distance(z_k_upd, z_j, model_spec)
 
                     sgn = sign(z_kj)
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_kj),
-                                                     *tbf_params) * sgn
+                                                     tbf_spec) * sgn
 
                     sgn = sign(z_kj_upd)
                     tb_fn_ldz_upd = two_body_func_log_dz(fabs(z_kj_upd),
-                                                         *tbf_params) * sgn
+                                                         tbf_spec) * sgn
 
                     delta_ith_drift += (tb_fn_ldz_upd - tb_fn_ldz)
 
