@@ -45,7 +45,7 @@ class Spec(jastrow.Spec):
     def sys_conf_shape(self):
         """"""
         nop = self.boson_number
-        return self.num_sys_conf_slots, nop
+        return len(self.sys_conf_slots), nop
 
     def init_get_sys_conf(self):
         """Creates and initializes a system configuration with the
@@ -58,7 +58,7 @@ class Spec(jastrow.Spec):
         sc_size = self.supercell_size
         z_min, z_max = self.boundaries
         sys_conf = self.get_sys_conf_buffer()
-        pos_slot = self.sys_conf_slots.POS_SLOT
+        pos_slot = self.sys_conf_slots.pos
         spread = sc_size * random.random_sample(nop)
         sys_conf[pos_slot, :] = z_min + spread % sc_size
         return sys_conf

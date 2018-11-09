@@ -61,7 +61,7 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
         rand_displace = self.rand_displace
 
         @jit(nopython=True, cache=True)
@@ -141,7 +141,7 @@ class PBCSampling(Sampling, vmc.PBCSampling, metaclass=ABCMeta):
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
         rand_displace = self.rand_displace
         recast = self.recast  # TODO: Use a better name, maybe?
 

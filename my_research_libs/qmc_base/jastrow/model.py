@@ -32,9 +32,9 @@ class SysConfSlot(IntEnum):
     # NOTE: We have added an slot to store the energy
     # It is very convenient, for instance, in Diffusion Monte Carlo
     # calculations.
-    POS_SLOT = 0
-    DRIFT_SLOT = 1
-    ENERGY_SLOT = 2
+    pos: int = 0
+    drift: int = 1
+    energy: int = 2
 
 
 class SysConfDistType(Enum):
@@ -285,7 +285,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -390,7 +390,7 @@ class CoreFuncs(model.CoreFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -456,7 +456,7 @@ class CoreFuncs(model.CoreFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -522,8 +522,8 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
-        drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
+        drift_slot = int(self.sys_conf_slots.drift)
         ith_drift = self.ith_drift
 
         @jit(nopython=True, cache=True)
@@ -564,7 +564,7 @@ class CoreFuncs(model.CoreFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -660,7 +660,7 @@ class CoreFuncs(model.CoreFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
         # drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
 
         potential = self.potential
@@ -781,7 +781,7 @@ class CoreFuncs(model.CoreFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -864,9 +864,9 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
-        drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
-        energy_slot = int(self.sys_conf_slots.ENERGY_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
+        drift_slot = int(self.sys_conf_slots.drift)
+        energy_slot = int(self.sys_conf_slots.energy)
         ith_energy_and_drift = self.ith_energy_and_drift
 
         @jit(nopython=True, cache=True)
@@ -909,7 +909,7 @@ class CoreFuncs(model.CoreFuncs):
         is_free = self.is_free
         is_ideal = self.is_ideal
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -1020,7 +1020,7 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.POS_SLOT)
+        pos_slot = int(self.sys_conf_slots.pos)
 
         # noinspection PyUnusedLocal
         @jit(nopython=True, cache=True)
