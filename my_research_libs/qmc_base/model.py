@@ -131,11 +131,6 @@ class Spec(metaclass=SpecMeta):
 
     @property
     @abstractmethod
-    def num_sys_conf_slots(self):
-        pass
-
-    @property
-    @abstractmethod
     def sys_conf_shape(self):
         pass
 

@@ -86,9 +86,6 @@ class Spec(qmc_base.jastrow.Spec):
     supercell_size: float
     tbf_contact_cutoff: float
 
-    params_cls: ClassVar = ModelParams
-    var_params_cls: ClassVar = ModelVarParams
-
     def __init__(self, lattice_depth: float,
                  lattice_ratio: float,
                  interaction_strength: float,

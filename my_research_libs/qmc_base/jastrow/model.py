@@ -126,12 +126,6 @@ class Spec(model.Spec):
     __slots__ = ()
 
     #
-    params_cls: ClassVar = ModelParams
-
-    #
-    var_params_cls: ClassVar = ModelVarParams
-
-    #
     sys_conf_slots: ClassVar = SysConfSlot
 
     #
@@ -148,10 +142,6 @@ class Spec(model.Spec):
     def is_ideal(self):
         """"""
         pass
-
-    @property
-    def num_sys_conf_slots(self):
-        return len([_ for _ in self.sys_conf_slots])
 
     def get_sys_conf_buffer(self):
         """Creates an empty array/buffer to store the configuration
