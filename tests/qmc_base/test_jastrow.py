@@ -2,6 +2,7 @@ import attr
 import numba as nb
 from cached_property import cached_property
 from numpy import random
+import numpy as np
 
 from my_research_libs.qmc_base import jastrow, utils
 
@@ -163,7 +164,7 @@ class CoreFuncs(jastrow.CoreFuncs):
         @nb.jit(nopython=True, cache=True)
         def _two_body_func_log_dz(rz, tbf_spec):
             """"""
-            return 0.
+            return random.rand()
 
         return _two_body_func_log_dz
 
@@ -220,3 +221,20 @@ def test_ith_wf_abs_log():
     print(f"* Function ith_wf_abs_log: {wf_v1:.3g}")
     print(f"* Function wf_abs_log: {wf_v2:.3g}")
     print(f"* Function wf_abs: {wf_v3:.3g}")
+
+
+def test_drift_funcs():
+    """Testing the routines to calculate the wave function."""
+
+    nop, sc_size = 100, 100
+    model_spec = Spec(nop, sc_size)
+    sys_conf = model_spec.init_get_sys_conf()
+    cfc_spec = model_spec.cfc_spec_nt
+
+    core_funcs = CoreFuncs()
+    drift_v1 = core_funcs.ith_drift(0, sys_conf, cfc_spec)
+    drift_v2 = core_funcs.drift(sys_conf, cfc_spec)
+
+    print(f"* Function ith_drift: {drift_v1:.8g}")
+    print(f"* Function drift: {drift_v2}")
+
