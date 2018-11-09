@@ -238,3 +238,20 @@ def test_drift_funcs():
     print(f"* Function ith_drift: {drift_v1:.8g}")
     print(f"* Function drift: {drift_v2}")
 
+
+def test_energy_funcs():
+    """Testing the routines to calculate the wave function."""
+
+    nop, sc_size = 100, 100
+    model_spec = Spec(nop, sc_size)
+    sys_conf = model_spec.init_get_sys_conf()
+    cfc_spec = model_spec.cfc_spec_nt
+
+    core_funcs = CoreFuncs()
+    e_r1 = core_funcs.ith_energy(0, sys_conf, cfc_spec)
+    e_r2, _ = core_funcs.ith_energy_and_drift(0, sys_conf, cfc_spec)
+
+    assert e_r1 == e_r2
+
+    print(f"* Function <ith_energy>: {e_r1:.16g}")
+    print(f"* Function <ith_energy_and_drift>: {(e_r2, _)}")

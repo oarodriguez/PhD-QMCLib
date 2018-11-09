@@ -635,8 +635,6 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        is_free = self.is_free
-        is_ideal = self.is_ideal
         real_distance = self.real_distance
         pos_slot = int(self.sys_conf_slots.pos)
         # drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
@@ -648,11 +646,9 @@ class CoreFuncs(model.CoreFuncs):
         two_body_func_log_dz2 = self.two_body_func_log_dz2
 
         @jit(nopython=True, cache=True)
-        def _ith_energy(i_, sys_conf,
-                        func_params,
-                        model_params,
-                        obf_params,
-                        tbf_params):
+        def _ith_energy(i_: int,
+                        sys_conf: np.ndarray,
+                        cfc_spec: CFCSpecNT):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -660,50 +656,47 @@ class CoreFuncs(model.CoreFuncs):
             :param i_:
             :param sys_conf: The current configuration of the positions of the
                    particles.
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return: The local energy.
             """
+            model_spec = cfc_spec.model_spec
+            obf_spec = cfc_spec.obf_spec
+            tbf_spec = cfc_spec.tbf_spec
+            ith_energy = 0.
 
-            if is_free(model_params) and is_ideal(model_params):
-                return 0.
+            if model_spec.is_free and model_spec.is_ideal:
+                return ith_energy
 
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-
-            # Unpack the parameters.
             kin_energy = 0.
             pot_energy = 0
             ith_drift = 0.
 
-            if not is_free(model_params):
+            if not model_spec.is_free:
                 # Case with external potential.
                 z_i = sys_conf[pos_slot, i_]
-                ob_fn_ldz2 = one_body_func_log_dz2(z_i, *obf_params)
-                ob_fn_ldz = one_body_func_log_dz(z_i, *obf_params)
+                ob_fn_ldz2 = one_body_func_log_dz2(z_i, obf_spec)
+                ob_fn_ldz = one_body_func_log_dz(z_i, obf_spec)
 
                 kin_energy += (-ob_fn_ldz2 + ob_fn_ldz ** 2)
-                pot_energy += potential(z_i, *func_params)
+                pot_energy += potential(z_i, model_spec)
                 ith_drift += ob_fn_ldz
 
-            if not is_ideal(model_params):
+            if not model_spec.is_ideal:
                 # Case with interactions.
                 z_i = sys_conf[pos_slot, i_]
-
+                nop = model_spec.boson_number
                 for j_ in range(nop):
                     # Do not account diagonal terms.
                     if j_ == i_:
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_params)
+                    z_ij = real_distance(z_i, z_j, model_spec)
                     sgn = sign(z_ij)
 
-                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij),
-                                                       *tbf_params)
+                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij), tbf_spec)
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_ij),
-                                                     *tbf_params) * sgn
+                                                     tbf_spec) * sgn
 
                     kin_energy += (-tb_fn_ldz2 + tb_fn_ldz ** 2)
                     ith_drift += tb_fn_ldz
@@ -713,7 +706,8 @@ class CoreFuncs(model.CoreFuncs):
             # Save the drift and avoid extra work.
             # sys_conf[drift_slot, i_] = ith_drift
 
-            return kin_energy - ith_drift_mag + pot_energy
+            ith_energy = kin_energy - ith_drift_mag + pot_energy
+            return ith_energy
 
         return _ith_energy
 
@@ -726,26 +720,18 @@ class CoreFuncs(model.CoreFuncs):
         ith_energy = self.ith_energy
 
         @jit(nopython=True, cache=True)
-        def _energy(sys_conf,
-                    func_params,
-                    model_params,
-                    obf_params,
-                    tbf_params):
+        def _energy(sys_conf: np.ndarray,
+                    cfc_spec: CFCSpecNT):
             """
 
             :param sys_conf:
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return:
             """
             energy = 0.
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-
+            nop = cfc_spec.model_spec.boson_number
             for i_ in range(nop):
-                energy += ith_energy(i_, sys_conf, func_params, model_params,
-                                     obf_params, tbf_params)
+                energy += ith_energy(i_, sys_conf, cfc_spec)
             return energy
 
         return _energy
@@ -756,8 +742,6 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        is_free = self.is_free
-        is_ideal = self.is_ideal
         real_distance = self.real_distance
         pos_slot = int(self.sys_conf_slots.pos)
 
@@ -768,11 +752,9 @@ class CoreFuncs(model.CoreFuncs):
         two_body_func_log_dz2 = self.two_body_func_log_dz2
 
         @jit(nopython=True, cache=True)
-        def _ith_energy_and_drift(i_, sys_conf,
-                                  func_params,
-                                  model_params,
-                                  obf_params,
-                                  tbf_params):
+        def _ith_energy_and_drift(i_: int,
+                                  sys_conf: np.ndarray,
+                                  cfc_spec: CFCSpecNT):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -780,50 +762,48 @@ class CoreFuncs(model.CoreFuncs):
             :param i_:
             :param sys_conf: The current configuration of the positions of the
                    particles.
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
-            :return: The local energy.
+            :param cfc_spec:
+            :return: The local energy and the drift.
             """
+            model_spec = cfc_spec.model_spec
+            obf_spec = cfc_spec.obf_spec
+            tbf_spec = cfc_spec.tbf_spec
+            ith_energy, ith_drift = 0., 0.
 
-            if is_free(model_params) and is_ideal(model_params):
-                return 0., 0.
-
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
+            if model_spec.is_free and model_spec.is_ideal:
+                return ith_energy, ith_drift
 
             # Unpack the parameters.
             kin_energy = 0.
             pot_energy = 0
             ith_drift = 0.
 
-            if not is_free(model_params):
+            if not model_spec.is_free:
                 # Case with external potential.
                 z_i = sys_conf[pos_slot, i_]
-                ob_fn_ldz2 = one_body_func_log_dz2(z_i, *obf_params)
-                ob_fn_ldz = one_body_func_log_dz(z_i, *obf_params)
+                ob_fn_ldz2 = one_body_func_log_dz2(z_i, obf_spec)
+                ob_fn_ldz = one_body_func_log_dz(z_i, obf_spec)
 
                 kin_energy += (-ob_fn_ldz2 + ob_fn_ldz ** 2)
-                pot_energy += potential(z_i, *func_params)
+                pot_energy += potential(z_i, model_spec)
                 ith_drift += ob_fn_ldz
 
-            if not is_ideal(model_params):
+            if not model_spec.is_ideal:
                 # Case with interactions.
                 z_i = sys_conf[pos_slot, i_]
-
+                nop = model_spec.boson_number
                 for j_ in range(nop):
                     # Do not account diagonal terms.
                     if j_ == i_:
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_params)
+                    z_ij = real_distance(z_i, z_j, model_spec)
                     sgn = sign(z_ij)
 
-                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij),
-                                                       *tbf_params)
+                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij), tbf_spec)
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_ij),
-                                                     *tbf_params) * sgn
+                                                     tbf_spec) * sgn
 
                     kin_energy += (-tb_fn_ldz2 + tb_fn_ldz ** 2)
                     ith_drift += tb_fn_ldz
@@ -848,30 +828,20 @@ class CoreFuncs(model.CoreFuncs):
         ith_energy_and_drift = self.ith_energy_and_drift
 
         @jit(nopython=True, cache=True)
-        def _energy_and_drift(sys_conf,
-                              func_params,
-                              model_params,
-                              obf_params,
-                              tbf_params,
+        def _energy_and_drift(sys_conf: np.ndarray,
+                              cfc_spec: CFCSpecNT,
                               result):
             """Computes the local energy for a given configuration of the
             position of the bodies.
 
             :param sys_conf:
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :param result:
             """
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-
+            nop = cfc_spec.model_spec.boson_number
             for i_ in range(nop):
                 ith_energy, ith_drift = ith_energy_and_drift(i_, sys_conf,
-                                                             func_params,
-                                                             model_params,
-                                                             obf_params,
-                                                             tbf_params)
+                                                             cfc_spec)
                 result[pos_slot, i_] = sys_conf[pos_slot, i_]
                 result[drift_slot, i_] = ith_drift
                 result[energy_slot, i_] = ith_energy
