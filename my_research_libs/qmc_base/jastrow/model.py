@@ -182,31 +182,6 @@ class CoreFuncs(model.CoreFuncs):
     #
     sys_conf_slots = SysConfSlot
 
-    @cached_property
-    def supercell_size(self):
-        """"""
-        param_loc = int(self.params_cls.names.SUPERCELL_SIZE.loc)
-
-        @jit(nopython=True, cache=True)
-        def _supercell_size(model_params):
-            """"""
-            return model_params[param_loc]
-
-        return _supercell_size
-
-    @cached_property
-    def boundaries(self):
-        """"""
-        supercell_size = self.supercell_size
-
-        @jit(nopython=True, cache=True)
-        def _boundaries(model_params):
-            """"""
-            sc_size = supercell_size(model_params)
-            return 0., 1. * sc_size
-
-        return _boundaries
-
     @property
     @abstractmethod
     def one_body_func(self):

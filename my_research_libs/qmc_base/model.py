@@ -144,11 +144,6 @@ class Spec(metaclass=SpecMeta):
 
     @property
     @abstractmethod
-    def var_params_bounds(self):
-        pass
-
-    @property
-    @abstractmethod
     def as_nt(self):
         pass
 
@@ -177,16 +172,6 @@ class CoreFuncsMeta(CachedMeta):
 
 class CoreFuncs(Cached, metaclass=CoreFuncsMeta):
     """"""
-
-    @property
-    @abstractmethod
-    def supercell_size(self):
-        pass
-
-    @property
-    @abstractmethod
-    def boundaries(self):
-        raise NotImplementedError
 
     @property
     @abstractmethod
