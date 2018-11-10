@@ -1,10 +1,22 @@
+from math import exp, fabs, pi, sin, tan
+from typing import NamedTuple
+
 import attr
 import numba as nb
 from cached_property import cached_property
 from numpy import random
-import numpy as np
 
 from my_research_libs.qmc_base import jastrow, utils
+
+
+class OBFSpecNT(jastrow.OBFSpecNT, NamedTuple):
+    """"""
+    supercell_size: float
+
+
+class TBFSpecNT(jastrow.TBFSpecNT, NamedTuple):
+    """"""
+    supercell_size: float
 
 
 @attr.s(auto_attribs=True)
@@ -31,11 +43,11 @@ class Spec(jastrow.Spec):
 
     @property
     def obf_spec_nt(self):
-        return jastrow.OBFSpecNT()
+        return OBFSpecNT(self.supercell_size)
 
     @property
     def tbf_spec_nt(self):
-        return jastrow.TBFSpecNT()
+        return TBFSpecNT(self.supercell_size)
 
     @property
     def boundaries(self):
@@ -126,9 +138,11 @@ class CoreFuncs(jastrow.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True, cache=True)
-        def _one_body_func(z, obf_spec=None):
+        def _one_body_func(z: float, obf_spec: OBFSpecNT):
             """"""
-            return 1.
+            sc_size = obf_spec.supercell_size
+            uz = 0.25 / sc_size * z
+            return exp(-uz ** 2)
 
         return _one_body_func
 
@@ -138,9 +152,10 @@ class CoreFuncs(jastrow.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True, cache=True)
-        def _two_body_func(rz, tbf_spec=None):
+        def _two_body_func(rz: float, tbf_spec: TBFSpecNT):
             """"""
-            return random.rand()
+            sc_size = tbf_spec.supercell_size
+            return sin(pi * fabs(rz) / sc_size)
 
         return _two_body_func
 
@@ -150,21 +165,26 @@ class CoreFuncs(jastrow.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True, cache=True)
-        def _one_body_func_log_dz(z, obf_spec=None):
+        def _one_body_func_log_dz(z: float, obf_spec: OBFSpecNT):
             """"""
-            return 0.
+            sc_size = obf_spec.supercell_size
+            uz = 0.25 / sc_size * z
+            return - 2. * uz * (0.25 / sc_size)
 
         return _one_body_func_log_dz
 
     @cached_property
     def two_body_func_log_dz(self):
         """"""
+        sign = utils.sign
 
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True, cache=True)
-        def _two_body_func_log_dz(rz, tbf_spec):
+        def _two_body_func_log_dz(rz, tbf_spec: TBFSpecNT):
             """"""
-            return random.rand()
+            sc_size = tbf_spec.supercell_size
+            sgn = sign(rz)
+            return pi / sc_size / tan(fabs(rz)) * sgn
 
         return _two_body_func_log_dz
 
@@ -174,9 +194,11 @@ class CoreFuncs(jastrow.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True, cache=True)
-        def _one_body_func_log_dz2(z, obf_spec=None):
+        def _one_body_func_log_dz2(z, obf_spec: OBFSpecNT):
             """"""
-            return 0.
+            sc_size = obf_spec.supercell_size
+            uz = 0.25 * z / sc_size
+            return (4. * uz ** 2. - 2.) * (0.25 / sc_size) ** 2
 
         return _one_body_func_log_dz2
 
@@ -186,9 +208,10 @@ class CoreFuncs(jastrow.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True, cache=True)
-        def _two_body_func_log_dz2(rz, tbf_spec=None):
+        def _two_body_func_log_dz2(rz, tbf_spec: TBFSpecNT):
             """"""
-            return 0.
+            sc_size = tbf_spec.supercell_size
+            return - (pi / sc_size) ** 2
 
         return _two_body_func_log_dz2
 
@@ -255,3 +278,35 @@ def test_energy_funcs():
 
     print(f"* Function <ith_energy>: {e_r1:.16g}")
     print(f"* Function <ith_energy_and_drift>: {(e_r2, _)}")
+
+
+def test_obd_funcs():
+    """Testing the functions to calculate the one-body density."""
+
+    nop, sc_size = 100, 100
+    model_spec = Spec(nop, sc_size)
+    sys_conf = model_spec.init_get_sys_conf()
+    cfc_spec = model_spec.cfc_spec_nt
+
+    core_funcs = CoreFuncs()
+    sz = model_spec.supercell_size / nop
+    obd_r1 = core_funcs.ith_one_body_density(0, sz, sys_conf, cfc_spec)
+    obd_r2 = core_funcs.one_body_density(sz, sys_conf, cfc_spec)
+
+    print(f"* Function <ith_one_body_density>: {obd_r1:.16g}")
+    print(f"* Function <one_body_density>: {obd_r2:.16g}")
+
+
+def test_sf_funcs():
+    """Testing the functions to calculate the static structure factor."""
+
+    nop, sc_size = 100, 100
+    model_spec = Spec(nop, sc_size)
+    sys_conf = model_spec.init_get_sys_conf()
+    cfc_spec = model_spec.cfc_spec_nt
+
+    core_funcs = CoreFuncs()
+    kz = 2 * pi / sc_size
+    sf_r1 = core_funcs.structure_factor(kz, sys_conf, cfc_spec)
+
+    print(f"* Function <structure_factor>: {sf_r1:.16g}")

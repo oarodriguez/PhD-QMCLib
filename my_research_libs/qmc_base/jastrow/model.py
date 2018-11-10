@@ -854,8 +854,6 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        is_free = self.is_free
-        is_ideal = self.is_ideal
         real_distance = self.real_distance
         pos_slot = int(self.sys_conf_slots.pos)
 
@@ -863,25 +861,27 @@ class CoreFuncs(model.CoreFuncs):
         two_body_func = self.two_body_func
 
         @jit(nopython=True, cache=True)
-        def _ith_one_body_density(i_, sys_conf,
-                                  func_params,
-                                  model_params,
-                                  obf_params,
-                                  tbf_params):
+        def _ith_one_body_density(i_: int,
+                                  sz: float,
+                                  sys_conf: np.ndarray,
+                                  cfc_spec: CFCSpecNT):
             """Computes the logarithm of the local one-body density matrix
             for a given configuration of the position of the bodies and for a
             specified particle index.
 
             :param i_:
+            :param sz:
             :param sys_conf:
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return:
             """
-            if is_free(model_params) and is_ideal(model_params):
-                return 1.
+            model_spec = cfc_spec.model_spec
+            obf_spec = cfc_spec.obf_spec
+            tbf_spec = cfc_spec.tbf_spec
+            ith_obd_log = 0.
+
+            if model_spec.is_free and model_spec.is_ideal:
+                return ith_obd_log
 
             # The local one-body density matrix is calculated as the
             # quotient of the wave function with the ``i_`` particle
@@ -889,36 +889,32 @@ class CoreFuncs(model.CoreFuncs):
             # divided by the wave function with the particles evaluated
             # in their original positions. To improve statistics, we
             # average over all possible particle displacements.
-            ith_obd_log = 0.
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            sz, = func_params
-
-            if not is_free(model_params):
-
+            if not model_spec.is_free:
+                #
                 z_i = sys_conf[pos_slot, i_]
                 z_i_sft = z_i + sz
 
-                ob_fn = one_body_func(z_i, *obf_params)
-                ob_fn_sft = one_body_func(z_i_sft, *obf_params)
+                ob_fn = one_body_func(z_i, obf_spec)
+                ob_fn_sft = one_body_func(z_i_sft, obf_spec)
                 ith_obd_log += (log(ob_fn_sft) - log(ob_fn))
 
-            if not is_ideal(model_params):
+            if not model_spec.is_ideal:
                 # Interacting gas.
                 z_i = sys_conf[pos_slot, i_]
                 z_i_sft = z_i + sz
-
+                nop = model_spec.boson_number
                 for j_ in range(nop):
                     #
                     if i_ == j_:
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_params)
-                    tb_fn = two_body_func(fabs(z_ij), *tbf_params)
+                    z_ij = real_distance(z_i, z_j, model_spec)
+                    tb_fn = two_body_func(fabs(z_ij), tbf_spec)
 
                     # Shifted difference.
-                    z_ij = real_distance(z_i_sft, z_j, model_params)
-                    tb_fn_shift = two_body_func(fabs(z_ij), *tbf_params)
+                    z_ij = real_distance(z_i_sft, z_j, model_spec)
+                    tb_fn_shift = two_body_func(fabs(z_ij), tbf_spec)
 
                     ith_obd_log += (log(tb_fn_shift) - log(tb_fn))
 
@@ -935,29 +931,22 @@ class CoreFuncs(model.CoreFuncs):
         ith_one_body_density = self.ith_one_body_density
 
         @jit(nopython=True, cache=True)
-        def _one_body_density(sys_conf,
-                              func_params,
-                              model_params,
-                              obf_params,
-                              tbf_params):
+        def _one_body_density(sz: float,
+                              sys_conf: np.ndarray,
+                              cfc_spec: CFCSpecNT):
             """Computes the logarithm of the local one-body density matrix
             for a given configuration of the position of the bodies and for a
             specified particle index.
 
+            :param sz:
             :param sys_conf:
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return:
             """
             obd = 0.
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-
+            nop = cfc_spec.model_spec.boson_number
             for i_ in range(nop):
-                obd += ith_one_body_density(i_, sys_conf, func_params,
-                                            model_params, obf_params,
-                                            tbf_params)
+                obd += ith_one_body_density(i_, sz, sys_conf, cfc_spec)
             return obd / nop
 
         return _one_body_density
@@ -972,25 +961,21 @@ class CoreFuncs(model.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @jit(nopython=True, cache=True)
-        def _structure_factor(sys_conf,
-                              func_params,
-                              model_params,
-                              obf_params,
-                              tbf_params):
+        def _structure_factor(kz: float,
+                              sys_conf: np.ndarray,
+                              cfc_spec: CFCSpecNT):
             """Computes the local two-body correlation function for a given
             configuration of the position of the bodies.
 
+            :param kz:
             :param sys_conf:
-            :param func_params:
-            :param model_params:
-            :param obf_params:
-            :param tbf_params:
+            :param cfc_spec:
             :return:
             """
-            nop = sys_conf.shape[SYS_CONF_PARTICLE_INDEX_DIM]
-            kz, = func_params
+            model_spec = cfc_spec.model_spec
             s_sin, s_cos = 0., 0.
 
+            nop = cfc_spec.model_spec.boson_number
             for i_ in range(nop):
                 z_i = sys_conf[pos_slot, i_]
                 s_cos += cos(kz * z_i)
