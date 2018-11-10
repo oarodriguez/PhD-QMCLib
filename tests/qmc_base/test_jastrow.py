@@ -35,7 +35,7 @@ class Spec(jastrow.Spec):
         return False
 
     @property
-    def as_named_tuple(self):
+    def as_nt(self):
         return jastrow.SpecNT(self.boson_number,
                               self.supercell_size,
                               self.is_free,
@@ -82,7 +82,7 @@ class Spec(jastrow.Spec):
 
     @property
     def cfc_spec_nt(self):
-        return jastrow.CFCSpecNT(self.as_named_tuple,
+        return jastrow.CFCSpecNT(self.as_nt,
                                  self.obf_spec_nt,
                                  self.tbf_spec_nt)
 

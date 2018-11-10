@@ -149,7 +149,7 @@ class Spec(metaclass=SpecMeta):
 
     @property
     @abstractmethod
-    def as_named_tuple(self):
+    def as_nt(self):
         pass
 
     @property
