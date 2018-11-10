@@ -72,34 +72,32 @@ def test_qmc_funcs():
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model_spec.init_get_sys_conf()
-    func_args = model_spec.cfc_spec_nt
-    energy_args = model_spec.energy_args
+    cfc_spec = model_spec.cfc_spec_nt
 
     # Testing a scalar function with own arguments
     energy_func = core_funcs.energy
-    energy_v = energy_func(sys_conf, energy_args, *func_args)
+    energy_v = energy_func(sys_conf, cfc_spec)
 
     # Testing an array function with no own arguments
     drift = core_funcs.drift
-    out_sys_conf = sys_conf.copy()
-    drift(sys_conf, *func_args, out_sys_conf)
+    out_sys_conf = drift(sys_conf, cfc_spec)
 
     epp = energy_v / nop
     print("The energy per particle is: {:.6g}".format(epp))
 
-    drift_values = out_sys_conf[model_spec.sys_conf_slots.DRIFT_SLOT, :]
+    drift_values = out_sys_conf[model_spec.sys_conf_slots.drift, :]
     print("The drift is: {}".format(drift_values))
 
     # Testing that the array function do not modify its inputs
-    in_pos_values = sys_conf[model_spec.sys_conf_slots.POS_SLOT, :]
-    out_pos_values = out_sys_conf[model_spec.sys_conf_slots.POS_SLOT, :]
+    in_pos_values = sys_conf[model_spec.sys_conf_slots.pos, :]
+    out_pos_values = out_sys_conf[model_spec.sys_conf_slots.pos, :]
     assert np.alltrue(out_pos_values == in_pos_values)
 
     with pytest.raises(AssertionError):
         # Testing that the array function modified the output array
         # where expected.
-        in_pos_values = sys_conf[model_spec.sys_conf_slots.DRIFT_SLOT, :]
-        out_pos_values = out_sys_conf[model_spec.sys_conf_slots.DRIFT_SLOT, :]
+        in_pos_values = sys_conf[model_spec.sys_conf_slots.drift, :]
+        out_pos_values = out_sys_conf[model_spec.sys_conf_slots.drift, :]
         assert np.alltrue(out_pos_values == in_pos_values)
 
 

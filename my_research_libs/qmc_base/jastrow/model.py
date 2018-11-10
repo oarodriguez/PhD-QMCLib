@@ -209,32 +209,6 @@ class CoreFuncs(model.CoreFuncs):
 
     @property
     @abstractmethod
-    def is_free(self):
-        """"""
-
-        # noinspection PyUnusedLocal
-        @jit(nopython=True, cache=True)
-        def _is_free(model_params):
-            """"""
-            return True
-
-        return _is_free
-
-    @property
-    @abstractmethod
-    def is_ideal(self):
-        """"""
-
-        # noinspection PyUnusedLocal
-        @jit(nopython=True, cache=True)
-        def _is_ideal(model_params):
-            """"""
-            return False
-
-        return _is_ideal
-
-    @property
-    @abstractmethod
     def one_body_func(self):
         pass
 
