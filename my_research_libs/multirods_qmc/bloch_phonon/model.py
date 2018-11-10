@@ -7,13 +7,14 @@ from typing import NamedTuple
 
 import numpy as np
 from attr import attrs
+from cached_property import cached_property
 from numba import jit
 from numpy import random
 from scipy.optimize import brentq
 
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
-from my_research_libs.utils import cached_property, get_random_rng_seed
+from my_research_libs.utils import get_random_rng_seed
 
 __all__ = [
     'ArrayGUFunc',

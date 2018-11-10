@@ -2,9 +2,9 @@ from abc import ABCMeta
 from typing import Any
 
 import numpy as np
+from cached_property import cached_property
 from numba import guvectorize, jit
 
-from my_research_libs.utils import cached_property
 from . import model
 
 __all__ = [

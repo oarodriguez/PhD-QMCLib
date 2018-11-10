@@ -14,10 +14,10 @@ from enum import Enum, IntEnum, unique
 from typing import Any, Mapping, Tuple
 
 import numpy as np
+from cached_property import cached_property
 from numba import jit
 from numpy import random as random
 
-from my_research_libs.utils import Cached, CachedMeta, cached_property
 from . import model
 
 __all__ = [
@@ -74,12 +74,12 @@ class SamplingParams(model.ParamsSet):
     defaults = SamplingParamDefault
 
 
-class SamplingMeta(CachedMeta):
+class SamplingMeta(ABCMeta):
     """Metaclass for :class:`Sampling` abstract base class."""
     pass
 
 
-class Sampling(Iterable, Cached, metaclass=SamplingMeta):
+class Sampling(Iterable, metaclass=SamplingMeta):
     """The interface to realize a VMC sampling.
 
     Performs the sampling of the probability density of a QMC model

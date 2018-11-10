@@ -3,9 +3,9 @@ from math import sqrt
 from typing import Mapping, Tuple
 
 import numpy as np
+from cached_property import cached_property
 from numba import jit
 
-from my_research_libs.utils import cached_property
 from . import model
 from .. import vmc
 from ..utils import recast_to_supercell

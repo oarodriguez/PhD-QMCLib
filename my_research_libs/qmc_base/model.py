@@ -1,11 +1,11 @@
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from collections import Callable, Mapping
 from enum import Enum
 from typing import Callable as TCallable, Sequence, Type
 
 import numpy as np
 
-from my_research_libs.utils import Cached, CachedMeta, strict_update
+from my_research_libs.utils import strict_update
 
 __all__ = [
     'CoreFuncs',
@@ -109,7 +109,7 @@ class ParamsSet(Mapping):
         return iter(self._ord_names)
 
 
-class SpecMeta(CachedMeta):
+class SpecMeta(ABCMeta):
     """Metaclass for :class:`Spec` abstract base class."""
     pass
 
@@ -165,13 +165,14 @@ class Spec(metaclass=SpecMeta):
         pass
 
 
-class CoreFuncsMeta(CachedMeta):
+class CoreFuncsMeta(ABCMeta):
     """Metaclass for :class:`CoreFuncs` abstract base class."""
     pass
 
 
-class CoreFuncs(Cached, metaclass=CoreFuncsMeta):
+class CoreFuncs(metaclass=CoreFuncsMeta):
     """"""
+    __slots__ = ()
 
     @property
     @abstractmethod
@@ -258,12 +259,12 @@ class QMCFuncsNames(str, Enum):
     L_TBC = 'two_body_correlation_func'
 
 
-class GUFuncMeta(CachedMeta):
+class GUFuncMeta(ABCMeta):
     """Metaclass for :class:`GUFunc` abstract base class."""
     pass
 
 
-class GUFunc(Cached, Callable, metaclass=GUFuncMeta):
+class GUFunc(Callable, metaclass=GUFuncMeta):
     """Interface to implement a callable object that behaves as
     a ``numpy`` **generalized universal function**.
     """
