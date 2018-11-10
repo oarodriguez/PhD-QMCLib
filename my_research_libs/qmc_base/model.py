@@ -195,7 +195,7 @@ class CoreFuncs(Cached, metaclass=CoreFuncsMeta):
 
     @property
     @abstractmethod
-    def drift(self):
+    def ith_drift(self):
         pass
 
     @property
@@ -205,12 +205,17 @@ class CoreFuncs(Cached, metaclass=CoreFuncsMeta):
 
     @property
     @abstractmethod
+    def ith_energy(self):
+        pass
+
+    @property
+    @abstractmethod
     def energy(self):
         pass
 
     @property
     @abstractmethod
-    def energy_and_drift(self):
+    def ith_energy_and_drift(self):
         pass
 
     @property
