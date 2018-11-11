@@ -65,7 +65,8 @@ class TPFSpecNT(NamedTuple):
     The parameters correspond to a sampling done with random numbers
     generated from a normal (gaussian) distribution function.
     """
-    time_step: float
+    #: The standard deviation of the normal distribution.
+    sigma: float
 
 
 class UTPFSpecNT(NamedTuple):
@@ -207,7 +208,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             # probability function, but with a **time step** parameter,
             # which is equal to the variance of the proposal distribution.
             # sigma = sqrt(time_step)
-            sigma = tpf_spec.time_step
+            sigma = tpf_spec.sigma
             return normal(0, sigma)
 
         return _rand_displace

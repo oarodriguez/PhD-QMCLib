@@ -1,3 +1,4 @@
+from math import sqrt
 from typing import NamedTuple
 
 import attr
@@ -19,7 +20,7 @@ class WFSpecNT(NamedTuple):
 class TPFSpecNT(vmc.TPFSpecNT, NamedTuple):
     """The gaussian, transition probability function parameters."""
     dims: int
-    time_step: float
+    sigma: float
 
 
 class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
@@ -52,7 +53,8 @@ class Spec(vmc.Spec):
     @property
     def tpf_spec_nt(self):
         """"""
-        return TPFSpecNT(self.dims, self.time_step)
+        sigma = sqrt(self.time_step)
+        return TPFSpecNT(self.dims, sigma)
 
     @property
     def cfc_spec_nt(self):
