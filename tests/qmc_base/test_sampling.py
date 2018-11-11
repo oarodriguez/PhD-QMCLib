@@ -38,6 +38,7 @@ class Spec(vmc.Spec):
     sigma: float
     time_step: float
     chain_samples: int
+    ini_sys_conf: np.ndarray
     burn_in_samples: int
     rng_seed: int
 
@@ -62,8 +63,8 @@ class Spec(vmc.Spec):
         ini_sys_conf = self.init_get_sys_conf()
         return vmc.CFCSpecNT(self.wf_spec_nt,
                              self.tpf_spec_nt,
-                             ini_sys_conf,
                              self.chain_samples,
+                             ini_sys_conf,
                              self.burn_in_samples,
                              self.rng_seed)
 

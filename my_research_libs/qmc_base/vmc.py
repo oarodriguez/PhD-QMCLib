@@ -82,8 +82,8 @@ class CFCSpecNT(NamedTuple):
     """The parameters to realize a sampling."""
     wf_spec: WFSpecNT
     tpf_spec: Union[TPFSpecNT, UTPFSpecNT]
-    ini_sys_conf: np.ndarray
     chain_samples: int
+    ini_sys_conf: np.ndarray
     burn_in_samples: int
     rng_seed: int
 
@@ -113,11 +113,11 @@ class Spec(metaclass=ABCMeta):
     #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
 
-    #: The initial configuration of the sampling.
-    ini_sys_conf: np.ndarray
-
     #: The number of samples to generate.
     chain_samples: int
+
+    #: The initial configuration of the sampling.
+    ini_sys_conf: np.ndarray
 
     #: The number of samples to discard from the beginning of the chain.
     burn_in_samples: int
