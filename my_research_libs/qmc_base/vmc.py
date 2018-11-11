@@ -227,7 +227,9 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
 
     @cached_property
     def generator(self):
-        """A generator object for the sampling configurations that follow
+        """VMC sampling generator.
+
+        A generator object for the sampling configurations that follow
         the p.d.f.
 
         :return:
@@ -236,37 +238,36 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         sys_conf_tpf = self.sys_conf_tpf
 
         @jit(nopython=True, cache=True, nogil=True)
-        def _generator(wf_spec: WFSpecNT,
-                       tpf_spec: Union[TPFSpecNT, UTPFSpecNT],
-                       ini_sys_conf: np.ndarray,
-                       chain_samples: int,
-                       burn_in_samples: int,
-                       rng_seed: int):
-            """Generator-based sampling of the probability density
-            function. The Metropolis-Hastings algorithm is used to
-            generate the Markov chain. Each time a new configuration is
-            tested, the generator yields it, as well as the status of the
-            test: if the move was accepted, the status is ``STAT_ACCEPTED``,
-            otherwise is ``STAT_REJECTED``.
+        def _generator(cfc_spec: CFCSpecNT):
+            """VMC sampling generator.
 
-            :param wf_spec: A tuple with the parameters needed to
-                evaluate the probability density function.
-            :param tpf_spec: The parameters of the transition probability
-                function.
-            :param ini_sys_conf: The buffer to store the positions and
-                drift velocities of the particles. It should contain
-                the initial configuration of the particles.
-            :param chain_samples: The maximum number of samples of the
-                Markov chain.
-            :param burn_in_samples: The number of initial samples to discard.
-            :param rng_seed: The seed used to generate the random numbers.
+            Generator-based sampling of the probability density function.
+            The Metropolis-Hastings algorithm is used to generate the Markov
+            chain. Each time a new configuration is tested, the generator
+            yields it, as well as the status of the test: if the move was
+            accepted, the status is ``STAT_ACCEPTED``, otherwise is
+            ``STAT_REJECTED``.
+
+            :param cfc_spec: The parameters of the sampling generator.
             """
+            # Pick the parameters.
+            wf_spec = cfc_spec.wf_spec
+            tpf_spec = cfc_spec.tpf_spec
+            ini_sys_conf = cfc_spec.ini_sys_conf
+            chain_samples = cfc_spec.chain_samples
+            burn_in_samples = cfc_spec.burn_in_samples
+            rng_seed = cfc_spec.rng_seed
+
             # Do not allow invalid parameters.
             if not chain_samples >= 1:
                 raise ValueError('chain_samples must be nonzero and positive')
 
             if not burn_in_samples >= 0:
                 raise ValueError('burn_in_samples must be zero or positive')
+
+            if not chain_samples > burn_in_samples:
+                raise ValueError('chain_sampled must be greater than '
+                                 'burn_in_samples')
 
             ncs = chain_samples
             bis = burn_in_samples
@@ -333,34 +334,16 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         generator = self.generator
 
         @jit(nopython=True, cache=True, nogil=True)
-        def _as_chain(wf_spec: WFSpecNT,
-                      tpf_spec: Union[TPFSpecNT, UTPFSpecNT],
-                      ini_sys_conf: np.ndarray,
-                      chain_samples: int,
-                      burn_in_samples: int,
-                      rng_seed: int):
+        def _as_chain(cfc_spec: CFCSpecNT):
             """Routine to samples the probability density function.
 
-            :param wf_spec: A tuple with the parameters needed to
-                evaluate the probability density function.
-            :param tpf_spec: The parameters of the transition probability
-                function.
-            :param ini_sys_conf: The buffer to store the positions and
-                drift velocities of the particles. It should contain
-                the initial configuration of the particles.
-            :param chain_samples: The maximum number of samples of the
-                Markov chain.
-            :param burn_in_samples: The number of initial samples to discard.
-            :param rng_seed: The seed used to generate the random numbers.
+            :param cfc_spec: The parameters of the sampling generator.
             :return: An array with the Markov chain configurations, the values
                 of the p.d.f. and the acceptance rate.
             """
-            sampling_iter = generator(wf_spec,
-                                      tpf_spec,
-                                      ini_sys_conf,
-                                      chain_samples,
-                                      burn_in_samples,
-                                      rng_seed)
+            sampling_iter = generator(cfc_spec)
+            chain_samples = cfc_spec.chain_samples
+            ini_sys_conf = cfc_spec.ini_sys_conf
 
             # TODO: What is better: allocate or pass a pre-allocated buffer?
             mcs = (chain_samples,) + ini_sys_conf.shape

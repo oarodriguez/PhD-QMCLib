@@ -140,7 +140,7 @@ def test_core_funcs():
                 rng_seed=0)
 
     funcs = CoreFuncs()
-    chain = funcs.as_chain(*spec.cfc_spec_nt)
+    chain = funcs.as_chain(spec.cfc_spec_nt)
     sys_conf_chain = chain.sys_conf_chain
 
     ax = pyplot.gca()
