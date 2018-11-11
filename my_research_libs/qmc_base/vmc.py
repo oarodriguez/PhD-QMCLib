@@ -265,10 +265,6 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             if not burn_in_samples >= 0:
                 raise ValueError('burn_in_samples must be zero or positive')
 
-            if not chain_samples > burn_in_samples:
-                raise ValueError('chain_sampled must be greater than '
-                                 'burn_in_samples')
-
             ncs = chain_samples
             bis = burn_in_samples
 
