@@ -1,5 +1,6 @@
 from typing import NamedTuple
 
+import attr
 import numba as nb
 import numpy as np
 from matplotlib import pyplot
@@ -27,7 +28,45 @@ class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
     move_spread: float
 
 
-class SamplingFuncs(vmc.SamplingFuncs):
+@attr.s(auto_attribs=True)
+class Spec(vmc.Spec):
+    """A spec to sampling the multidimensional gaussian."""
+
+    dims: int
+    mu: float
+    sigma: float
+    time_step: float
+    chain_samples: int
+    burn_in_samples: int
+    rng_seed: int
+
+    def init_get_sys_conf(self):
+        """Generates an initial random configuration."""
+        return np.random.random_sample(self.dims)
+
+    @property
+    def wf_spec_nt(self):
+        """"""
+        return WFSpecNT(self.dims, self.mu, self.sigma)
+
+    @property
+    def tpf_spec_nt(self):
+        """"""
+        return TPFSpecNT(self.dims, self.time_step)
+
+    @property
+    def cfc_spec_nt(self):
+        """"""
+        ini_sys_conf = self.init_get_sys_conf()
+        return vmc.CFCSpecNT(self.wf_spec_nt,
+                             self.tpf_spec_nt,
+                             ini_sys_conf,
+                             self.chain_samples,
+                             self.burn_in_samples,
+                             self.rng_seed)
+
+
+class CoreFuncs(vmc.CoreFuncs):
     """Functions to sample a multidimensional gaussian pdf."""
 
     @property
@@ -84,24 +123,22 @@ class SamplingFuncs(vmc.SamplingFuncs):
         return _sys_conf_ppf
 
 
-class UniformSamplingFuncs(SamplingFuncs, vmc.UniformSamplingFuncs):
+class UniformCoreFuncs(CoreFuncs, vmc.UniformCoreFuncs):
     """Functions to sample a multidimensional Gaussian pdf."""
     pass
 
 
-def test_sampling_funcs():
+def test_core_funcs():
     """"""
     dims, mu, sigma = 10, 1, 0.05
-    wf_spec = WFSpecNT(dims, mu, sigma)
-    tpf_spec = TPFSpecNT(dims, time_step=0.5 * sigma)
-    ini_sys_conf = np.random.random_sample(dims)
+    time_step = (0.5 * sigma) ** 2
+    spec = Spec(dims, mu, sigma, time_step,
+                chain_samples=100000,
+                burn_in_samples=10000,
+                rng_seed=0)
 
-    funcs = SamplingFuncs()
-    chain = funcs.as_chain(wf_spec, tpf_spec, ini_sys_conf,
-                           chain_samples=100000,
-                           burn_in_samples=10000,
-                           rng_seed=0)
-
+    funcs = CoreFuncs()
+    chain = funcs.as_chain(*spec.cfc_spec_nt)
     sys_conf_chain = chain.sys_conf_chain
 
     ax = pyplot.gca()
@@ -110,14 +147,14 @@ def test_sampling_funcs():
     print(chain)
 
 
-def test_uniform_sampling_funcs():
+def test_uniform_core_funcs():
     """"""
     dims, mu, sigma = 10, 1, 1
     wf_spec = WFSpecNT(dims, mu, sigma)
     tpf_spec = UTPFSpecNT(dims, move_spread=0.5 * sigma)
     ini_sys_conf = np.random.random_sample(dims)
 
-    funcs = UniformSamplingFuncs()
+    funcs = UniformCoreFuncs()
     chain = funcs.as_chain(wf_spec, tpf_spec, ini_sys_conf,
                            chain_samples=100000,
                            burn_in_samples=10000,

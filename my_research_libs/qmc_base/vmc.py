@@ -18,11 +18,12 @@ from numba import jit
 from numpy import random as random
 
 __all__ = [
+    'CoreFuncs',
+    'CoreFuncsMeta',
     'RandDisplaceStat',
-    'SamplingFuncs',
-    'SamplingMeta',
+    'Spec',
     'TPFSpecNT',
-    'UniformSamplingFuncs',
+    'UniformCoreFuncs',
     'UTPFSpecNT',
     'WFSpecNT',
 ]
@@ -76,7 +77,7 @@ class UTPFSpecNT(NamedTuple):
     move_spread: float
 
 
-class SpecNT(NamedTuple):
+class CFCSpecNT(NamedTuple):
     """The parameters to realize a sampling."""
     wf_spec: WFSpecNT
     tpf_spec: Union[TPFSpecNT, UTPFSpecNT]
@@ -98,6 +99,52 @@ class SamplingChainNT(NamedTuple):
     sys_conf_chain: np.ndarray
     wf_abs_log_chain: np.ndarray
     accept_rate: float
+
+
+class Spec(metaclass=ABCMeta):
+    """The parameters of a VMC sampling.
+
+    Defines the parameters and related properties of a Variational Monte
+    Carlo calculation.
+    """
+    __slots__ = ()
+
+    #: The "time-step" (squared, average move spread) of the sampling.
+    time_step: float
+
+    #: The initial configuration of the sampling.
+    ini_sys_conf: np.ndarray
+
+    #: The number of samples to generate.
+    chain_samples: int
+
+    #: The number of samples to discard from the beginning of the chain.
+    burn_in_samples: int
+
+    #: The seed of the pseudo-RNG used to explore the configuration space.
+    rng_seed: int
+
+    @property
+    @abstractmethod
+    def wf_spec_nt(self):
+        """The parameters of the trial eave function."""
+        pass
+
+    @property
+    @abstractmethod
+    def tpf_spec_nt(self):
+        """The parameters of the transition probability function."""
+        pass
+
+    @property
+    @abstractmethod
+    def cfc_spec_nt(self):
+        """Common spec of the core functions of the sampling.
+
+        One of the arguments of the core functions in a
+        :class:`CoreFuncs` instance.
+        """
+        pass
 
 
 # noinspection PyUnusedLocal
@@ -122,12 +169,12 @@ def _sys_conf_tpf_stub(ini_sys_conf: np.ndarray,
     pass
 
 
-class SamplingMeta(ABCMeta):
-    """Metaclass for :class:`SamplingFuncs` abstract base class."""
+class CoreFuncsMeta(ABCMeta):
+    """Metaclass for :class:`CoreFuncs` abstract base class."""
     pass
 
 
-class SamplingFuncs(metaclass=SamplingMeta):
+class CoreFuncs(metaclass=CoreFuncsMeta):
     """The core functions to realize a VMC sampling.
 
     These functions perform the sampling of the probability density of a QMC
@@ -337,7 +384,7 @@ class SamplingFuncs(metaclass=SamplingMeta):
         return _as_chain
 
 
-class UniformSamplingFuncs(SamplingFuncs, metaclass=ABCMeta):
+class UniformCoreFuncs(CoreFuncs, metaclass=ABCMeta):
     """The core functions to realize a VMC sampling.
 
     These functions perform the sampling of the probability density of a QMC
