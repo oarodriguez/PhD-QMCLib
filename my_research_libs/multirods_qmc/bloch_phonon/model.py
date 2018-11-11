@@ -28,7 +28,8 @@ __all__ = [
     'UniformSampling',
     'ScalarGUFunc',
     'ScalarGUPureFunc',
-    'WFGUFunc'
+    'WFGUFunc',
+    'core_funcs'
 ]
 
 # Some alias..
@@ -565,6 +566,13 @@ class CoreFuncs(qmc_base.jastrow.CoreFuncs):
     def potential(self):
         """The external potential."""
         return _potential
+
+
+# Common reference to all the core functions.
+#
+# These functions are general: they accept the core func spec as an
+# argument.
+core_funcs = CoreFuncs()
 
 
 class Sampling(qmc_base.jastrow.vmc.PBCSampling):
