@@ -13,15 +13,12 @@ from ..utils import sign
 __all__ = [
     'CFCSpecNT',
     'CoreFuncs',
-    'ModelVarParams',
     'OBFSpecNT',
     'Spec',
     'SpecNT',
     'TBFSpecNT',
     'SysConfSlot',
     'SysConfDistType',
-    'SYS_CONF_SLOTS_DIM',
-    'SYS_CONF_PARTICLE_INDEX_DIM'
 ]
 
 
@@ -43,53 +40,8 @@ class SysConfDistType(Enum):
     REGULAR = 'regular'
 
 
-@unique
-class ParamName(model.ParamNameEnum):
-    """Enumerates the common parameters of a model of Bijl-Jastrow type.
-    """
-    BOSON_NUMBER = 'boson_number'
-    SUPERCELL_SIZE = 'supercell_size'
-
-
-class ModelParams(model.ParamsSet):
-    """Represents the common parameters of a Bijl-Jastrow model."""
-    names = ParamName
-
-
-@unique
-class VarParamName(model.ParamNameEnum):
-    """Enumerates the common variational parameters of a model of
-    Bijl-Jastrow type.
-    """
-    pass
-
-
-class ModelVarParams(model.ParamsSet):
-    """Represents the common variational parameters of the wave function
-    of a model of Bijl-Jastrow type."""
-    names = VarParamName
-
-
-class ModelFN(str, Enum):
-    """"""
-
-    OBF = 'one_body_func'
-    TBF = 'two_body_func'
-
-    OBF_LD = 'one_body_func_log_dz'
-    TBF_LD = 'two_body_func_log_dz'
-
-    OBF_LD2 = 'one_body_func_log_dz2'
-    TBF_LD2 = 'two_body_func_log_dz2'
-
-
 DIST_RAND = SysConfDistType.RANDOM
 DIST_REGULAR = SysConfDistType.REGULAR
-
-# The dimensions of a system configuration.
-# TODO: Put these in an IntEnum
-SYS_CONF_SLOTS_DIM = 0
-SYS_CONF_PARTICLE_INDEX_DIM = 1
 
 
 class SpecNT(NamedTuple):
@@ -173,12 +125,6 @@ class CoreFuncs(model.CoreFuncs):
     functions to realize a Quantum Monte Carlo calculation for a QMC model
     with a trial-wave function of the Bijl-Jastrow type.
     """
-    #
-    params_cls = ModelParams
-
-    #
-    var_params_cls = ModelVarParams
-
     #
     sys_conf_slots = SysConfSlot
 

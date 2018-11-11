@@ -1,6 +1,5 @@
 import operator
 from abc import ABCMeta
-from enum import unique
 from functools import reduce
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from typing import NamedTuple, Union
@@ -20,8 +19,6 @@ __all__ = [
     'ArrayGUPureFunc',
     'CoreFuncs',
     'EnergyGUFunc',
-    'ModelParams',
-    'ModelVarParams',
     'TPFSpecNT',
     'SamplingFuncs',
     'ScalarGUFunc',
@@ -38,38 +35,6 @@ __all__ = [
 # Some alias..
 DIST_RAND = qmc_base.jastrow.SysConfDistType.RANDOM
 DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
-
-
-@unique
-class ParamName(qmc_base.model.ParamNameEnum):
-    """Enumerates the parameters of the model (Bijl-Jastrow type) of a
-    quantum system in a Multi-Rods periodic structure with repulsive,
-    contact interactions.
-    """
-    LATTICE_DEPTH = 'lattice_depth'
-    LATTICE_RATIO = 'lattice_ratio'
-    INTERACTION_STRENGTH = 'interaction_strength'
-    BOSON_NUMBER = 'boson_number'
-    SUPERCELL_SIZE = 'supercell_size'
-
-
-class ModelParams(qmc_base.ParamsSet):
-    """Represents the parameters of the model."""
-    names = ParamName
-
-
-@unique
-class VarParamName(qmc_base.ParamNameEnum):
-    """Enumerates the variational parameters of the wave function of the
-    model (Bijl-Jastrow type) of a quantum system in a Multi-Rods periodic
-    structure with repulsive, contact interactions.
-    """
-    TBF_CONTACT_CUTOFF = 'tbf_contact_cutoff'
-
-
-class ModelVarParams(qmc_base.ParamsSet):
-    """Represents the variational parameters of the model"""
-    names = VarParamName
 
 
 class SpecNT(NamedTuple):

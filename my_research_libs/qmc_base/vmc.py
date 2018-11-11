@@ -9,7 +9,7 @@
 
 import math
 from abc import ABCMeta, abstractmethod
-from enum import Enum, IntEnum, unique
+from enum import Enum, IntEnum
 from typing import NamedTuple, Union
 
 import numpy as np
@@ -17,13 +17,10 @@ from cached_property import cached_property
 from numba import jit
 from numpy import random as random
 
-from . import model
-
 __all__ = [
     'RandDisplaceStat',
     'SamplingFuncs',
     'SamplingMeta',
-    'SamplingParams',
     'TPFSpecNT',
     'UniformSamplingFuncs',
     'UTPFSpecNT',
@@ -49,28 +46,6 @@ class RandDisplaceStat(IntEnum):
 
 STAT_REJECTED = int(RandDisplaceStat.REJECTED)
 STAT_ACCEPTED = int(RandDisplaceStat.ACCEPTED)
-
-
-@unique
-class SamplingParam(model.ParamNameEnum):
-    """"""
-    TIME_STEP = 'time_step'
-    INI_SYS_CONF = 'ini_sys_conf'
-    CHAIN_SAMPLES = 'chain_samples'
-    BURN_IN_SAMPLES = 'burn_in_samples'
-    RNG_SEED = 'rng_seed'
-
-
-class SamplingParamDefault(Enum):
-    """"""
-    BURN_IN_SAMPLES = 0
-    RNG_SEED = None
-
-
-class SamplingParams(model.ParamsSet):
-    """"""
-    names = SamplingParam
-    defaults = SamplingParamDefault
 
 
 class WFSpecNT(NamedTuple):
