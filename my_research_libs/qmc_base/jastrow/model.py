@@ -53,14 +53,22 @@ class SpecNT(model.SpecNT, NamedTuple):
 
 
 class OBFSpecNT(NamedTuple):
-    """Fields of the one-body function spec."""
-    # Help with typing and nothing more.
+    """Fields of the one-body function spec.
+
+    We declare this class to help with typing and nothing more. A concrete
+    spec should be implemented for a concrete model. It is recommended
+    to subclass this class to keep a logical structure in the code.
+    """
     pass
 
 
 class TBFSpecNT(NamedTuple):
-    """Fields of the two-body function spec."""
-    # Help with typing and nothing more.
+    """Fields of the two-body function spec.
+
+    We declare this class to help with typing and nothing more. A concrete
+    spec should be implemented for a concrete model. It is recommended
+    to subclass this class to keep a logical structure in the code.
+    """
     pass
 
 
@@ -77,7 +85,10 @@ class Spec(model.Spec):
     """
     __slots__ = ()
 
+    #: The number of bosons.
     boson_number: int
+
+    #: The size of the QMC simulation box.
     supercell_size: float
 
     #: The slots of the system configuration array.
@@ -131,6 +142,22 @@ class Spec(model.Spec):
         pass
 
 
+# Stubs to help with static type checking.
+# noinspection PyUnusedLocal
+def _one_body_func_stub(z: float, spec: OBFSpecNT) -> float:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _two_body_func_stub(rz: float, spec: TBFSpecNT) -> float:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _potential_stub(z: float, spec: SpecNT) -> float:
+    pass
+
+
 class CoreFuncs(model.CoreFuncs):
     """Abstract Base Class that groups core, JIT-compiled, performance-critical
     functions to realize a Quantum Monte Carlo calculation for a QMC model
@@ -142,37 +169,44 @@ class CoreFuncs(model.CoreFuncs):
     @property
     @abstractmethod
     def one_body_func(self):
-        pass
+        """The one-body function definition."""
+        return _one_body_func_stub
 
     @property
     @abstractmethod
     def two_body_func(self):
-        pass
+        """The two-body function definition."""
+        return _two_body_func_stub
 
     @property
     @abstractmethod
     def one_body_func_log_dz(self):
-        pass
+        """One-body function logarithmic derivative."""
+        return _one_body_func_stub
 
     @property
     @abstractmethod
     def two_body_func_log_dz(self):
-        pass
+        """Two-body function logarithmic derivative."""
+        return _two_body_func_stub
 
     @property
     @abstractmethod
     def one_body_func_log_dz2(self):
-        pass
+        """One-body function second logarithmic derivative."""
+        return _one_body_func_stub
 
     @property
     @abstractmethod
     def two_body_func_log_dz2(self):
-        pass
+        """Two-body function second logarithmic derivative."""
+        return _two_body_func_stub
 
     @property
     @abstractmethod
     def potential(self):
-        pass
+        """The external potential."""
+        return _potential_stub
 
     @cached_property
     def ith_wf_abs_log(self):
