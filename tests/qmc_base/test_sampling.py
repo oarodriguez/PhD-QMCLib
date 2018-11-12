@@ -42,10 +42,6 @@ class Spec(vmc.Spec):
     burn_in_samples: int
     rng_seed: int
 
-    def init_get_sys_conf(self):
-        """Generates an initial random configuration."""
-        return np.random.random_sample(self.dims)
-
     @property
     def wf_spec_nt(self):
         """"""
@@ -60,13 +56,17 @@ class Spec(vmc.Spec):
     @property
     def cfc_spec_nt(self):
         """"""
-        ini_sys_conf = self.init_get_sys_conf()
         return vmc.CFCSpecNT(self.wf_spec_nt,
                              self.tpf_spec_nt,
                              self.chain_samples,
-                             ini_sys_conf,
+                             self.ini_sys_conf,
                              self.burn_in_samples,
                              self.rng_seed)
+
+
+def init_get_sys_conf(dims: int):
+    """Generates an initial random configuration."""
+    return np.random.random_sample(dims)
 
 
 class CoreFuncs(vmc.CoreFuncs):
@@ -135,14 +135,18 @@ def test_core_funcs():
     """"""
     dims, mu, sigma = 10, 1, 0.05
     time_step = (0.5 * sigma) ** 2
+    ini_sys_conf = init_get_sys_conf(dims)
     spec = Spec(dims, mu, sigma, time_step,
                 chain_samples=100000,
+                ini_sys_conf=ini_sys_conf,
                 burn_in_samples=10000,
                 rng_seed=0)
 
-    funcs = CoreFuncs()
-    chain = funcs.as_chain(spec.cfc_spec_nt)
+    core_funcs = CoreFuncs()
+    chain = core_funcs.as_chain(spec.cfc_spec_nt)
     sys_conf_chain = chain.sys_conf_chain
+
+    assert sys_conf_chain.shape == (spec.chain_samples, spec.dims)
 
     ax = pyplot.gca()
     ax.hist(sys_conf_chain[:, 0], bins=100)
@@ -156,14 +160,17 @@ def test_uniform_core_funcs():
     wf_spec = WFSpecNT(dims, mu, sigma)
     tpf_spec = UTPFSpecNT(dims, move_spread=0.5 * sigma)
     ini_sys_conf = np.random.random_sample(dims)
+    chain_samples = 100000
 
     funcs = UniformCoreFuncs()
-    chain = funcs.as_chain(wf_spec, tpf_spec, ini_sys_conf,
-                           chain_samples=100000,
-                           burn_in_samples=10000,
-                           rng_seed=0)
+    cfc_spec_nt = vmc.CFCSpecNT(wf_spec, tpf_spec, chain_samples=chain_samples,
+                                ini_sys_conf=ini_sys_conf,
+                                burn_in_samples=10000,
+                                rng_seed=0)
+    chain = funcs.as_chain(cfc_spec_nt)
 
     sys_conf_chain = chain.sys_conf_chain
+    assert sys_conf_chain.shape == (chain_samples, dims)
 
     ax = pyplot.gca()
     ax.hist(sys_conf_chain[:, 0], bins=100)
