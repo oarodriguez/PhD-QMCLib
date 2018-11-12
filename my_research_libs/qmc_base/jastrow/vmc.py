@@ -9,8 +9,8 @@ from . import model
 from .. import vmc
 
 __all__ = [
+    'CoreFuncs',
     'TPFSpecNT',
-    'SamplingFuncs',
     'UTPFSpecNT'
 ]
 
@@ -22,7 +22,7 @@ class TPFSpecNT(vmc.TPFSpecNT, NamedTuple):
     generated from a (normal) gaussian distribution function.
     """
     boson_number: int
-    time_step: float
+    sigma: float
 
 
 class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
@@ -35,7 +35,40 @@ class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
     move_spread: float
 
 
-class SamplingFuncs(vmc.SamplingFuncs, metaclass=ABCMeta):
+class Spec(vmc.Spec):
+    """Spec for the VMC sampling of a Bijl-Jastrow model."""
+
+    #: The spec of a concrete Jastrow model.
+    model_spec: model.Spec
+
+    time_step: float
+    chain_samples: int
+    ini_sys_conf: np.ndarray
+    burn_in_samples: int
+    rng_seed: int
+
+    @property
+    def wf_spec_nt(self):
+        """The trial wave function spec."""
+        return self.model_spec.cfc_spec_nt
+
+    @property
+    def tpf_spec_nt(self):
+        """"""
+        return TPFSpecNT(self.model_spec.boson_number, self.time_step)
+
+    @property
+    def cfc_spec_nt(self):
+        """"""
+        return vmc.CFCSpecNT(self.wf_spec_nt,
+                             self.tpf_spec_nt,
+                             self.chain_samples,
+                             self.ini_sys_conf,
+                             self.burn_in_samples,
+                             self.rng_seed)
+
+
+class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
     """The core functions to realize a VMC sampling.
 
     This class implements the functions to sample the probability

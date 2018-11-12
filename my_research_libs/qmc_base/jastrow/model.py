@@ -44,7 +44,7 @@ DIST_RAND = SysConfDistType.RANDOM
 DIST_REGULAR = SysConfDistType.REGULAR
 
 
-class SpecNT(NamedTuple):
+class SpecNT(model.SpecNT, NamedTuple):
     """The common fields a Jastrow model spec should implement."""
     boson_number: int
     supercell_size: float
@@ -77,6 +77,9 @@ class Spec(model.Spec):
     """
     __slots__ = ()
 
+    boson_number: int
+    supercell_size: float
+
     #: The slots of the system configuration array.
     sys_conf_slots: ClassVar = SysConfSlot
 
@@ -85,14 +88,14 @@ class Spec(model.Spec):
 
     @property
     @abstractmethod
-    def is_free(self):
-        """"""
+    def is_free(self) -> bool:
+        """Tests if the spec represents a free system."""
         pass
 
     @property
     @abstractmethod
-    def is_ideal(self):
-        """"""
+    def is_ideal(self) -> bool:
+        """Tests if the spec represents an ideal system."""
         pass
 
     def get_sys_conf_buffer(self):
@@ -103,6 +106,14 @@ class Spec(model.Spec):
         """
         sc_shape = self.sys_conf_shape
         return np.zeros(sc_shape, dtype=np.float64)
+
+    @property
+    def as_nt(self):
+        """"""
+        return SpecNT(self.boson_number,
+                      self.supercell_size,
+                      self.is_free,
+                      self.is_ideal)
 
     @property
     @abstractmethod

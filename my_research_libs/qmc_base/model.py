@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from collections import Callable, Mapping
 from enum import Enum
-from typing import Callable as TCallable, Sequence, Type
+from typing import Callable as TCallable, NamedTuple, Sequence, Type
 
 import numpy as np
 
@@ -14,6 +14,7 @@ __all__ = [
     'GUFuncMeta',
     'Spec',
     'SpecMeta',
+    'SpecNT',
     'ParamNameEnum',
     'ParamsSet',
     'QMCFuncsNames'
@@ -107,6 +108,11 @@ class ParamsSet(Mapping):
     def __iter__(self):
         """"""
         return iter(self._ord_names)
+
+
+class SpecNT(NamedTuple):
+    """The parameters of the model."""
+    pass
 
 
 class SpecMeta(ABCMeta):
