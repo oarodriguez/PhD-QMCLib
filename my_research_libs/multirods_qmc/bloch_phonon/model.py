@@ -11,7 +11,7 @@ from numba import jit
 from numpy import random
 from scipy.optimize import brentq
 
-from my_research_libs import ideal, qmc_base
+from my_research_libs import ideal, qmc_base, utils
 from my_research_libs.qmc_base.utils import min_distance, recast_to_supercell
 
 __all__ = [
@@ -20,16 +20,16 @@ __all__ = [
     'CoreFuncs',
     'EnergyGUFunc',
     'TPFSpecNT',
-    'SamplingFuncs',
+    'VMCCoreFuncs',
     'ScalarGUFunc',
     'ScalarGUPureFunc',
     'Spec',
-    'UniformSamplingFuncs',
+    'UniformVMCCoreFuncs',
     'UTPFSpecNT',
+    'VMCSpec',
     'WFGUFunc',
     'core_funcs',
-    'sampling_funcs',
-    'uniform_sampling_funcs'
+    'vmc_core_funcs'
 ]
 
 # Some alias..
@@ -37,7 +37,7 @@ DIST_RAND = qmc_base.jastrow.SysConfDistType.RANDOM
 DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
 
 
-class SpecNT(NamedTuple):
+class SpecNT(qmc_base.jastrow.SpecNT, NamedTuple):
     """The model `Spec` as a named tuple."""
     lattice_depth: float
     lattice_ratio: float
@@ -51,7 +51,7 @@ class SpecNT(NamedTuple):
     is_ideal: bool
 
 
-class OBFSpecNT(NamedTuple):
+class OBFSpecNT(qmc_base.jastrow.OBFSpecNT, NamedTuple):
     """One-body function parameters."""
     lattice_depth: float
     lattice_ratio: float
@@ -62,7 +62,7 @@ class OBFSpecNT(NamedTuple):
     param_kp1: float
 
 
-class TBFSpecNT(NamedTuple):
+class TBFSpecNT(qmc_base.jastrow.OBFSpecNT, NamedTuple):
     """Two-body function parameters."""
     supercell_size: float
     tbf_contact_cutoff: float
@@ -72,7 +72,7 @@ class TBFSpecNT(NamedTuple):
     param_am: float
 
 
-class CFCSpecNT(NamedTuple):
+class CFCSpecNT(qmc_base.jastrow.CFCSpecNT, NamedTuple):
     """"""
     # Does nothing, only for type hints
     model_spec: SpecNT
@@ -81,7 +81,7 @@ class CFCSpecNT(NamedTuple):
 
 
 # NOTE: slots=True avoids adding more attributes
-@attrs(auto_attribs=True, init=False, slots=True)
+@attrs(auto_attribs=True, frozen=True)
 class Spec(qmc_base.jastrow.Spec):
     """The parameters of the Bloch-Phonon QMC model.
 
@@ -89,51 +89,42 @@ class Spec(qmc_base.jastrow.Spec):
     Multi-Rods periodic structure with repulsive, contact interactions,
     with a trial wave function of the Bijl-Jastrow type.
     """
-    #
+    #: The lattice depth of the potential.
     lattice_depth: float
+
+    #: The ratio of the barriers width between the wells width.
     lattice_ratio: float
+
+    #: The magnitude of the interaction strength between two bosons.
     interaction_strength: float
+
+    #: The number of bosons.
     boson_number: int
+
+    #: The size of the QMC simulation box.
     supercell_size: float
+
+    # TODO: We need a better documentation for this attribute.
+    #: The variational parameter of the two-body functions.
     tbf_contact_cutoff: float
 
-    def __init__(self, lattice_depth: float,
-                 lattice_ratio: float,
-                 interaction_strength: float,
-                 boson_number: float,
-                 supercell_size: float,
-                 tbf_contact_cutoff: float):
-        """
-
-        :param lattice_depth:
-        :param lattice_ratio:
-        :param interaction_strength:
-        :param boson_number:
-        :param supercell_size:
-        :param tbf_contact_cutoff:
-        """
-        self.lattice_depth = lattice_depth
-        self.lattice_ratio = lattice_ratio
-        self.interaction_strength = interaction_strength
-        self.boson_number = boson_number
-        self.supercell_size = supercell_size
-        self.tbf_contact_cutoff = tbf_contact_cutoff
+    # TODO: Implement improved __init__.
 
     @property
     def boundaries(self):
-        """"""
+        """The boundaries of the QMC simulation box."""
         sc_size = self.supercell_size
         return 0., 1. * sc_size
 
     @property
     def well_width(self):
-        """"""
+        """The width of the lattice wells."""
         r = self.lattice_ratio
         return 1 / (1 + r)
 
     @property
     def barrier_width(self):
-        """"""
+        """The width of the lattice barriers."""
         r = self.lattice_ratio
         return r / (1 + r)
 
@@ -550,7 +541,7 @@ class TPFSpecNT(qmc_base.jastrow.vmc.TPFSpecNT, NamedTuple):
     generated from a normal (gaussian) distribution function.
     """
     boson_number: int
-    time_step: float
+    sigma: float
     lower_bound: float
     upper_bound: float
 
@@ -567,7 +558,35 @@ class UTPFSpecNT(qmc_base.jastrow.vmc.UTPFSpecNT, NamedTuple):
     upper_bound: float
 
 
-class SamplingFuncs(qmc_base.jastrow.vmc.SamplingFuncs):
+# noinspection PyUnresolvedReferences
+@attrs(auto_attribs=True, frozen=True)
+class VMCSpec(qmc_base.jastrow.vmc.Spec):
+    """The spec of the VMC sampling."""
+
+    model_spec: Spec
+    time_step: float
+    chain_samples: int
+    ini_sys_conf: np.ndarray
+    burn_in_samples: int = 0
+    rng_seed: int = None
+
+    def __attrs_post_init__(self):
+        """"""
+        if self.rng_seed is None:
+            rng_seed = utils.get_random_rng_seed()
+            super().__setattr__('rng_seed', rng_seed)
+
+    @property
+    def tpf_spec_nt(self):
+        """"""
+        boson_number = self.model_spec.boson_number
+        sigma = sqrt(self.time_step)
+        z_min, z_max = self.model_spec.boundaries
+        return TPFSpecNT(boson_number, sigma=sigma, lower_bound=z_min,
+                         upper_bound=z_max)
+
+
+class VMCCoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
     """Sampling of the probability density of the Bloch-Phonon model.
 
     The sampling is subject to periodic boundary conditions due to the
@@ -632,10 +651,10 @@ class SamplingFuncs(qmc_base.jastrow.vmc.SamplingFuncs):
 
 
 #
-sampling_funcs = SamplingFuncs()
+vmc_core_funcs = VMCCoreFuncs()
 
 
-class UniformSamplingFuncs(SamplingFuncs, qmc_base.vmc.UniformSamplingFuncs):
+class UniformVMCCoreFuncs(VMCCoreFuncs, qmc_base.vmc.UniformCoreFuncs):
     """Sampling of the probability density of the Bloch-Phonon model.
 
     The sampling is subject to periodic boundary conditions due to the
@@ -643,10 +662,6 @@ class UniformSamplingFuncs(SamplingFuncs, qmc_base.vmc.UniformSamplingFuncs):
     are generated from a uniform distribution function.
     """
     pass
-
-
-#
-uniform_sampling_funcs = UniformSamplingFuncs()
 
 
 @jit(nopython=True, cache=True)
@@ -773,7 +788,3 @@ class EnergyGUFunc(ScalarGUFunc):
             return func_args_0,
 
         return _as_func_args
-
-
-# Global object with most general model core functions.
-core_funcs = CoreFuncs()

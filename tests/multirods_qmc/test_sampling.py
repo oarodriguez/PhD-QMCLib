@@ -1,4 +1,3 @@
-import numpy as np
 from numba import jit
 
 from my_research_libs.multirods_qmc import bloch_phonon
@@ -50,34 +49,27 @@ def test_base_sampling():
     # TODO: Improve this test.
     model_spec = bloch_phonon.Spec(**spec_items)
 
-    ncs, nbs = 1000, 0
+    ncs, bis = 1000, 0
+    time_step = 0.025 ** 2
     ini_sys_conf = model_spec.init_get_sys_conf()
-    move_spread = 0.05
-    sampling_params = dict(ini_sys_conf=ini_sys_conf,
-                           chain_samples=ncs,
-                           burn_in_samples=nbs,
-                           rng_seed=1)
-    wf_spec = model_spec.cfc_spec_nt
-    ppf_spec = bloch_phonon.UTPFSpecNT(model_spec.boson_number,
-                                       move_spread,
-                                       *model_spec.boundaries)
-    sampling = bloch_phonon.uniform_sampling_funcs
+    vmc_spec = bloch_phonon.VMCSpec(model_spec=model_spec,
+                                    time_step=time_step,
+                                    chain_samples=ncs,
+                                    ini_sys_conf=ini_sys_conf,
+                                    burn_in_samples=bis,
+                                    rng_seed=1)
+    vmc_generator = bloch_phonon.vmc_core_funcs.generator
+    vmc_as_chain = bloch_phonon.vmc_core_funcs.as_chain
     ar = 0
-    for data in sampling.generator(wf_spec, ppf_spec, **sampling_params):
+    for data in vmc_generator(vmc_spec.cfc_spec_nt):
         sys_conf, wfv, stat = data
         ar += stat
     ar /= ncs
 
-    chain_data = sampling.as_chain(wf_spec, ppf_spec, **sampling_params)
+    chain_data = vmc_as_chain(vmc_spec.cfc_spec_nt)
     sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
 
     assert sys_conf_chain.shape == (ncs, len(model_spec.sys_conf_slots), nop)
     assert ar == ar_
 
-    wf_abs_log = model_spec.core_funcs.wf_abs_log
-    wf_abs_log_guf = WFGUFunc(wf_abs_log)
-    wf_abs_log_chain_gu = wf_abs_log_guf(sys_conf_chain,
-                                         model_spec.gufunc_args)
-
-    assert wf_abs_log_chain.shape == wf_abs_log_chain_gu.shape
-    assert np.allclose(wf_abs_log_chain.shape, wf_abs_log_chain_gu.shape)
+    print(f"Sampling acceptance rate: {ar:.5g}")
