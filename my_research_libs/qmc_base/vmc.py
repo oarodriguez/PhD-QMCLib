@@ -113,7 +113,7 @@ class Spec(metaclass=ABCMeta):
     #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
 
-    #: The number of samples to generate.
+    #: The number of samples to generate after the burn-in phase.
     chain_samples: int
 
     #: The initial configuration of the sampling.
@@ -258,13 +258,13 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             burn_in_samples = cfc_spec.burn_in_samples
             rng_seed = cfc_spec.rng_seed
 
-            # Do not allow invalid parameters.
+            # Check for invalid parameters.
             if not chain_samples >= 1:
                 raise ValueError('chain_samples must be nonzero and positive')
-
             if not burn_in_samples >= 0:
                 raise ValueError('burn_in_samples must be zero or positive')
 
+            # Short names :)
             ncs = chain_samples
             bis = burn_in_samples
 
@@ -337,9 +337,16 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             :return: An array with the Markov chain configurations, the values
                 of the p.d.f. and the acceptance rate.
             """
-            sampling_iter = generator(cfc_spec)
             chain_samples = cfc_spec.chain_samples
             ini_sys_conf = cfc_spec.ini_sys_conf
+            burn_in_samples = cfc_spec.burn_in_samples
+
+            # Check for invalid parameters.
+            # NOTE: The same test is done in the generator 🤔.
+            if not chain_samples >= 1:
+                raise ValueError('chain_samples must be nonzero and positive')
+            if not burn_in_samples >= 0:
+                raise ValueError('burn_in_samples must be zero or positive')
 
             # TODO: What is better: allocate or pass a pre-allocated buffer?
             mcs = (chain_samples,) + ini_sys_conf.shape
@@ -347,6 +354,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             wf_abs_log_chain = np.zeros(chain_samples, dtype=np.float64)
             accepted = 0
 
+            sampling_iter = generator(cfc_spec)
             for cj_, iter_values in enumerate(sampling_iter):
                 # Metropolis-Hastings iterator.
                 # TODO: Test use of next() function.
