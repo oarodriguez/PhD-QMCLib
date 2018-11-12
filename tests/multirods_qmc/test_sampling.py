@@ -52,14 +52,14 @@ def test_base_sampling():
     ncs, bis = 1000, 0
     time_step = 0.025 ** 2
     ini_sys_conf = model_spec.init_get_sys_conf()
-    vmc_spec = bloch_phonon.VMCSpec(model_spec=model_spec,
-                                    time_step=time_step,
-                                    chain_samples=ncs,
-                                    ini_sys_conf=ini_sys_conf,
-                                    burn_in_samples=bis,
-                                    rng_seed=1)
-    vmc_generator = bloch_phonon.vmc_core_funcs.generator
-    vmc_as_chain = bloch_phonon.vmc_core_funcs.as_chain
+    vmc_spec = bloch_phonon.vmc.VMCSpec(model_spec=model_spec,
+                                        time_step=time_step,
+                                        chain_samples=ncs,
+                                        ini_sys_conf=ini_sys_conf,
+                                        burn_in_samples=bis,
+                                        rng_seed=1)
+    vmc_generator = bloch_phonon.vmc.vmc_core_funcs.generator
+    vmc_as_chain = bloch_phonon.vmc.vmc_core_funcs.as_chain
     ar = 0
     for data in vmc_generator(vmc_spec.cfc_spec_nt):
         sys_conf, wfv, stat = data
