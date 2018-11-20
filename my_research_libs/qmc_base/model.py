@@ -162,14 +162,6 @@ class Spec(metaclass=SpecMeta):
         """
         pass
 
-    @property
-    @abstractmethod
-    def core_funcs(self):
-        """Performance-critical (JIT-compiled) implementations of the basic
-        QMC functions associated with the model.
-        """
-        pass
-
 
 class CoreFuncsMeta(ABCMeta):
     """Metaclass for :class:`CoreFuncs` abstract base class."""

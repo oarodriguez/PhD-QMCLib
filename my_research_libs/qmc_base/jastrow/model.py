@@ -128,17 +128,12 @@ class Spec(model.Spec):
 
     @property
     @abstractmethod
-    def obf_spec_nt(self):
+    def obf_spec_nt(self) -> OBFSpecNT:
         pass
 
     @property
     @abstractmethod
-    def tbf_spec_nt(self):
-        pass
-
-    @property
-    @abstractmethod
-    def core_funcs(self) -> 'CoreFuncs':
+    def tbf_spec_nt(self) -> TBFSpecNT:
         pass
 
 

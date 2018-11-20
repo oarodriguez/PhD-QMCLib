@@ -86,10 +86,6 @@ class Spec(jastrow.Spec):
                                  self.obf_spec_nt,
                                  self.tbf_spec_nt)
 
-    @property
-    def core_funcs(self) -> 'CoreFuncs':
-        return CoreFuncs()
-
 
 class CoreFuncs(jastrow.CoreFuncs):
     """Concrete core functions for testing."""

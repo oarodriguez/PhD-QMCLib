@@ -308,12 +308,6 @@ class Spec(qmc_base.jastrow.Spec):
         """
         return reduce(operator.add, self.cfc_spec_nt)
 
-    @property
-    def core_funcs(self):
-        """"""
-        # TODO: Remove this method...
-        return CoreFuncs()
-
 
 @jit(nopython=True, cache=True)
 def _one_body_func(z: float, spec: OBFSpecNT) -> float:
