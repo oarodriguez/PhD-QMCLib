@@ -58,14 +58,14 @@ class Spec(vmc.Spec):
         return TPFSpecNT(self.model_spec.boson_number, self.time_step)
 
     @property
-    def cfc_spec_nt(self):
+    def as_nt(self):
         """"""
-        return vmc.CFCSpecNT(self.wf_spec_nt,
-                             self.tpf_spec_nt,
-                             self.chain_samples,
-                             self.ini_sys_conf,
-                             self.burn_in_samples,
-                             self.rng_seed)
+        return vmc.SpecNT(self.wf_spec_nt,
+                          self.tpf_spec_nt,
+                          self.chain_samples,
+                          self.ini_sys_conf,
+                          self.burn_in_samples,
+                          self.rng_seed)
 
 
 class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):

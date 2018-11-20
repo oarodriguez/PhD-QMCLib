@@ -22,6 +22,7 @@ __all__ = [
     'CoreFuncsMeta',
     'RandDisplaceStat',
     'Spec',
+    'SpecNT',
     'TPFSpecNT',
     'UniformCoreFuncs',
     'UTPFSpecNT',
@@ -78,7 +79,7 @@ class UTPFSpecNT(NamedTuple):
     move_spread: float
 
 
-class CFCSpecNT(NamedTuple):
+class SpecNT(NamedTuple):
     """The parameters to realize a sampling."""
     wf_spec: WFSpecNT
     tpf_spec: Union[TPFSpecNT, UTPFSpecNT]
@@ -139,12 +140,8 @@ class Spec(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def cfc_spec_nt(self):
-        """Common spec of the core functions of the sampling.
-
-        One of the arguments of the core functions in a
-        :class:`CoreFuncs` instance.
-        """
+    def as_nt(self):
+        """The spec of the VMC sampling functions as a named tuple."""
         pass
 
 

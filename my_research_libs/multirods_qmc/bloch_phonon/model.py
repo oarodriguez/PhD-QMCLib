@@ -302,7 +302,7 @@ class Spec(qmc_base.jastrow.Spec):
 
     @property
     def gufunc_args(self):
-        """Concatenate the :attr:`Spec.cfc_spec_nt` tuples and returns
+        """Concatenate the :attr:`Spec.as_nt` tuples and returns
         a single tuple. Intended to be used with generalized universal
         functions (gufunc).
         """

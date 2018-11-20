@@ -79,6 +79,11 @@ class VMCCoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
     are generated from a normal (gaussian) distribution function.
     """
 
+    @property
+    def wf_abs_log(self):
+        """"""
+        return model_core_funcs.wf_abs_log
+
     @cached_property
     def recast(self):
         """Apply the periodic boundary conditions on a configuration."""
@@ -128,11 +133,6 @@ class VMCCoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
             prop_sys_conf[pos_slot, i_] = z_i_upd
 
         return _ith_sys_conf_ppf
-
-    @property
-    def wf_abs_log(self):
-        """"""
-        return model_core_funcs.wf_abs_log
 
 
 #
