@@ -58,15 +58,14 @@ def test_base_sampling():
                                         ini_sys_conf=ini_sys_conf,
                                         burn_in_samples=bis,
                                         rng_seed=1)
-    vmc_generator = bloch_phonon.vmc.vmc_core_funcs.generator
-    vmc_as_chain = bloch_phonon.vmc.vmc_core_funcs.as_chain
+    vmc_sampling = bloch_phonon.vmc.Sampling(vmc_spec)
     ar = 0
-    for data in vmc_generator(*vmc_spec.as_nt):
+    for data in vmc_sampling:
         sys_conf, wfv, stat = data
         ar += stat
     ar /= ncs
 
-    chain_data = vmc_as_chain(*vmc_spec.as_nt)
+    chain_data = vmc_sampling.as_chain()
     sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
 
     assert sys_conf_chain.shape == (ncs, len(model_spec.sys_conf_slots), nop)

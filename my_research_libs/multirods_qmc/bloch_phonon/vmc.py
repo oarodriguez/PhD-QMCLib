@@ -11,6 +11,7 @@ from my_research_libs.qmc_base.utils import recast_to_supercell
 from .model import Spec, core_funcs as model_core_funcs
 
 __all__ = [
+    'Sampling',
     'TPFSpecNT',
     'UniformVMCCoreFuncs',
     'UTPFSpecNT',
@@ -147,3 +148,16 @@ class UniformVMCCoreFuncs(VMCCoreFuncs, qmc_base.vmc.UniformCoreFuncs):
     are generated from a uniform distribution function.
     """
     pass
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class Sampling(qmc_base.vmc.Sampling):
+    """Realizes a VMC sampling using an iterable interface."""
+
+    spec: VMCSpec
+    core_funcs: VMCCoreFuncs = attr.ib(init=False, cmp=False, repr=False)
+
+    def __attrs_post_init__(self):
+        """Post initialization stage."""
+        # NOTE: Should we use a new VMCCoreFuncs instance?
+        super().__setattr__('core_funcs', vmc_core_funcs)

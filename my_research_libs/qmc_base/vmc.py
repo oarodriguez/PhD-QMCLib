@@ -9,6 +9,7 @@
 
 import math
 from abc import ABCMeta, abstractmethod
+from collections import Iterable
 from enum import Enum, IntEnum
 from typing import NamedTuple, Union
 
@@ -415,3 +416,25 @@ class UniformCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             return (rand() - 0.5) * move_spread
 
         return _rand_displace
+
+
+class Sampling(Iterable, metaclass=ABCMeta):
+    """Realizes a VMC sampling using an iterable interface."""
+
+    #: The VMC spec object.
+    spec: Spec
+
+    #: The core functions of the sampling.
+    core_funcs: CoreFuncs
+
+    def __iter__(self):
+        """Iterable interface."""
+        vmc_spec = self.spec.as_nt
+        generator = self.core_funcs.generator
+        return generator(*vmc_spec)
+
+    def as_chain(self):
+        """Returns the VMC sampling as an array object."""
+        sampling_spec = self.spec.as_nt
+        _as_chain = self.core_funcs.as_chain
+        return _as_chain(*sampling_spec)
