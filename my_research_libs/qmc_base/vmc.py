@@ -238,7 +238,12 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         sys_conf_tpf = self.sys_conf_tpf
 
         @jit(nopython=True, cache=True, nogil=True)
-        def _generator(cfc_spec: CFCSpecNT):
+        def _generator(wf_spec: WFSpecNT,
+                       tpf_spec: Union[TPFSpecNT, UTPFSpecNT],
+                       chain_samples: int,
+                       ini_sys_conf: np.ndarray,
+                       burn_in_samples: int,
+                       rng_seed: int):
             """VMC sampling generator.
 
             Generator-based sampling of the probability density function.
@@ -248,15 +253,15 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             accepted, the status is ``STAT_ACCEPTED``, otherwise is
             ``STAT_REJECTED``.
 
-            :param cfc_spec: The parameters of the sampling generator.
+            :param wf_spec: The parameters of the probability density function.
+            :param tpf_spec: The parameters of the transition probability
+                function.
+            :param chain_samples: The number of samples of the Markov chain.
+            :param ini_sys_conf: The initial configuration of the particles.
+            :param burn_in_samples: The number of samples to discard from the
+                beginning of the sampling.
+            :param rng_seed: The seed used to generate the random numbers.
             """
-            # Pick the parameters.
-            wf_spec = cfc_spec.wf_spec
-            tpf_spec = cfc_spec.tpf_spec
-            ini_sys_conf = cfc_spec.ini_sys_conf
-            chain_samples = cfc_spec.chain_samples
-            burn_in_samples = cfc_spec.burn_in_samples
-            rng_seed = cfc_spec.rng_seed
 
             # Check for invalid parameters.
             if not chain_samples >= 1:
@@ -321,7 +326,9 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
 
     @cached_property
     def as_chain(self):
-        """JIT-compiled function to generate a Markov chain with the
+        """Returns the VMC sampling as an array object.
+
+        JIT-compiled function to generate a Markov chain with the
         sampling of the probability density function.
 
         :return: The JIT compiled function that execute the Monte Carlo
@@ -330,17 +337,25 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         generator = self.generator
 
         @jit(nopython=True, cache=True, nogil=True)
-        def _as_chain(cfc_spec: CFCSpecNT):
-            """Routine to samples the probability density function.
+        def _as_chain(wf_spec: WFSpecNT,
+                      tpf_spec: Union[TPFSpecNT, UTPFSpecNT],
+                      chain_samples: int,
+                      ini_sys_conf: np.ndarray,
+                      burn_in_samples: int,
+                      rng_seed: int):
+            """Returns the VMC sampling as an array object.
 
-            :param cfc_spec: The parameters of the sampling generator.
+            :param wf_spec: The parameters of the probability density function.
+            :param tpf_spec: The parameters of the transition probability
+                function.
+            :param chain_samples: The number of samples of the Markov chain.
+            :param ini_sys_conf: The initial configuration of the particles.
+            :param burn_in_samples: The number of samples to discard from the
+                beginning of the sampling.
+            :param rng_seed: The seed used to generate the random numbers.
             :return: An array with the Markov chain configurations, the values
                 of the p.d.f. and the acceptance rate.
             """
-            chain_samples = cfc_spec.chain_samples
-            ini_sys_conf = cfc_spec.ini_sys_conf
-            burn_in_samples = cfc_spec.burn_in_samples
-
             # Check for invalid parameters.
             # NOTE: The same test is done in the generator 🤔.
             if not chain_samples >= 1:
@@ -354,7 +369,8 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             wf_abs_log_chain = np.zeros(chain_samples, dtype=np.float64)
             accepted = 0
 
-            sampling_iter = generator(cfc_spec)
+            sampling_iter = generator(wf_spec, tpf_spec, chain_samples,
+                                      ini_sys_conf, burn_in_samples, rng_seed)
             for cj_, iter_values in enumerate(sampling_iter):
                 # Metropolis-Hastings iterator.
                 # TODO: Test use of next() function.

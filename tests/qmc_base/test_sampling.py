@@ -143,7 +143,7 @@ def test_core_funcs():
                 rng_seed=0)
 
     core_funcs = CoreFuncs()
-    chain = core_funcs.as_chain(spec.cfc_spec_nt)
+    chain = core_funcs.as_chain(*spec.cfc_spec_nt)
     sys_conf_chain = chain.sys_conf_chain
 
     assert sys_conf_chain.shape == (spec.chain_samples, spec.dims)
