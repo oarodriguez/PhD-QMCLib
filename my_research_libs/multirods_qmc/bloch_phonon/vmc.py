@@ -8,16 +8,16 @@ from numba import jit
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base.utils import recast_to_supercell
-from .model import Spec, core_funcs as model_core_funcs
+from . import model
 
 __all__ = [
+    'CoreFuncs',
+    'Spec',
     'Sampling',
     'TPFSpecNT',
-    'UniformVMCCoreFuncs',
+    'UniformCoreFuncs',
     'UTPFSpecNT',
-    'VMCSpec',
-    'VMCCoreFuncs',
-    'vmc_core_funcs',
+    'core_funcs'
 ]
 
 
@@ -46,10 +46,10 @@ class UTPFSpecNT(qmc_base.jastrow.vmc.UTPFSpecNT, NamedTuple):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class VMCSpec(qmc_base.jastrow.vmc.Spec):
+class Spec(qmc_base.jastrow.vmc.Spec):
     """The spec of the VMC sampling."""
 
-    model_spec: Spec
+    model_spec: model.Spec
     time_step: float
     chain_samples: int
     ini_sys_conf: np.ndarray
@@ -57,7 +57,7 @@ class VMCSpec(qmc_base.jastrow.vmc.Spec):
     rng_seed: int = None
 
     def __attrs_post_init__(self):
-        """"""
+        """Post-initialization stage."""
         if self.rng_seed is None:
             rng_seed = utils.get_random_rng_seed()
             super().__setattr__('rng_seed', rng_seed)
@@ -72,10 +72,10 @@ class VMCSpec(qmc_base.jastrow.vmc.Spec):
                          upper_bound=z_max)
 
 
-class VMCCoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
-    """Sampling of the probability density of the Bloch-Phonon model.
+class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
+    """The core functions to realize a VMC calculation.
 
-    The sampling is subject to periodic boundary conditions due to the
+    The VMC sampling is subject to periodic boundary conditions due to the
     multi-rods external potential. The random numbers used in the calculation
     are generated from a normal (gaussian) distribution function.
     """
@@ -83,7 +83,7 @@ class VMCCoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
     @property
     def wf_abs_log(self):
         """"""
-        return model_core_funcs.wf_abs_log
+        return model.core_funcs.wf_abs_log
 
     @cached_property
     def recast(self):
@@ -136,14 +136,14 @@ class VMCCoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
         return _ith_sys_conf_ppf
 
 
-#
-vmc_core_funcs = VMCCoreFuncs()
+# Common reference to all the core functions.
+core_funcs = CoreFuncs()
 
 
-class UniformVMCCoreFuncs(VMCCoreFuncs, qmc_base.vmc.UniformCoreFuncs):
-    """Sampling of the probability density of the Bloch-Phonon model.
+class UniformCoreFuncs(CoreFuncs, qmc_base.vmc.UniformCoreFuncs):
+    """The core functions to realize a VMC calculation.
 
-    The sampling is subject to periodic boundary conditions due to the
+    The VMC sampling is subject to periodic boundary conditions due to the
     multi-rods external potential. The random numbers used in the calculation
     are generated from a uniform distribution function.
     """
@@ -154,10 +154,10 @@ class UniformVMCCoreFuncs(VMCCoreFuncs, qmc_base.vmc.UniformCoreFuncs):
 class Sampling(qmc_base.vmc.Sampling):
     """Realizes a VMC sampling using an iterable interface."""
 
-    spec: VMCSpec
-    core_funcs: VMCCoreFuncs = attr.ib(init=False, cmp=False, repr=False)
+    spec: Spec
+    core_funcs: CoreFuncs = attr.ib(init=False, cmp=False, repr=False)
 
     def __attrs_post_init__(self):
         """Post initialization stage."""
-        # NOTE: Should we use a new VMCCoreFuncs instance?
-        super().__setattr__('core_funcs', vmc_core_funcs)
+        # NOTE: Should we use a new CoreFuncs instance?
+        super().__setattr__('core_funcs', core_funcs)
