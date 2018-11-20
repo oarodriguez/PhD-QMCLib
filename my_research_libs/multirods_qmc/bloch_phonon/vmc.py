@@ -136,10 +136,6 @@ class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
         return _ith_sys_conf_ppf
 
 
-# Common reference to all the core functions.
-core_funcs = CoreFuncs()
-
-
 class UniformCoreFuncs(CoreFuncs, qmc_base.vmc.UniformCoreFuncs):
     """The core functions to realize a VMC calculation.
 
@@ -148,6 +144,10 @@ class UniformCoreFuncs(CoreFuncs, qmc_base.vmc.UniformCoreFuncs):
     are generated from a uniform distribution function.
     """
     pass
+
+
+# Common reference to all the core functions.
+core_funcs = CoreFuncs()
 
 
 @attr.s(auto_attribs=True, frozen=True)

@@ -28,6 +28,8 @@ __all__ = [
     'UniformCoreFuncs',
     'UTPFSpecNT',
     'WFSpecNT',
+    'rand_displace_normal',
+    'rand_displace_uniform'
 ]
 
 
@@ -168,6 +170,43 @@ def _sys_conf_tpf_stub(ini_sys_conf: np.ndarray,
     pass
 
 
+@jit(nopython=True)
+def rand_displace_normal(tpf_spec: TPFSpecNT):
+    """Generates a random number from a normal distribution with
+    zero mean and a a standard deviation ``ppf_spec.move_spread``.
+    """
+    # Avoid `Untyped global name error` when executing the code in a
+    # multiprocessing pool.
+    # TODO: Make tests with the symbols imported globally
+    normal = random.normal
+
+    # NOTE: We may use the time-step approach.
+    # Some papers suggest to use the same Gaussian proposal
+    # probability function, but with a **time step** parameter,
+    # which is equal to the variance of the proposal distribution.
+    # sigma = sqrt(time_step)
+    sigma = tpf_spec.sigma
+    return normal(0, sigma)
+
+
+@jit(nopython=True, cache=True)
+def rand_displace_uniform(tpf_spec: UTPFSpecNT):
+    """Generates a random number from a uniform distribution.
+
+    The number lies in the half-open interval
+    ``[-0.5 * move_spread, 0.5 * move_spread)``, with
+    ``move_spread = spec.move_spread``.
+
+    :param tpf_spec:
+    :return:
+    """
+    # Avoid `Untyped global name error` when executing the code in a
+    # multiprocessing pool.
+    rand = random.rand
+    move_spread = tpf_spec.move_spread
+    return (rand() - 0.5) * move_spread
+
+
 class CoreFuncsMeta(ABCMeta):
     """Metaclass for :class:`CoreFuncs` abstract base class."""
     pass
@@ -190,26 +229,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
     @cached_property
     def rand_displace(self):
         """Generates a random number from a normal distribution."""
-
-        @jit(nopython=True, cache=True)
-        def _rand_displace(tpf_spec: TPFSpecNT):
-            """Generates a random number from a normal distribution with
-            zero mean and a a standard deviation ``ppf_spec.move_spread``.
-            """
-            # Avoid `Untyped global name error` when executing the code in a
-            # multiprocessing pool.
-            # TODO: Make tests with the symbols imported globally
-            normal = random.normal
-
-            # NOTE: We may use the time-step approach.
-            # Some papers suggest to use the same Gaussian proposal
-            # probability function, but with a **time step** parameter,
-            # which is equal to the variance of the proposal distribution.
-            # sigma = sqrt(time_step)
-            sigma = tpf_spec.sigma
-            return normal(0, sigma)
-
-        return _rand_displace
+        return rand_displace_normal
 
     @property
     @abstractmethod
@@ -397,25 +417,7 @@ class UniformCoreFuncs(CoreFuncs, metaclass=ABCMeta):
     @cached_property
     def rand_displace(self):
         """Generates a random number from a uniform distribution."""
-
-        @jit(nopython=True, cache=True)
-        def _rand_displace(tpf_spec: UTPFSpecNT):
-            """Generates a random number from a uniform distribution.
-
-            The number lies in the half-open interval
-            ``[-0.5 * move_spread, 0.5 * move_spread)``, with
-            ``move_spread = spec.move_spread``.
-
-            :param tpf_spec:
-            :return:
-            """
-            # Avoid `Untyped global name error` when executing the code in a
-            # multiprocessing pool.
-            rand = random.rand
-            move_spread = tpf_spec.move_spread
-            return (rand() - 0.5) * move_spread
-
-        return _rand_displace
+        return rand_displace_uniform
 
 
 class Sampling(Iterable, metaclass=ABCMeta):

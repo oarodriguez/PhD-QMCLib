@@ -4,8 +4,8 @@ from functools import reduce
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from typing import NamedTuple
 
+import attr
 import numpy as np
-from attr import attrs
 from cached_property import cached_property
 from numba import jit
 from numpy import random
@@ -75,7 +75,8 @@ class CFCSpecNT(qmc_base.jastrow.CFCSpecNT, NamedTuple):
 
 
 # NOTE: slots=True avoids adding more attributes
-@attrs(auto_attribs=True, frozen=True)
+# NOTE: Use repr=False if we want instances that can be serialized (pickle)
+@attr.s(auto_attribs=True, frozen=True)
 class Spec(qmc_base.jastrow.Spec):
     """The parameters of the Bloch-Phonon QMC model.
 
