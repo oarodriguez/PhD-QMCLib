@@ -1,108 +1,13 @@
 from abc import ABCMeta, abstractmethod
-from collections import Mapping
-from enum import Enum
-from typing import NamedTuple, Type
-
-from my_research_libs.utils import strict_update
+from typing import NamedTuple
 
 __all__ = [
     'CoreFuncs',
     'CoreFuncsMeta',
     'Spec',
     'SpecMeta',
-    'SpecNT',
-    'ParamNameEnum',
-    'ParamsSet'
+    'SpecNT'
 ]
-
-
-class ParamNameEnum(str, Enum):
-    """Base class for parameter enumerations.
-
-    These parameters (the Enum elements) behave as strings. They can
-    be used directly as their ``value`` attribute. In addition, they
-    have a ``loc`` attribute that indicates the order in which they
-    where defined.
-    """
-
-    def __new__(cls, value):
-        """
-        :param value:
-        :return:
-        """
-        loc = len(cls.__members__)
-        param = super().__new__(cls, value)
-        param._loc_ = loc
-        return param
-
-    @property
-    def loc(self):
-        return self._loc_
-
-
-class ParamsSet(Mapping):
-    """Base class for parameters. Implements a read-only mapping
-    interface.
-    """
-    # Enum with the allowed parameters.
-    names: Type[Enum] = None
-
-    # Enum with the default values (if necessary) of the parameters.
-    defaults: Type[Enum] = None
-
-    # Names are important as they restrict the set of
-    # allowed parameters.
-    __slots__ = (
-        '_ord_names',
-        '_data',
-    )
-
-    def __init__(self, *args, **kwargs):
-        """
-
-        :param args:
-        :param kwargs:
-        """
-        self_names = self.names
-        if self_names is None:
-            raise TypeError("'names' attribute must not be None")
-        elif not issubclass(self_names, Enum):
-            raise TypeError("'names' attribute must be an enumeration")
-
-        defaults = self.defaults
-        if defaults is None:
-            ext_data = dict(*args, **kwargs)
-        else:
-            ext_data = {}
-            for default in defaults:
-                default_name = default.name
-                if default_name not in self_names.__members__:
-                    raise KeyError("unexpected default: "
-                                   "'{}'".format(default_name))
-                name = self_names[default_name]
-                default = defaults[name.name]
-                ext_data[name.value] = default.value
-            ext_data.update(*args, **kwargs)
-
-        ord_names = [name.value for name in self_names]
-        self_data = dict([(name.value, None) for name in self_names])
-        strict_update(self_data, ext_data, full=True)
-
-        # The order in which the mapping will be iterated.
-        self._ord_names = tuple(ord_names)
-        self._data = self_data
-
-    def __getitem__(self, name):
-        # Items come from the attributes.
-        return self._data[name]
-
-    def __len__(self):
-        """"""
-        return len(self._data)
-
-    def __iter__(self):
-        """"""
-        return iter(self._ord_names)
 
 
 class SpecNT(NamedTuple):
