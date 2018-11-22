@@ -10,8 +10,9 @@ from .. import vmc
 
 __all__ = [
     'CoreFuncs',
+    'Sampling',
     'TPFSpecNT',
-    'UTPFSpecNT'
+    'UTPFSpecNT',
 ]
 
 
@@ -35,7 +36,7 @@ class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
     move_spread: float
 
 
-class Spec(vmc.Spec):
+class Sampling(vmc.Sampling):
     """Spec for the VMC sampling of a Bijl-Jastrow model."""
 
     #: The spec of a concrete Jastrow model.
@@ -46,6 +47,7 @@ class Spec(vmc.Spec):
     ini_sys_conf: np.ndarray
     burn_in_samples: int
     rng_seed: int
+    core_funcs: 'CoreFuncs'
 
     @property
     def wf_spec_nt(self):
@@ -56,16 +58,6 @@ class Spec(vmc.Spec):
     def tpf_spec_nt(self):
         """"""
         return TPFSpecNT(self.model_spec.boson_number, self.time_step)
-
-    @property
-    def as_nt(self):
-        """"""
-        return vmc.SpecNT(self.wf_spec_nt,
-                          self.tpf_spec_nt,
-                          self.chain_samples,
-                          self.ini_sys_conf,
-                          self.burn_in_samples,
-                          self.rng_seed)
 
 
 class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):

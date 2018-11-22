@@ -12,7 +12,6 @@ from . import model
 
 __all__ = [
     'CoreFuncs',
-    'Spec',
     'Sampling',
     'TPFSpecNT',
     'UniformCoreFuncs',
@@ -46,7 +45,7 @@ class UTPFSpecNT(qmc_base.jastrow.vmc.UTPFSpecNT, NamedTuple):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class Spec(qmc_base.jastrow.vmc.Spec):
+class Sampling(qmc_base.jastrow.vmc.Sampling):
     """The spec of the VMC sampling."""
 
     model_spec: model.Spec
@@ -55,9 +54,13 @@ class Spec(qmc_base.jastrow.vmc.Spec):
     ini_sys_conf: np.ndarray
     burn_in_samples: int = 0
     rng_seed: int = None
+    core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
+        # NOTE: Should we use a new CoreFuncs instance?
+        super().__setattr__('core_funcs', core_funcs)
+
         if self.rng_seed is None:
             rng_seed = utils.get_random_rng_seed()
             super().__setattr__('rng_seed', rng_seed)
@@ -65,11 +68,11 @@ class Spec(qmc_base.jastrow.vmc.Spec):
     @property
     def tpf_spec_nt(self):
         """"""
-        boson_number = self.model_spec.boson_number
         sigma = sqrt(self.time_step)
+        boson_number = self.model_spec.boson_number
         z_min, z_max = self.model_spec.boundaries
-        return TPFSpecNT(boson_number, sigma=sigma, lower_bound=z_min,
-                         upper_bound=z_max)
+        return TPFSpecNT(boson_number, sigma=sigma,
+                         lower_bound=z_min, upper_bound=z_max)
 
 
 class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
@@ -148,16 +151,3 @@ class UniformCoreFuncs(CoreFuncs, qmc_base.vmc.UniformCoreFuncs):
 
 # Common reference to all the core functions.
 core_funcs = CoreFuncs()
-
-
-@attr.s(auto_attribs=True, frozen=True)
-class Sampling(qmc_base.vmc.Sampling):
-    """Realizes a VMC sampling using an iterable interface."""
-
-    spec: Spec
-    core_funcs: CoreFuncs = attr.ib(init=False, cmp=False, repr=False)
-
-    def __attrs_post_init__(self):
-        """Post initialization stage."""
-        # NOTE: Should we use a new CoreFuncs instance?
-        super().__setattr__('core_funcs', core_funcs)

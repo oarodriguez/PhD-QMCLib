@@ -22,7 +22,6 @@ __all__ = [
     'CoreFuncs',
     'CoreFuncsMeta',
     'RandDisplaceStat',
-    'Spec',
     'SpecNT',
     'TPFSpecNT',
     'UniformCoreFuncs',
@@ -106,10 +105,10 @@ class SamplingChainNT(NamedTuple):
     accept_rate: float
 
 
-class Spec(metaclass=ABCMeta):
-    """The parameters of a VMC sampling.
+class Sampling(Iterable, metaclass=ABCMeta):
+    """Realizes a VMC sampling.
 
-    Defines the parameters and related properties of a Variational Monte
+    Defines the parameters and methods to realize of a Variational Monte
     Carlo calculation.
     """
     __slots__ = ()
@@ -129,6 +128,9 @@ class Spec(metaclass=ABCMeta):
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: int
 
+    #: The core functions of the sampling.
+    core_funcs: 'CoreFuncs'
+
     @property
     @abstractmethod
     def wf_spec_nt(self):
@@ -142,10 +144,24 @@ class Spec(metaclass=ABCMeta):
         pass
 
     @property
-    @abstractmethod
-    def as_nt(self):
+    def spec_nt(self):
         """The spec of the VMC sampling functions as a named tuple."""
-        pass
+        return SpecNT(self.wf_spec_nt,
+                      self.tpf_spec_nt,
+                      self.chain_samples,
+                      self.ini_sys_conf,
+                      self.burn_in_samples,
+                      self.rng_seed)
+
+    def __iter__(self):
+        """Iterable interface."""
+        vmc_spec = self.spec_nt
+        return self.core_funcs.generator(*vmc_spec)
+
+    def as_chain(self):
+        """Returns the VMC sampling as an array object."""
+        sampling_spec = self.spec_nt
+        return self.core_funcs.as_chain(*sampling_spec)
 
 
 # noinspection PyUnusedLocal
@@ -418,25 +434,3 @@ class UniformCoreFuncs(CoreFuncs, metaclass=ABCMeta):
     def rand_displace(self):
         """Generates a random number from a uniform distribution."""
         return rand_displace_uniform
-
-
-class Sampling(Iterable, metaclass=ABCMeta):
-    """Realizes a VMC sampling using an iterable interface."""
-
-    #: The VMC spec object.
-    spec: Spec
-
-    #: The core functions of the sampling.
-    core_funcs: CoreFuncs
-
-    def __iter__(self):
-        """Iterable interface."""
-        vmc_spec = self.spec.as_nt
-        generator = self.core_funcs.generator
-        return generator(*vmc_spec)
-
-    def as_chain(self):
-        """Returns the VMC sampling as an array object."""
-        sampling_spec = self.spec.as_nt
-        _as_chain = self.core_funcs.as_chain
-        return _as_chain(*sampling_spec)

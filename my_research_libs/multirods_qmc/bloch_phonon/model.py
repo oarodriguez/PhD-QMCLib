@@ -1,5 +1,3 @@
-import operator
-from functools import reduce
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from typing import NamedTuple
 
@@ -293,14 +291,6 @@ class Spec(qmc_base.jastrow.Spec):
         obf_spec = self.obf_spec_nt
         tbf_spec = self.tbf_spec_nt
         return CFCSpecNT(self_spec, obf_spec, tbf_spec)
-
-    @property
-    def gufunc_args(self):
-        """Concatenate the :attr:`Spec.as_nt` tuples and returns
-        a single tuple. Intended to be used with generalized universal
-        functions (gufunc).
-        """
-        return reduce(operator.add, self.cfc_spec_nt)
 
 
 @jit(nopython=True, cache=True)
