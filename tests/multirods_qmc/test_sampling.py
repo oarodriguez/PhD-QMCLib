@@ -1,5 +1,3 @@
-from numba import jit
-
 from my_research_libs.multirods_qmc import bloch_phonon
 
 v0, r, gn = 100, 1, 1
@@ -14,31 +12,6 @@ spec_items = dict(lattice_depth=v0,
                   boson_number=nop,
                   supercell_size=sc_size,
                   tbf_contact_cutoff=rm)
-
-
-class WFGUFunc(bloch_phonon.ScalarGUPureFunc):
-    """"""
-    pass
-
-
-class EnergyGUFunc(bloch_phonon.ScalarGUFunc):
-    """"""
-
-    @property
-    def as_func_args(self):
-        """"""
-
-        @jit(nopython=True, cache=True)
-        def _as_func_args(func_params):
-            """"""
-            v0_ = func_params[0]
-            r_ = func_params[1]
-            gn_ = func_params[2]
-            func_args_0 = v0_, r_, gn_
-
-            return func_args_0,
-
-        return _as_func_args
 
 
 def test_base_sampling():
