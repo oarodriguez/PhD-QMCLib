@@ -16,8 +16,7 @@ __all__ = [
     'SpecMeta',
     'SpecNT',
     'ParamNameEnum',
-    'ParamsSet',
-    'QMCFuncsNames'
+    'ParamsSet'
 ]
 
 
@@ -226,35 +225,6 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
     @abstractmethod
     def structure_factor(self):
         pass
-
-
-# NOTE: What are the implications of mixing str and Enum?
-# NOTE: Do we need this enum?
-class QMCFuncsNames(str, Enum):
-    """`Enum` with the most common function names (possibly)
-    available in a Quantum Monte Carlo Kernel.
-    """
-
-    WF_ABS = 'wf_abs'
-    I_WF_ABS_LOG = 'ith_wf_abs_log'
-    WF_ABS_LOG = 'wf_abs_log'
-    D_WF_ABS_LOG_K_M = 'delta_wf_abs_log_kth_move'
-    D_I_DRIFT_K_M = 'delta_ith_drift_kth_move'
-
-    ADV_CFG = 'advance_conf_func'
-    ADV_DIFF_CFG = 'advance_diffuse_conf_func'
-
-    I_L_E = 'ith_energy'
-    L_E = 'energy'
-    I_L_E_DRIFT = 'ith_energy_and_drift'
-    L_E_DRIFT = 'energy_and_drift'
-
-    I_L_OBD = 'ith_one_body_density'
-    L_OBD = 'one_body_density'
-
-    L_SF = 'structure_factor'
-
-    L_TBC = 'two_body_correlation_func'
 
 
 class GUFuncMeta(ABCMeta):
