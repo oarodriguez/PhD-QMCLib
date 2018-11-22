@@ -1,5 +1,4 @@
 import operator
-from abc import ABCMeta
 from functools import reduce
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from typing import NamedTuple
@@ -15,14 +14,8 @@ from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
 
 __all__ = [
-    'ArrayGUFunc',
-    'ArrayGUPureFunc',
     'CoreFuncs',
-    'EnergyGUFunc',
-    'ScalarGUFunc',
-    'ScalarGUPureFunc',
     'Spec',
-    'WFGUFunc',
     'core_funcs'
 ]
 
@@ -521,129 +514,3 @@ class CoreFuncs(qmc_base.jastrow.CoreFuncs):
 # These functions are general: they accept the core func spec as an
 # argument.
 core_funcs = CoreFuncs()
-
-
-@jit(nopython=True, cache=True)
-def _as_model_args(model_full_params):
-    """Takes the model parameters from the array, and group them
-    in tuples. The constructed tuples are returned to the caller so
-    they an be user as arguments for a ``CoreFuncs`` function.
-    """
-    # TODO: Is there a better way to do this?
-    v0 = model_full_params[0]
-    r = model_full_params[1]
-    gn = model_full_params[2]
-    nop = model_full_params[3]
-    sc_size = model_full_params[4]
-    model_params = v0, r, gn, nop, sc_size
-
-    #
-    v0 = model_full_params[5]
-    r = model_full_params[6]
-    e0 = model_full_params[7]
-    k1 = model_full_params[8]
-    kp1 = model_full_params[9]
-    obf_params = v0, r, e0, k1, kp1
-
-    #
-    rm = model_full_params[10]
-    sc_size = model_full_params[11]
-    k2 = model_full_params[12]
-    beta = model_full_params[13]
-    r_off = model_full_params[14]
-    am = model_full_params[15]
-    tbf_params = rm, sc_size, k2, beta, r_off, am
-
-    # NOTICE: This way to access data may generate corrupted results.
-    # v0, r, gn, nop, sc_size = model_full_params[0:5]
-    # v0, r, e0, k1, kp1 = model_full_params[5:10]
-    # rm, scs, k2, beta, r_off, am = model_full_params[10:16]
-    #
-    return model_params, obf_params, tbf_params
-
-
-class ArrayGUFunc(qmc_base.jastrow.ArrayGUFunc, metaclass=ABCMeta):
-    """"""
-
-    signatures = ['void(f8[:,:],f8[:],f8[:],f8[:,:])']
-    layout = '(ns,nop),(p1),(p2)->(ns,nop)'
-
-    @cached_property
-    def as_model_args(self):
-        """Takes the model parameters from an array."""
-        return _as_model_args
-
-    def __init__(self, base_func, target=None):
-        """
-
-        :param base_func:
-        :param target:
-        """
-        super().__init__(base_func, target)
-
-
-class ScalarGUFunc(ArrayGUFunc, qmc_base.jastrow.ScalarGUFunc,
-                   metaclass=ABCMeta):
-    """"""
-    signatures = ['void(f8[:,:],f8[:],f8[:],f8[:])']
-    layout = '(ns,nop),(p1),(p2)->()'
-
-    def __init__(self, base_func, target=None):
-        """"""
-        super().__init__(base_func, target)
-
-
-class ArrayGUPureFunc(qmc_base.jastrow.ArrayGUPureFunc, metaclass=ABCMeta):
-    """"""
-
-    signatures = ['void(f8[:,:],f8[:],f8[:,:])']
-    layout = '(ns,nop),(p1)->(ns,nop)'
-
-    @cached_property
-    def as_model_args(self):
-        """"""
-        return _as_model_args
-
-    def __init__(self, base_func, target=None):
-        """
-
-        :param base_func:
-        :param target:
-        """
-        super().__init__(base_func, target)
-
-
-class ScalarGUPureFunc(ArrayGUPureFunc, qmc_base.jastrow.ScalarGUPureFunc,
-                       metaclass=ABCMeta):
-    """"""
-    signatures = ['void(f8[:,:],f8[:],f8[:])']
-    layout = '(ns,nop),(p1)->()'
-
-    def __init__(self, base_func, target=None):
-        """"""
-        super().__init__(base_func, target)
-
-
-class WFGUFunc(ScalarGUPureFunc):
-    """Generalized version of the wave function."""
-    pass
-
-
-class EnergyGUFunc(ScalarGUFunc):
-    """"""
-
-    @property
-    def as_func_args(self):
-        """"""
-
-        @jit(nopython=True, cache=True)
-        def _as_func_args(func_params):
-            """"""
-            v0_ = func_params[0]
-            r_ = func_params[1]
-            gn_ = func_params[2]
-            func_args_0 = v0_, r_, gn_
-
-            return func_args_0,
-
-        return _as_func_args
