@@ -50,9 +50,8 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
 
     model_spec: model.Spec
     time_step: float
-    chain_samples: int
+    num_steps: int
     ini_sys_conf: np.ndarray
-    burn_in_samples: int = 0
     rng_seed: int = None
     core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
 

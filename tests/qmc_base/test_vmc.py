@@ -37,9 +37,8 @@ class Sampling(vmc.Sampling):
     mu: float
     sigma: float
     time_step: float
-    chain_samples: int
+    num_steps: int
     ini_sys_conf: np.ndarray
-    burn_in_samples: int
     rng_seed: int
     core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
 
@@ -59,16 +58,6 @@ class Sampling(vmc.Sampling):
         """"""
         sigma = sqrt(self.time_step)
         return TPFSpecNT(self.dims, sigma)
-
-    @property
-    def spec_nt(self):
-        """"""
-        return vmc.SpecNT(self.wf_spec_nt,
-                          self.tpf_spec_nt,
-                          self.chain_samples,
-                          self.ini_sys_conf,
-                          self.burn_in_samples,
-                          self.rng_seed)
 
 
 def init_get_sys_conf(dims: int):
@@ -143,20 +132,18 @@ def test_core_funcs():
     dims, mu, sigma = 10, 1, 1
     wf_spec = WFSpecNT(dims, mu, sigma)
     tpf_spec = TPFSpecNT(dims, 0.15 * sigma)
-    chain_samples = 4096 * 64
-    burn_in_samples = 4096 * 32
+    num_steps = 4096 * 64
     ini_sys_conf = init_get_sys_conf(dims)
     spec_nt = vmc.SpecNT(wf_spec, tpf_spec,
-                         chain_samples=chain_samples,
+                         num_steps=num_steps,
                          ini_sys_conf=ini_sys_conf,
-                         burn_in_samples=burn_in_samples,
                          rng_seed=0)
 
     core_funcs = CoreFuncs()
     chain = core_funcs.as_chain(*spec_nt)
     sys_conf_chain = chain.sys_conf_chain
 
-    assert sys_conf_chain.shape == (chain_samples, dims)
+    assert sys_conf_chain.shape == (num_steps, dims)
 
     ax = pyplot.gca()
     ax.hist(sys_conf_chain[:, 0], bins=100)
@@ -170,19 +157,17 @@ def test_uniform_core_funcs():
     wf_spec = WFSpecNT(dims, mu, sigma)
     tpf_spec = UTPFSpecNT(dims, move_spread=0.5 * sigma)
     ini_sys_conf = np.random.random_sample(dims)
-    chain_samples = 4096 * 64
-    burn_in_samples = 4096 * 32
+    num_steps = 4096 * 64
 
     core_funcs = UniformCoreFuncs()
     spec_nt = vmc.SpecNT(wf_spec, tpf_spec,
-                         chain_samples=chain_samples,
+                         num_steps=num_steps,
                          ini_sys_conf=ini_sys_conf,
-                         burn_in_samples=burn_in_samples,
                          rng_seed=0)
     chain = core_funcs.as_chain(*spec_nt)
     sys_conf_chain = chain.sys_conf_chain
 
-    assert sys_conf_chain.shape == (chain_samples, dims)
+    assert sys_conf_chain.shape == (num_steps, dims)
 
     ax = pyplot.gca()
     ax.hist(sys_conf_chain[:, 0], bins=100)
@@ -192,27 +177,26 @@ def test_uniform_core_funcs():
 
 def test_sampling():
     """"""
-    dims, mu, sigma = 10, 1, 0.05
-    time_step = (0.5 * sigma) ** 2
+    dims, mu, sigma = 10, 1, 1
+    l_scale = sigma / 2
+    time_step = l_scale ** 2
     ini_sys_conf = init_get_sys_conf(dims)
-    ncs = 4096 * 64
-    bis = 4096
+    num_steps = 4096 * 64
     sampling = Sampling(dims, mu, sigma, time_step,
-                        chain_samples=ncs,
+                        num_steps=num_steps,
                         ini_sys_conf=ini_sys_conf,
-                        burn_in_samples=bis,
                         rng_seed=0)
 
     ar = 0
     for data in sampling:
         sys_conf, wfv, stat = data
         ar += stat
-    ar /= ncs
+    ar /= num_steps
 
     chain_data = sampling.as_chain()
     sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
 
-    assert sys_conf_chain.shape == (sampling.chain_samples, sampling.dims)
+    assert sys_conf_chain.shape == (sampling.num_steps, sampling.dims)
     assert ar == ar_
     print(f"Sampling acceptance rate: {ar:.5g}")
 

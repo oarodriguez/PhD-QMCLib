@@ -43,9 +43,8 @@ class Sampling(vmc.Sampling):
     model_spec: model.Spec
 
     time_step: float
-    chain_samples: int
+    num_steps: int
     ini_sys_conf: np.ndarray
-    burn_in_samples: int
     rng_seed: int
     core_funcs: 'CoreFuncs'
 

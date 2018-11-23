@@ -85,9 +85,8 @@ class SpecNT(NamedTuple):
     """The parameters to realize a sampling."""
     wf_spec: WFSpecNT
     tpf_spec: Union[TPFSpecNT, UTPFSpecNT]
-    chain_samples: int
+    num_steps: int
     ini_sys_conf: np.ndarray
-    burn_in_samples: int
     rng_seed: int
 
 
@@ -117,13 +116,10 @@ class Sampling(Iterable, metaclass=ABCMeta):
     time_step: float
 
     #: The number of samples to generate after the burn-in phase.
-    chain_samples: int
+    num_steps: int
 
     #: The initial configuration of the sampling.
     ini_sys_conf: np.ndarray
-
-    #: The number of samples to discard from the beginning of the chain.
-    burn_in_samples: int
 
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: int
@@ -148,9 +144,8 @@ class Sampling(Iterable, metaclass=ABCMeta):
         """The spec of the VMC sampling functions as a named tuple."""
         return SpecNT(self.wf_spec_nt,
                       self.tpf_spec_nt,
-                      self.chain_samples,
+                      self.num_steps,
                       self.ini_sys_conf,
-                      self.burn_in_samples,
                       self.rng_seed)
 
     def __iter__(self):
@@ -274,9 +269,8 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         @jit(nopython=True, cache=True, nogil=True)
         def _generator(wf_spec: WFSpecNT,
                        tpf_spec: Union[TPFSpecNT, UTPFSpecNT],
-                       chain_samples: int,
+                       num_steps: int,
                        ini_sys_conf: np.ndarray,
-                       burn_in_samples: int,
                        rng_seed: int):
             """VMC sampling generator.
 
@@ -290,25 +284,18 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             :param wf_spec: The parameters of the probability density function.
             :param tpf_spec: The parameters of the transition probability
                 function.
-            :param chain_samples: The number of samples of the Markov chain.
+            :param num_steps: The number of steps used for the sampling.
             :param ini_sys_conf: The initial configuration of the particles.
-            :param burn_in_samples: The number of samples to discard from the
-                beginning of the sampling.
             :param rng_seed: The seed used to generate the random numbers.
             """
 
             # Check for invalid parameters.
-            if not chain_samples >= 1:
-                raise ValueError('chain_samples must be nonzero and positive')
-            if not burn_in_samples >= 0:
-                raise ValueError('burn_in_samples must be zero or positive')
-
-            # Short names :)
-            ncs = chain_samples
-            bis = burn_in_samples
+            if not num_steps >= 1:
+                raise ValueError('num_steps must be nonzero and positive')
 
             # Avoid `Untyped global name error` when executing the code in a
             # multiprocessing pool.
+            # Short names :)
             rand = random.rand
             log = math.log
 
@@ -324,14 +311,13 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             actual_conf[:] = ini_sys_conf[:]
 
             # Initial value of the p.d.f. and loop
-            cj_ini, cj_end = 1, bis + ncs
+            cj_ini, cj_end = 1, num_steps
             wf_abs_log_actual = wf_abs_log(actual_conf, wf_spec)
 
-            if not bis:
-                # Yield initial value.
-                yield SamplingIterDataNT(actual_conf,
-                                         wf_abs_log_actual,
-                                         STAT_REJECTED)
+            # Yield initial value.
+            yield SamplingIterDataNT(actual_conf,
+                                     wf_abs_log_actual,
+                                     STAT_REJECTED)
 
             for cj_ in range(cj_ini, cj_end):
 
@@ -348,13 +334,10 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
                     wf_abs_log_actual = wf_abs_log_next
                     move_stat = STAT_ACCEPTED
 
-                if cj_ < bis:
-                    continue
-                else:
-                    # NOTICE: Using a tuple creates a performance hit?
-                    yield SamplingIterDataNT(actual_conf,
-                                             wf_abs_log_actual,
-                                             move_stat)
+                # NOTICE: Using a tuple creates a performance hit?
+                yield SamplingIterDataNT(actual_conf,
+                                         wf_abs_log_actual,
+                                         move_stat)
 
         return _generator
 
@@ -373,38 +356,33 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         @jit(nopython=True, cache=True, nogil=True)
         def _as_chain(wf_spec: WFSpecNT,
                       tpf_spec: Union[TPFSpecNT, UTPFSpecNT],
-                      chain_samples: int,
+                      num_steps: int,
                       ini_sys_conf: np.ndarray,
-                      burn_in_samples: int,
                       rng_seed: int):
             """Returns the VMC sampling as an array object.
 
             :param wf_spec: The parameters of the probability density function.
             :param tpf_spec: The parameters of the transition probability
                 function.
-            :param chain_samples: The number of samples of the Markov chain.
+            :param num_steps: The number of samples of the Markov chain.
             :param ini_sys_conf: The initial configuration of the particles.
-            :param burn_in_samples: The number of samples to discard from the
-                beginning of the sampling.
             :param rng_seed: The seed used to generate the random numbers.
             :return: An array with the Markov chain configurations, the values
                 of the p.d.f. and the acceptance rate.
             """
             # Check for invalid parameters.
             # NOTE: The same test is done in the generator 🤔.
-            if not chain_samples >= 1:
-                raise ValueError('chain_samples must be nonzero and positive')
-            if not burn_in_samples >= 0:
-                raise ValueError('burn_in_samples must be zero or positive')
+            if not num_steps >= 1:
+                raise ValueError('num_steps must be nonzero and positive')
 
             # TODO: What is better: allocate or pass a pre-allocated buffer?
-            mcs = (chain_samples,) + ini_sys_conf.shape
+            mcs = (num_steps,) + ini_sys_conf.shape
             sys_conf_chain = np.zeros(mcs, dtype=np.float64)
-            wf_abs_log_chain = np.zeros(chain_samples, dtype=np.float64)
+            wf_abs_log_chain = np.zeros(num_steps, dtype=np.float64)
             accepted = 0
 
-            sampling_iter = generator(wf_spec, tpf_spec, chain_samples,
-                                      ini_sys_conf, burn_in_samples, rng_seed)
+            sampling_iter = generator(wf_spec, tpf_spec, num_steps,
+                                      ini_sys_conf, rng_seed)
             for cj_, iter_values in enumerate(sampling_iter):
                 # Metropolis-Hastings iterator.
                 # TODO: Test use of next() function.
@@ -414,7 +392,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
                 accepted += move_stat
 
             # TODO: Should we account burnout and transient moves?
-            accept_rate = accepted / chain_samples
+            accept_rate = accepted / num_steps
             return SamplingChainNT(sys_conf_chain,
                                    wf_abs_log_chain,
                                    accept_rate)
