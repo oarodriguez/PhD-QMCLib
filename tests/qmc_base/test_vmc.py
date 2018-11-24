@@ -17,7 +17,7 @@ class WFSpecNT(NamedTuple):
     sigma: float
 
 
-class TPFSpecNT(vmc.TPFSpecNT, NamedTuple):
+class NTPFSpecNT(vmc.NTPFSpecNT, NamedTuple):
     """The gaussian, transition probability function parameters."""
     dims: int
     sigma: float
@@ -30,7 +30,7 @@ class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class Sampling(vmc.Sampling):
+class NormalSampling(vmc.NormalSampling):
     """A spec to sampling the multidimensional gaussian."""
 
     dims: int
@@ -45,7 +45,7 @@ class Sampling(vmc.Sampling):
     def __attrs_post_init__(self):
         """"""
         # NOTE: Should we use a new CoreFuncs instance?
-        core_funcs = CoreFuncs()
+        core_funcs = NormalCoreFuncs()
         super().__setattr__('core_funcs', core_funcs)
 
     @property
@@ -57,7 +57,7 @@ class Sampling(vmc.Sampling):
     def tpf_spec_nt(self):
         """"""
         sigma = sqrt(self.time_step)
-        return TPFSpecNT(self.dims, sigma)
+        return NTPFSpecNT(self.dims, sigma)
 
 
 def init_get_sys_conf(dims: int):
@@ -91,7 +91,7 @@ class CoreFuncs(vmc.CoreFuncs):
         @nb.jit(nopython=True)
         def _ith_sys_conf_ppf(i_: int, ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,
-                              tpf_spec: TPFSpecNT):
+                              tpf_spec: NTPFSpecNT):
             """"""
             z_i = ini_sys_conf[i_]
             rnd_spread = rand_displace(tpf_spec)
@@ -108,7 +108,7 @@ class CoreFuncs(vmc.CoreFuncs):
         @nb.jit(nopython=True)
         def _sys_conf_ppf(ini_sys_conf: np.ndarray,
                           prop_sys_conf: np.ndarray,
-                          tpf_spec: TPFSpecNT):
+                          tpf_spec: NTPFSpecNT):
             """Changes the current configuration of the system.
 
             :param ini_sys_conf: The current (initial) configuration.
@@ -122,7 +122,7 @@ class CoreFuncs(vmc.CoreFuncs):
         return _sys_conf_ppf
 
 
-class UniformCoreFuncs(CoreFuncs, vmc.UniformCoreFuncs):
+class NormalCoreFuncs(CoreFuncs, vmc.NormalCoreFuncs):
     """Functions to sample a multidimensional Gaussian pdf."""
     pass
 
@@ -131,7 +131,7 @@ def test_core_funcs():
     """"""
     dims, mu, sigma = 10, 1, 1
     wf_spec = WFSpecNT(dims, mu, sigma)
-    tpf_spec = TPFSpecNT(dims, 0.15 * sigma)
+    tpf_spec = UTPFSpecNT(dims, move_spread=0.5 * sigma)
     num_steps = 4096 * 64
     ini_sys_conf = init_get_sys_conf(dims)
     spec_nt = vmc.SpecNT(wf_spec, tpf_spec,
@@ -151,15 +151,15 @@ def test_core_funcs():
     print(chain)
 
 
-def test_uniform_core_funcs():
+def test_normal_core_funcs():
     """"""
     dims, mu, sigma = 10, 1, 1
     wf_spec = WFSpecNT(dims, mu, sigma)
-    tpf_spec = UTPFSpecNT(dims, move_spread=0.5 * sigma)
+    tpf_spec = NTPFSpecNT(dims, 0.15 * sigma)
     ini_sys_conf = np.random.random_sample(dims)
     num_steps = 4096 * 64
 
-    core_funcs = UniformCoreFuncs()
+    core_funcs = NormalCoreFuncs()
     spec_nt = vmc.SpecNT(wf_spec, tpf_spec,
                          num_steps=num_steps,
                          ini_sys_conf=ini_sys_conf,
@@ -175,17 +175,17 @@ def test_uniform_core_funcs():
     print(chain)
 
 
-def test_sampling():
+def test_normal_sampling():
     """"""
     dims, mu, sigma = 10, 1, 1
     l_scale = sigma / 2
     time_step = l_scale ** 2
     ini_sys_conf = init_get_sys_conf(dims)
     num_steps = 4096 * 64
-    sampling = Sampling(dims, mu, sigma, time_step,
-                        num_steps=num_steps,
-                        ini_sys_conf=ini_sys_conf,
-                        rng_seed=0)
+    sampling = NormalSampling(dims, mu, sigma, time_step,
+                              num_steps=num_steps,
+                              ini_sys_conf=ini_sys_conf,
+                              rng_seed=0)
 
     ar = 0
     for data in sampling:

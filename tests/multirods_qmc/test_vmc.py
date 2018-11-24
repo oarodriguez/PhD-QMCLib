@@ -1,3 +1,5 @@
+from matplotlib import pyplot
+
 from my_research_libs.multirods_qmc import bloch_phonon
 
 v0, r, gn = 100, 1, 1
@@ -21,11 +23,11 @@ def test_base_sampling():
     """
     # TODO: Improve this test.
     model_spec = bloch_phonon.Spec(**spec_items)
-    time_step = 0.025 ** 2
+    move_spread = 0.25 * model_spec.well_width
     num_steps = 4096 * 8
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
-                                             time_step=time_step,
+                                             move_spread=move_spread,
                                              num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
@@ -43,3 +45,10 @@ def test_base_sampling():
     assert ar == ar_
 
     print(f"Sampling acceptance rate: {ar:.5g}")
+    pos_slot = model_spec.sys_conf_slots.pos
+
+    ax = pyplot.gca()
+    pos = sys_conf_chain[:, pos_slot]
+    ax.hist(pos.flatten(), bins=5 * sc_size)
+    pyplot.show()
+    print(sys_conf_chain)

@@ -14,13 +14,14 @@ __all__ = [
     'CoreFuncs',
     'Sampling',
     'TPFSpecNT',
-    'UniformCoreFuncs',
+    'NormalCoreFuncs',
+    'NormalSampling',
     'UTPFSpecNT',
     'core_funcs'
 ]
 
 
-class TPFSpecNT(qmc_base.jastrow.vmc.TPFSpecNT, NamedTuple):
+class TPFSpecNT(qmc_base.jastrow.vmc.NTPFSpecNT, NamedTuple):
     """Parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -49,7 +50,7 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
     """The spec of the VMC sampling."""
 
     model_spec: model.Spec
-    time_step: float
+    move_spread: float
     num_steps: int
     ini_sys_conf: np.ndarray
     rng_seed: int = None
@@ -67,11 +68,11 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
     @property
     def tpf_spec_nt(self):
         """"""
-        sigma = sqrt(self.time_step)
+        move_spread = self.move_spread
         boson_number = self.model_spec.boson_number
         z_min, z_max = self.model_spec.boundaries
-        return TPFSpecNT(boson_number, sigma=sigma,
-                         lower_bound=z_min, upper_bound=z_max)
+        return UTPFSpecNT(boson_number, move_spread=move_spread,
+                          lower_bound=z_min, upper_bound=z_max)
 
 
 class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
@@ -79,7 +80,7 @@ class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
 
     The VMC sampling is subject to periodic boundary conditions due to the
     multi-rods external potential. The random numbers used in the calculation
-    are generated from a normal (gaussian) distribution function.
+    are generated from a uniform distribution function.
     """
 
     @property
@@ -138,15 +139,46 @@ class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
         return _ith_sys_conf_ppf
 
 
-class UniformCoreFuncs(CoreFuncs, qmc_base.vmc.UniformCoreFuncs):
+@attr.s(auto_attribs=True, frozen=True)
+class NormalSampling(qmc_base.jastrow.vmc.NormalSampling):
+    """The spec of the VMC sampling."""
+
+    model_spec: model.Spec
+    time_step: float
+    num_steps: int
+    ini_sys_conf: np.ndarray
+    rng_seed: int = None
+    core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
+
+    def __attrs_post_init__(self):
+        """Post-initialization stage."""
+        # NOTE: Should we use a new CoreFuncs instance?
+        super().__setattr__('core_funcs', normal_core_funcs)
+
+        if self.rng_seed is None:
+            rng_seed = utils.get_random_rng_seed()
+            super().__setattr__('rng_seed', rng_seed)
+
+    @property
+    def tpf_spec_nt(self):
+        """"""
+        sigma = sqrt(self.time_step)
+        boson_number = self.model_spec.boson_number
+        z_min, z_max = self.model_spec.boundaries
+        return TPFSpecNT(boson_number, sigma=sigma,
+                         lower_bound=z_min, upper_bound=z_max)
+
+
+class NormalCoreFuncs(CoreFuncs, qmc_base.vmc.NormalCoreFuncs):
     """The core functions to realize a VMC calculation.
 
     The VMC sampling is subject to periodic boundary conditions due to the
     multi-rods external potential. The random numbers used in the calculation
-    are generated from a uniform distribution function.
+    are generated from a normal (gaussian) distribution function.
     """
     pass
 
 
 # Common reference to all the core functions.
 core_funcs = CoreFuncs()
+normal_core_funcs = NormalCoreFuncs()

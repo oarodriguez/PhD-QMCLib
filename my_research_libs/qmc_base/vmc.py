@@ -21,10 +21,12 @@ from numpy import random as random
 __all__ = [
     'CoreFuncs',
     'CoreFuncsMeta',
+    'NormalSampling',
+    'NTPFSpecNT',
     'RandDisplaceStat',
+    'Sampling',
     'SpecNT',
-    'TPFSpecNT',
-    'UniformCoreFuncs',
+    'NormalCoreFuncs',
     'UTPFSpecNT',
     'WFSpecNT',
     'rand_displace_normal',
@@ -62,7 +64,7 @@ class WFSpecNT(NamedTuple):
     pass
 
 
-class TPFSpecNT(NamedTuple):
+class NTPFSpecNT(NamedTuple):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -84,7 +86,7 @@ class UTPFSpecNT(NamedTuple):
 class SpecNT(NamedTuple):
     """The parameters to realize a sampling."""
     wf_spec: WFSpecNT
-    tpf_spec: Union[TPFSpecNT, UTPFSpecNT]
+    tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]
     num_steps: int
     ini_sys_conf: np.ndarray
     rng_seed: int
@@ -108,7 +110,64 @@ class Sampling(Iterable, metaclass=ABCMeta):
     """Realizes a VMC sampling.
 
     Defines the parameters and methods to realize of a Variational Monte
-    Carlo calculation.
+    Carlo calculation. A uniform distribution is used to generate random
+    numbers.
+    """
+    __slots__ = ()
+
+    #: The spread magnitude of the random moves for the sampling.
+    move_spread: float
+
+    #: The number of samples to generate after the burn-in phase.
+    num_steps: int
+
+    #: The initial configuration of the sampling.
+    ini_sys_conf: np.ndarray
+
+    #: The seed of the pseudo-RNG used to explore the configuration space.
+    rng_seed: int
+
+    #: The core functions of the sampling.
+    core_funcs: 'NormalCoreFuncs'
+
+    @property
+    @abstractmethod
+    def wf_spec_nt(self):
+        """The parameters of the trial eave function."""
+        pass
+
+    @property
+    @abstractmethod
+    def tpf_spec_nt(self):
+        """The parameters of the transition probability function."""
+        pass
+
+    @property
+    def spec_nt(self):
+        """The spec of the VMC sampling functions as a named tuple."""
+        return SpecNT(self.wf_spec_nt,
+                      self.tpf_spec_nt,
+                      self.num_steps,
+                      self.ini_sys_conf,
+                      self.rng_seed)
+
+    def __iter__(self):
+        """Iterable interface."""
+        vmc_spec = self.spec_nt
+        return self.core_funcs.generator(*vmc_spec)
+
+    def as_chain(self):
+        """Returns the VMC sampling as an array object."""
+        sampling_spec = self.spec_nt
+        return self.core_funcs.as_chain(*sampling_spec)
+
+
+class NormalSampling(Iterable, metaclass=ABCMeta):
+    """Realizes a VMC sampling.
+
+    Defines the parameters and methods to realize of a Variational Monte
+    Carlo calculation. A normal distribution is used to generate random
+    numbers.
     """
     __slots__ = ()
 
@@ -168,7 +227,7 @@ def _wf_abs_log_stub(sys_conf: np.ndarray, spec: WFSpecNT) -> float:
 # noinspection PyUnusedLocal
 def _ith_sys_conf_tpf_stub(i_: int, ini_sys_conf: np.ndarray,
                            prop_sys_conf: np.ndarray,
-                           tpf_spec: Union[TPFSpecNT, UTPFSpecNT]) -> float:
+                           tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]) -> float:
     """Stub for the (i-th particle) transition probability function."""
     pass
 
@@ -176,13 +235,13 @@ def _ith_sys_conf_tpf_stub(i_: int, ini_sys_conf: np.ndarray,
 # noinspection PyUnusedLocal
 def _sys_conf_tpf_stub(ini_sys_conf: np.ndarray,
                        prop_sys_conf: np.ndarray,
-                       tpf_spec: Union[TPFSpecNT, UTPFSpecNT]):
+                       tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]):
     """Stub for the transition probability function."""
     pass
 
 
 @jit(nopython=True)
-def rand_displace_normal(tpf_spec: TPFSpecNT):
+def rand_displace_normal(tpf_spec: NTPFSpecNT):
     """Generates a random number from a normal distribution with
     zero mean and a a standard deviation ``ppf_spec.move_spread``.
     """
@@ -200,7 +259,7 @@ def rand_displace_normal(tpf_spec: TPFSpecNT):
     return normal(0, sigma)
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def rand_displace_uniform(tpf_spec: UTPFSpecNT):
     """Generates a random number from a uniform distribution.
 
@@ -227,8 +286,8 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
     """The core functions to realize a VMC sampling.
 
     These functions perform the sampling of the probability density of a QMC
-    model using the Metropolis-Hastings algorithm. A normal distribution
-    to generate random numbers.
+    model using the Metropolis-Hastings algorithm. A uniform distribution is
+    used to generate random numbers.
     """
 
     @property
@@ -240,7 +299,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
     @cached_property
     def rand_displace(self):
         """Generates a random number from a normal distribution."""
-        return rand_displace_normal
+        return rand_displace_uniform
 
     @property
     @abstractmethod
@@ -268,7 +327,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
 
         @jit(nopython=True, cache=True, nogil=True)
         def _generator(wf_spec: WFSpecNT,
-                       tpf_spec: Union[TPFSpecNT, UTPFSpecNT],
+                       tpf_spec: Union[NTPFSpecNT, UTPFSpecNT],
                        num_steps: int,
                        ini_sys_conf: np.ndarray,
                        rng_seed: int):
@@ -355,7 +414,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
 
         @jit(nopython=True, cache=True, nogil=True)
         def _as_chain(wf_spec: WFSpecNT,
-                      tpf_spec: Union[TPFSpecNT, UTPFSpecNT],
+                      tpf_spec: Union[NTPFSpecNT, UTPFSpecNT],
                       num_steps: int,
                       ini_sys_conf: np.ndarray,
                       rng_seed: int):
@@ -400,15 +459,15 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         return _as_chain
 
 
-class UniformCoreFuncs(CoreFuncs, metaclass=ABCMeta):
+class NormalCoreFuncs(CoreFuncs, metaclass=ABCMeta):
     """The core functions to realize a VMC sampling.
 
     These functions perform the sampling of the probability density of a QMC
-    model using the Metropolis-Hastings algorithm. A uniform distribution is
+    model using the Metropolis-Hastings algorithm. A normal distribution is
     used to generate random numbers.
     """
 
     @cached_property
     def rand_displace(self):
         """Generates a random number from a uniform distribution."""
-        return rand_displace_uniform
+        return rand_displace_normal

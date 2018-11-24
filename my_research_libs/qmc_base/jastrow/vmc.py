@@ -1,4 +1,5 @@
 from abc import ABCMeta
+from math import sqrt
 from typing import NamedTuple, Union
 
 import numpy as np
@@ -11,12 +12,13 @@ from .. import vmc
 __all__ = [
     'CoreFuncs',
     'Sampling',
-    'TPFSpecNT',
+    'NTPFSpecNT',
+    'NormalSampling',
     'UTPFSpecNT',
 ]
 
 
-class TPFSpecNT(vmc.TPFSpecNT, NamedTuple):
+class NTPFSpecNT(vmc.NTPFSpecNT, NamedTuple):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -42,6 +44,30 @@ class Sampling(vmc.Sampling):
     #: The spec of a concrete Jastrow model.
     model_spec: model.Spec
 
+    move_spread: float
+    num_steps: int
+    ini_sys_conf: np.ndarray
+    rng_seed: int
+    core_funcs: 'CoreFuncs'
+
+    @property
+    def wf_spec_nt(self):
+        """The trial wave function spec."""
+        return self.model_spec.cfc_spec_nt
+
+    @property
+    def tpf_spec_nt(self):
+        """"""
+        boson_number = self.model_spec.boson_number
+        return UTPFSpecNT(boson_number, self.move_spread)
+
+
+class NormalSampling(vmc.NormalSampling):
+    """Spec for the VMC sampling of a Bijl-Jastrow model."""
+
+    #: The spec of a concrete Jastrow model.
+    model_spec: model.Spec
+
     time_step: float
     num_steps: int
     ini_sys_conf: np.ndarray
@@ -56,7 +82,9 @@ class Sampling(vmc.Sampling):
     @property
     def tpf_spec_nt(self):
         """"""
-        return TPFSpecNT(self.model_spec.boson_number, self.time_step)
+        sigma = sqrt(self.time_step)
+        number = self.model_spec.boson_number
+        return NTPFSpecNT(number, sigma)
 
 
 class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
@@ -83,7 +111,7 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         def _ith_sys_conf_ppf(i_: int,
                               ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,
-                              tpf_spec: Union[TPFSpecNT, UTPFSpecNT]):
+                              tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]):
             """Move the i-nth particle of the current configuration of the
             system. The moves are displacements of the original position plus
             a term sampled from a uniform distribution.
@@ -112,7 +140,7 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         @jit(nopython=True, cache=True)
         def _sys_conf_ppf(ini_sys_conf: np.ndarray,
                           prop_sys_conf: np.ndarray,
-                          tpf_spec: Union[TPFSpecNT, UTPFSpecNT]):
+                          tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]):
             """Move the current configuration of the system.
 
             :param ini_sys_conf: The current (initial) configuration.
