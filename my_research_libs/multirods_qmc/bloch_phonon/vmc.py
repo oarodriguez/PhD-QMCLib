@@ -116,7 +116,7 @@ class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
         rand_displace = self.rand_displace
         recast = self.recast  # TODO: Use a better name, maybe?
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _ith_sys_conf_ppf(i_: int,
                               ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,

@@ -293,7 +293,7 @@ class Spec(qmc_base.jastrow.Spec):
         return CFCSpecNT(self_spec, obf_spec, tbf_spec)
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def _one_body_func(z: float, spec: OBFSpecNT) -> float:
     """One-body function.
 
@@ -318,7 +318,7 @@ def _one_body_func(z: float, spec: OBFSpecNT) -> float:
         return cf * cos(k1 * (z_cell - 0.5 * z_a))
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def _one_body_func_log_dz(z: float, spec: OBFSpecNT) -> float:
     """One-body function logarithmic derivative.
 
@@ -340,7 +340,7 @@ def _one_body_func_log_dz(z: float, spec: OBFSpecNT) -> float:
         return -k1 * tan(k1 * (z_cell - 0.5 * z_a))
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def _one_body_func_log_dz2(z: float, spec: OBFSpecNT) -> float:
     """One-body function second logarithmic derivative.
 
@@ -357,7 +357,7 @@ def _one_body_func_log_dz2(z: float, spec: OBFSpecNT) -> float:
     return v0 - e0 if z_a < z_cell else -e0
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def _two_body_func(rz: float, spec: TBFSpecNT) -> float:
     """Two-body function.
 
@@ -379,7 +379,7 @@ def _two_body_func(rz: float, spec: TBFSpecNT) -> float:
         return sin(pi * rz / sc_size) ** beta
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def _two_body_func_log_dz(rz: float, spec: TBFSpecNT) -> float:
     """Two-body function logarithmic derivative.
 
@@ -400,7 +400,7 @@ def _two_body_func_log_dz(rz: float, spec: TBFSpecNT) -> float:
         return (pi / sc_size) * beta / (tan(pi * rz / sc_size))
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def _two_body_func_log_dz2(rz: float, spec: TBFSpecNT) -> float:
     """Two-body function logarithmic derivative.
 
@@ -422,7 +422,7 @@ def _two_body_func_log_dz2(rz: float, spec: TBFSpecNT) -> float:
         )
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def _potential(z: float, spec: SpecNT) -> float:
     """Calculates the potential energy of the Bose gas due to the
      external potential.
@@ -438,7 +438,7 @@ def _potential(z: float, spec: SpecNT) -> float:
     return v0 if z_a < z_cell else 0.
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def _real_distance(z_i, z_j, model_spec: SpecNT):
     """The real distance between two bosons.
 

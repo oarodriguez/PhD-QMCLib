@@ -107,7 +107,7 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         pos_slot = int(self.sys_conf_slots.pos)
         rand_displace = self.rand_displace
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _ith_sys_conf_ppf(i_: int,
                               ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,
@@ -137,7 +137,7 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         """
         ith_sys_conf_tpf = self.ith_sys_conf_tpf
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _sys_conf_ppf(ini_sys_conf: np.ndarray,
                           prop_sys_conf: np.ndarray,
                           tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]):

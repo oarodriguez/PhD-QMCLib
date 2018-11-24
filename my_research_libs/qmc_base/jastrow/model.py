@@ -215,7 +215,7 @@ class CoreFuncs(model.CoreFuncs):
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _ith_wf_abs_log(i_: int, sys_conf: np.ndarray,
                             cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of bosons in
@@ -259,7 +259,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_wf_abs_log = self.ith_wf_abs_log
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _wf_abs_log(sys_conf: np.ndarray,
                         cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of bosons in
@@ -290,7 +290,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         wf_abs_log = self.wf_abs_log
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _wf_abs(sys_conf: np.ndarray,
                     cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of
@@ -317,7 +317,7 @@ class CoreFuncs(model.CoreFuncs):
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _delta_wf_abs_log_kth_move(k_: int,
                                        z_k_delta: float,
                                        sys_conf: np.ndarray,
@@ -381,7 +381,7 @@ class CoreFuncs(model.CoreFuncs):
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _ith_drift(i_: int,
                        sys_conf: np.ndarray,
                        cfc_spec: CFCSpecNT):
@@ -443,7 +443,7 @@ class CoreFuncs(model.CoreFuncs):
         drift_slot = int(self.sys_conf_slots.drift)
         ith_drift = self.ith_drift
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _drift(sys_conf: np.ndarray,
                    cfc_spec: CFCSpecNT,
                    result: np.ndarray = None):
@@ -480,7 +480,7 @@ class CoreFuncs(model.CoreFuncs):
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _delta_ith_drift_kth_move(i_: int, k_: int,
                                       z_k_delta: float,
                                       sys_conf: np.ndarray,
@@ -580,7 +580,7 @@ class CoreFuncs(model.CoreFuncs):
         one_body_func_log_dz2 = self.one_body_func_log_dz2
         two_body_func_log_dz2 = self.two_body_func_log_dz2
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _ith_energy(i_: int,
                         sys_conf: np.ndarray,
                         cfc_spec: CFCSpecNT):
@@ -654,7 +654,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_energy = self.ith_energy
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _energy(sys_conf: np.ndarray,
                     cfc_spec: CFCSpecNT):
             """
@@ -686,7 +686,7 @@ class CoreFuncs(model.CoreFuncs):
         one_body_func_log_dz2 = self.one_body_func_log_dz2
         two_body_func_log_dz2 = self.two_body_func_log_dz2
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _ith_energy_and_drift(i_: int,
                                   sys_conf: np.ndarray,
                                   cfc_spec: CFCSpecNT):
@@ -762,7 +762,7 @@ class CoreFuncs(model.CoreFuncs):
         energy_slot = int(self.sys_conf_slots.energy)
         ith_energy_and_drift = self.ith_energy_and_drift
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _energy_and_drift(sys_conf: np.ndarray,
                               cfc_spec: CFCSpecNT,
                               result):
@@ -795,7 +795,7 @@ class CoreFuncs(model.CoreFuncs):
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _ith_one_body_density(i_: int,
                                   sz: float,
                                   sys_conf: np.ndarray,
@@ -865,7 +865,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_one_body_density = self.ith_one_body_density
 
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _one_body_density(sz: float,
                               sys_conf: np.ndarray,
                               cfc_spec: CFCSpecNT):
@@ -895,7 +895,7 @@ class CoreFuncs(model.CoreFuncs):
         pos_slot = int(self.sys_conf_slots.pos)
 
         # noinspection PyUnusedLocal
-        @jit(nopython=True, cache=True)
+        @jit(nopython=True)
         def _structure_factor(kz: float,
                               sys_conf: np.ndarray,
                               cfc_spec: CFCSpecNT):

@@ -325,7 +325,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         wf_abs_log = self.wf_abs_log
         sys_conf_tpf = self.sys_conf_tpf
 
-        @jit(nopython=True, cache=True, nogil=True)
+        @jit(nopython=True, nogil=True)
         def _generator(wf_spec: WFSpecNT,
                        tpf_spec: Union[NTPFSpecNT, UTPFSpecNT],
                        num_steps: int,
@@ -412,7 +412,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         """
         generator = self.generator
 
-        @jit(nopython=True, cache=True, nogil=True)
+        @jit(nopython=True, nogil=True)
         def _as_chain(wf_spec: WFSpecNT,
                       tpf_spec: Union[NTPFSpecNT, UTPFSpecNT],
                       num_steps: int,
