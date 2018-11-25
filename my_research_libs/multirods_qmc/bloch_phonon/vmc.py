@@ -1,5 +1,5 @@
 from math import sqrt
-from typing import NamedTuple, Union
+from typing import NamedTuple, Optional, Union
 
 import attr
 import numpy as np
@@ -52,8 +52,8 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
     model_spec: model.Spec
     move_spread: float
     num_steps: int
-    ini_sys_conf: np.ndarray
-    rng_seed: int = None
+    ini_sys_conf: np.ndarray = attr.ib(cmp=False)
+    rng_seed: Optional[int] = attr.ib(cmp=False, default=None)
     core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
 
     def __attrs_post_init__(self):
@@ -146,8 +146,8 @@ class NormalSampling(qmc_base.jastrow.vmc.NormalSampling):
     model_spec: model.Spec
     time_step: float
     num_steps: int
-    ini_sys_conf: np.ndarray
-    rng_seed: int = None
+    ini_sys_conf: np.ndarray = attr.ib(cmp=False)
+    rng_seed: Optional[int] = attr.ib(cmp=False, default=None)
     core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
 
     def __attrs_post_init__(self):
