@@ -3,8 +3,8 @@ from matplotlib import pyplot
 from my_research_libs.multirods_qmc import bloch_phonon
 
 v0, r, gn = 100, 1, 1
-nop = 100
-sc_size = 100
+nop = 10
+sc_size = 10
 rm = .25 * sc_size
 
 # Well-formed parameters.
@@ -24,7 +24,7 @@ def test_base_sampling():
     # TODO: Improve this test.
     model_spec = bloch_phonon.Spec(**spec_items)
     move_spread = 0.25 * model_spec.well_width
-    num_steps = 4096 * 8
+    num_steps = 4096 * 128
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
@@ -49,6 +49,6 @@ def test_base_sampling():
 
     ax = pyplot.gca()
     pos = sys_conf_chain[:, pos_slot]
-    ax.hist(pos.flatten(), bins=5 * sc_size)
+    ax.hist(pos.flatten(), bins=20 * sc_size)
     pyplot.show()
     print(sys_conf_chain)
