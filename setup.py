@@ -1,49 +1,48 @@
 """
-    PhDThesis-Lib
-    ~~~~~~~~~~~~~
+    MyResearch-Libs
+    ~~~~~~~~~~~~~~~
 
-    A library to estimate and analyse the physical properties of
-    an interacting quantum many-body Bose gas within a multi-rods
-    structure. It implements the following methods:
+    A collection of libraries to estimate the physical properties of an
+    interacting, quantum many-body system. These libraries are part of
+    my doctoral research.
 
-    * Mean-field theory, based on the solutions of the
-      Gross-Pitaevskii equation.
-    * Variational an Diffusion Monte Carlo approaches.
-
-    It's written in pure Python. It uses `Numba <http://numba.pydata.org/>`_
-    to accelerate performance-critical routines that execute CPU-intensive
-    calculations, as well as `Dask <http://dask.pydata.org/en/latest/>`_
-    to distribute and handle the asynchronous execution of several
-    tasks in parallel. The library is released under the BSD-3 License.
+    The source code it's written in pure Python. It uses
+    `Numba <http://numba.pydata.org/>`_ to accelerate performance-critical
+    routines that execute CPU-intensive calculations, as well as
+    `Dask <http://dask.pydata.org/en/latest/>`_ to distribute and handle
+    the asynchronous execution of several tasks in parallel. The library
+    is released under the BSD-3 License.
 """
 
 from setuptools import setup
 
+DESCRIPTION = 'A collection of libraries to estimate ' \
+              'the physical properties of an interacting, quantum ' \
+              'many-body system.'
+
 setup(
-        name='Ph.D. Thesis Code Library',
+        name='Ph.D. Thesis Code Libraries',
         version='0.3.0',
-        url='https://bitbucket.org/oarodriguez/phdthesis-lib',
+        url='https://bitbucket.org/oarodriguez/myresearch-libs/',
         packages=[
-            'thesis_lib',
-            'thesis_lib.qmc_lib',
-            'thesis_lib.multirods_qmc'
+            'my_research_libs',
+            'my_research_libs.qmc_base',
+            'my_research_libs.multirods_qmc'
         ],
         license='BSD-3',
         author='Omar Abel Rodríguez-López',
         author_email='oarodriguez.mx@gmail.com',
-        description='A library to estimate and analyse the physical '
-                    'properties of an interacting quantum many-body '
-                    'Bose gas within a multi-rods structure.',
+        description=DESCRIPTION,
         long_description=__doc__,
         include_package_data=True,
         zip_safe=False,
         platforms='any',
-        python_requires='>=3.6',
+        python_requires='>=3.6.1',
         install_requires=[
-            'numpy>=0.10',
-            'scipy>=0.17.0',
+            'numpy>=1.10',
+            'scipy>=1.0',
             'matplotlib>=2.2',
-            'numba>=0.35',
+            'numba>=0.39',
             'h5py>=2.5.0',
             'pytables>=3.4',
             'mpmath>=1.0',
@@ -54,7 +53,10 @@ setup(
             'distributed>=1.2',
             'PyYAML>=3.10',
             'jinja2>=2.10',
-            'decorator'
+            'decorator>=4.2',
+            'pytest>=3.4',
+            'gmpy2>=2.0',
+            'attrs>=18.0'
         ],
         classifiers=[
             'Development Status :: 3 - Alpha',

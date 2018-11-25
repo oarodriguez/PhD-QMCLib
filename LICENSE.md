@@ -1,4 +1,4 @@
-# Ph.D. Thesis Code Library
+# My Research Libraries
 
 Copyright (c) 2018, Omar Abel Rodríguez-López.
 All rights reserved.
