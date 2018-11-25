@@ -5,7 +5,7 @@ from typing import ClassVar, NamedTuple
 
 import numpy as np
 from cached_property import cached_property
-from numba import jit
+from numba import guvectorize, jit
 
 from .. import model
 from ..utils import sign
@@ -14,6 +14,7 @@ __all__ = [
     'CFCSpecNT',
     'CoreFuncs',
     'OBFSpecNT',
+    'PhysicalFuncs',
     'Spec',
     'SpecNT',
     'TBFSpecNT',
@@ -90,6 +91,9 @@ class Spec(model.Spec):
 
     #: The size of the QMC simulation box.
     supercell_size: float
+
+    #: Functions to calculate the main physical properties of a model.
+    phys_funcs: 'PhysicalFuncs'
 
     #: The slots of the system configuration array.
     sys_conf_slots: ClassVar = SysConfSlot
@@ -917,5 +921,114 @@ class CoreFuncs(model.CoreFuncs):
                 s_sin += sin(kz * z_i)
 
             return s_cos ** 2 + s_sin ** 2
+
+        return _structure_factor
+
+
+class PhysicalFuncs(model.PhysicalFuncs):
+    """Functions to calculate the main physical properties of a model."""
+
+    #: The model spec these functions correspond to.
+    spec: Spec
+
+    #: The core functions of the model.
+    core_funcs: CoreFuncs
+
+    @cached_property
+    def wf_abs_log(self):
+        """Logarithm of the absolute value fo the trial wave function."""
+
+        # These functions are compiled for the instance model spec. Therefore,
+        # the spec.cfc_spec_nt attribute becomes a compile-time constant and
+        # the functions depend only on the configuration of the particles of
+        # the system, and possibly on other quantities with physical
+        # significance but otherwise independent to the model.
+        cfc_spec_nt = self.spec.cfc_spec_nt
+        __wf_abs_log = self.core_funcs.wf_abs_log
+        signatures = ['(f8[:,:],f8[:])']
+        layout = '(ns,nop)->()'
+
+        # noinspection PyTypeChecker
+        @guvectorize(signatures, layout, nopython=True, target='parallel')
+        def _wf_abs_log(sys_conf: np.ndarray,
+                        result: np.ndarray) -> np.ndarray:
+            """
+
+            :param sys_conf:
+            :param result:
+            :return:
+            """
+            result[0] = __wf_abs_log(sys_conf, cfc_spec_nt)
+
+        return _wf_abs_log
+
+    @cached_property
+    def energy(self):
+        """Local energy."""
+
+        cfc_spec_nt = self.spec.cfc_spec_nt
+        __energy = self.core_funcs.energy
+        signatures = ['(f8[:,:],f8[:])']
+        layout = '(ns,nop)->()'
+
+        # noinspection PyTypeChecker
+        @guvectorize(signatures, layout, nopython=True, target='parallel')
+        def _energy(sys_conf: np.ndarray, result: np.ndarray) -> np.ndarray:
+            """
+
+            :param sys_conf:
+            :param result:
+            :return:
+            """
+            result[0] = __energy(sys_conf, cfc_spec_nt)
+
+        return _energy
+
+    @property
+    def one_body_density(self):
+        """One-body density matrix."""
+
+        cfc_spec_nt = self.spec.cfc_spec_nt
+        __one_body_density = self.core_funcs.one_body_density
+        signatures = ['(f8[:],f8[:,:],f8[:])']
+        layout = '(),(ns,nop)->()'
+
+        # noinspection PyTypeChecker
+        @guvectorize(signatures, layout, nopython=True, target='parallel')
+        def _one_body_density(sz: float, sys_conf: np.ndarray,
+                              result: np.ndarray) -> np.ndarray:
+            """
+
+            :param sz:
+            :param sys_conf:
+            :param result:
+            :return:
+            """
+            result[0] = __one_body_density(sz, sys_conf, cfc_spec_nt)
+
+        return _one_body_density
+
+    @cached_property
+    def structure_factor(self):
+        """Static structure factor."""
+
+        cfc_spec_nt = self.spec.cfc_spec_nt
+        __structure_factor = self.core_funcs.structure_factor
+        signatures = ['(f8[:],f8[:,:],f8[:])']
+        layout = '(),(ns,nop)->()'
+
+        # noinspection PyTypeChecker
+        @guvectorize(signatures, layout, nopython=True, target='parallel')
+        def _structure_factor(kz: float,
+                              sys_conf: np.ndarray,
+                              result: np.ndarray) -> np.ndarray:
+            """
+
+            :param kz:
+            :param sys_conf:
+            :param result:
+            :return:
+            """
+            result[0] = __structure_factor(kz, sys_conf, cfc_spec_nt)
 
         return _structure_factor
