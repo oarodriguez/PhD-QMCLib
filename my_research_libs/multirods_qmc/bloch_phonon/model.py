@@ -633,6 +633,20 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
         func_bounds = [(sc_size_lower_bound, sc_size_upper_bound)]
         return func_bounds
 
+    @property
+    def dask_config(self):
+        """Updates the ``dask`` configuration and returns the object.
+
+        The config object is updated to honor the optimizer attributes
+        ``num_workers`` and ``use_threads``.
+
+        :return: The updated ``dask`` configuration object.
+        """
+        num_workers = self.num_workers
+        use_threads = self.use_threads
+        scheduler = 'threads' if use_threads else 'processes'
+        return dask.config.set(scheduler=scheduler, num_workers=num_workers)
+
     def exec(self):
         """Starts the variance minimization process.
 
@@ -641,11 +655,8 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
             i.e., that optimizes the trial wave function.
         """
         verbose = self.verbose
-        num_workers = self.num_workers
-        use_threads = self.use_threads
         bounds = self.principal_function_bounds
-        scheduler = 'threads' if use_threads else 'processes'
-        with dask.config.set(scheduler=scheduler, num_workers=num_workers):
+        with self.dask_config:
             # Realize the minimization process.
             opt_params = differential_evolution(self.principal_function,
                                                 bounds=bounds, disp=verbose)
