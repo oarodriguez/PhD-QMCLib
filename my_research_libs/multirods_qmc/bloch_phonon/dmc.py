@@ -93,7 +93,8 @@ class Sampling(qmc_base.dmc.Sampling):
 
         return State(state_confs, state_props, num_walkers, max_num_walkers)
 
-    def __iter__(self):
+    def __iter__(self) -> \
+            t.Generator[qmc_base.dmc.SamplingIterData, t.Any, None]:
         """Iterable interface."""
 
         # Initial

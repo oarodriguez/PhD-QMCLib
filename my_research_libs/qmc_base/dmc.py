@@ -451,14 +451,75 @@ class CoreFuncs(metaclass=ABCMeta):
         pass
 
     @cached_property
+    def prepare_ini_iter_data(self):
+        """Gets the initial state data as a one-element sampling batch."""
+
+        props_energy_field = StateProp.ENERGY.value
+        props_weight_field = StateProp.WEIGHT.value
+
+        iter_energy_field = IterProp.ENERGY.value
+        iter_weight_field = IterProp.WEIGHT.value
+        iter_num_walkers_field = IterProp.NUM_WALKERS.value
+        iter_ref_energy_field = IterProp.REF_ENERGY.value
+
+        @nb.jit(nopython=True)
+        def _prepare_ini_iter_data(ini_state: State,
+                                   ini_ref_energy: float):
+            """Gets the initial state data as a one-element sampling batch.
+
+            :param ini_state: The initial state.
+            :param ini_ref_energy: The initial energy of reference.
+            :return: the initial state data as a one-element sampling batch.
+            """
+            # Initial state iter properties.
+            ini_state_confs = ini_state.confs
+            ini_state_props = ini_state.props
+            ini_num_walkers = ini_state.num_walkers
+
+            # The initial iter properties.
+            ini_ipb_shape = (1,)
+            ini_iter_props_array = \
+                np.zeros(ini_ipb_shape, dtype=iter_props_dtype)
+
+            is_energies = ini_state_props[props_energy_field]
+            is_weights = ini_state_props[props_weight_field]
+
+            iter_energies = ini_iter_props_array[iter_energy_field]
+            iter_weights = ini_iter_props_array[iter_weight_field]
+            iter_num_walkers = ini_iter_props_array[iter_num_walkers_field]
+            iter_ref_energies = ini_iter_props_array[iter_ref_energy_field]
+
+            inw = ini_num_walkers
+            ini_energy = (is_energies[:inw] * is_weights[:inw]).sum()
+            ini_weight = is_weights[:inw].sum()
+
+            iter_energies[0] = ini_energy
+            iter_weights[0] = ini_weight
+            iter_num_walkers[0] = ini_num_walkers
+            iter_ref_energies[0] = ini_ref_energy
+
+            # The one-element batch.
+            ini_scb_shape = ini_ipb_shape + ini_state_confs.shape
+            ini_spb_shape = ini_ipb_shape + ini_state_props.shape
+            ini_states_confs_array = ini_state_confs.reshape(ini_scb_shape)
+            ini_states_props_array = ini_state_props.reshape(ini_spb_shape)
+
+            return SamplingIterData(ini_states_confs_array,
+                                    ini_states_props_array,
+                                    ini_iter_props_array)
+
+        return _prepare_ini_iter_data
+
+    @cached_property
     def generator(self):
         """
 
         :return:
         """
         evolve_states_batch = self.evolve_states_batch
+        prepare_ini_iter_data = self.prepare_ini_iter_data
 
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, nogil=True)
         def _generator(time_step: float,
                        num_batches: int,
                        num_time_steps_batch: int,
@@ -508,6 +569,9 @@ class CoreFuncs(metaclass=ABCMeta):
 
             # Seed the numba RNG.
             random.seed(rng_seed)
+
+            # We yield the initial state iter properties.
+            yield prepare_ini_iter_data(ini_state, ini_ref_energy)
 
             # Limits of the sampling.
             nbj_ini, nbj_end = 0, num_batches
