@@ -27,6 +27,7 @@ state_confs_dtype = np.float64
 state_props_dtype = np.dtype([
     (StateProp.ENERGY.value, np.float64),
     (StateProp.WEIGHT.value, np.float64),
+    (StateProp.MASK.value, np.bool)
 ])
 
 
@@ -323,6 +324,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         state_props_fields = qmc_base.dmc.StateProp
         energy_field = state_props_fields.ENERGY.value
         weight_field = state_props_fields.WEIGHT.value
+        mask_field = state_props_fields.MASK.value
 
         # JIT functions.
         prepare_ini_ith_system = self.prepare_ini_ith_system
@@ -341,10 +343,17 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             ini_num_walkers = len(ini_sys_conf_set)
             state_energy = state_props[energy_field]
             state_weight = state_props[weight_field]
+            state_mask = state_props[mask_field]
+
+            # Initialize the mask.
+            state_mask[:] = True
 
             for sys_idx in nb.prange(ini_num_walkers):
                 # Prepare each one of the configurations of the state.
                 prepare_ini_ith_system(sys_idx, state_confs, state_energy,
                                        state_weight, ini_sys_conf_set)
+
+                # Unmask this walker.
+                state_mask[sys_idx] = False
 
         return _prepare_ini_state

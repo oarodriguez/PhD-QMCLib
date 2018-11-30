@@ -228,6 +228,7 @@ class CoreFuncs(metaclass=ABCMeta):
         """
         props_energy_field = StateProp.ENERGY.value
         props_weight_field = StateProp.WEIGHT.value
+        props_mask_field = StateProp.MASK.value
 
         branch_factor_field = BranchingSpecField.CLONING_FACTOR.value
         branch_ref_field = BranchingSpecField.CLONING_REF.value
@@ -274,12 +275,17 @@ class CoreFuncs(metaclass=ABCMeta):
             next_state_weights = next_state_props[props_weight_field]
             aux_state_weights = aux_state_props[props_weight_field]
 
+            next_state_masks = next_state_props[props_mask_field]
+
             cloning_factors = branching_spec[branch_factor_field]
             cloning_refs = branching_spec[branch_ref_field]
 
             # Total energy and weight of the next configuration.
             state_energy = 0.
             state_weight = 0.
+
+            # Initially, mask all the configurations.
+            next_state_masks[:] = True
 
             # Diffusion process (parallel).
             for sys_idx in nb.prange(actual_num_walkers):
@@ -320,8 +326,10 @@ class CoreFuncs(metaclass=ABCMeta):
                 next_state_energies[sys_idx] = aux_state_energies[ref_idx]
 
                 # Basic algorithm of branching gives a unit weight to each
-                # new walker. We set the value here.
+                # new walker. We set the value here. In addition, we unmask
+                # the walker, i.e., we mark it as valid.
                 next_state_weights[sys_idx] = 1.0
+                next_state_masks[sys_idx] = False
 
             return EvoStateResult(state_energy, state_weight, num_walkers)
 
