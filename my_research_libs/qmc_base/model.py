@@ -178,11 +178,11 @@ class WFOptimizer(metaclass=ABCMeta):
     #: The system configurations used for the minimization process.
     sys_conf_set: np.ndarray
 
+    #: The initial wave function values. Used to calculate the weights.
+    ini_wf_abs_log_set: np.ndarray
+
     #: The energy of reference to minimize the variance of the local energy.
     ref_energy: Optional[float]
-
-    #: The initial wave function values. Used to calculate the weights.
-    ini_wf_abs_log_set: Optional[np.ndarray]
 
     @abstractmethod
     def update_spec(self, *args, **kwargs):

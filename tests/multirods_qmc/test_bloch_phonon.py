@@ -152,10 +152,9 @@ def test_wf_optimize():
     sys_conf_set = vmc_chain.sys_conf_chain[:1000]
     wf_abs_log_set = vmc_chain.wf_abs_log_chain[:1000]
 
-    cswf_optimizer = \
-        bloch_phonon.CSWFOptimizer(model_spec, sys_conf_set,
-                                   ini_wf_abs_log_set=wf_abs_log_set,
-                                   num_workers=2, log=True)
+    cswf_optimizer = bloch_phonon.CSWFOptimizer(model_spec, sys_conf_set,
+                                                wf_abs_log_set, num_workers=2,
+                                                verbose=True)
     opt_model_spec = cswf_optimizer.exec()
 
     print("Optimized model spec:")

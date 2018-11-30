@@ -551,11 +551,11 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
     #: The system configurations used for the minimization process.
     sys_conf_set: np.ndarray = attr.ib(cmp=False)
 
+    #: The initial wave function values. Used to calculate the weights.
+    ini_wf_abs_log_set: np.ndarray = attr.ib(cmp=False)
+
     #: The energy of reference to minimize the variance of the local energy.
     ref_energy: Optional[float] = attr.ib(cmp=False, default=None)
-
-    #: The initial wave function values. Used to calculate the weights.
-    ini_wf_abs_log_set: Optional[np.ndarray] = attr.ib(cmp=False, default=None)
 
     #: Use threads or multiple process.
     use_threads: bool = attr.ib(default=True, cmp=False)
@@ -564,7 +564,7 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
     num_workers: int = attr.ib(default=cpu_count(), cmp=False)
 
     #: Display log messages or not.
-    log: bool = attr.ib(default=False, cmp=False)
+    verbose: bool = attr.ib(default=False, cmp=False)
 
     #: The system configurations as a dak bag.
     sys_conf_set_db: db.Bag = attr.ib(init=False, cmp=False, repr=False)
@@ -640,8 +640,7 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
             ``tbf_contact_cutoff`` parameter that minimizes the variance,
             i.e., that optimizes the trial wave function.
         """
-
-        log = self.log
+        verbose = self.verbose
         num_workers = self.num_workers
         use_threads = self.use_threads
         bounds = self.principal_function_bounds
@@ -649,7 +648,7 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
         with dask.config.set(scheduler=scheduler, num_workers=num_workers):
             # Realize the minimization process.
             opt_params = differential_evolution(self.principal_function,
-                                                bounds=bounds, disp=log)
+                                                bounds=bounds, disp=verbose)
 
         opt_tbf_contact_cutoff, = opt_params.x
         return self.update_spec(opt_tbf_contact_cutoff)
