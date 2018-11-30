@@ -270,10 +270,8 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
     @cached_property
     def prepare_ini_ith_system(self):
-        """
+        """Prepare a system of the initial state of the sampling."""
 
-        :return:
-        """
         model_spec = self.model_spec
         nop = model_spec.boson_number
         cfc_spec = model_spec.cfc_spec_nt
@@ -319,10 +317,8 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
     @cached_property
     def prepare_ini_state(self):
-        """
+        """Prepare the initial state of the sampling. """
 
-        :return:
-        """
         # Fields
         state_props_fields = qmc_base.dmc.StateProp
         energy_field = state_props_fields.ENERGY.value

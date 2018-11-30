@@ -300,7 +300,8 @@ class CoreFuncs(metaclass=ABCMeta):
                 clone_factor = int(sys_weight + random.rand())
                 cloning_factors[sys_idx] = clone_factor
 
-                # Basic algorithm of branch and rebirth gives a unit
+                # Basic algorithm of branch and rebirth gives a unit weight.
+                # NOTE: Should we multiply by branch_factor instead?
                 state_energy += sys_energy * sys_weight
                 state_weight += sys_weight
 
@@ -349,7 +350,11 @@ class CoreFuncs(metaclass=ABCMeta):
                                  states_confs_array: np.ndarray,
                                  states_props_array: np.ndarray,
                                  iter_props_array: np.ndarray):
-            """
+            """Realizes the DMC sampling in batches.
+
+            The sampling is done in batches, with each batch having a fixed
+            number of time steps given by the ``num_time_steps_batch``
+            argument.
 
             :param ini_state_confs:
             :param ini_state_props:
