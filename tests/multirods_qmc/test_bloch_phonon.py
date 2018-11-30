@@ -123,3 +123,40 @@ def test_vmc():
     ax.hist(pos.flatten(), bins=20 * supercell_size)
     pyplot.show()
     print(sys_conf_chain)
+
+
+def test_wf_optimize():
+    """Testing of the wave function optimization process."""
+
+    boson_number = 50
+    supercell_size = 50
+    tbf_contact_cutoff = 0.25 * supercell_size
+
+    # TODO: Improve this test.
+    model_spec = bloch_phonon.Spec(lattice_depth=LATTICE_DEPTH,
+                                   lattice_ratio=LATTICE_RATIO,
+                                   interaction_strength=INTERACTION_STRENGTH,
+                                   boson_number=boson_number,
+                                   supercell_size=supercell_size,
+                                   tbf_contact_cutoff=tbf_contact_cutoff)
+    move_spread = 0.25 * model_spec.well_width
+    num_steps = 4096 * 1
+    ini_sys_conf = model_spec.init_get_sys_conf()
+    vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
+                                             move_spread=move_spread,
+                                             num_steps=num_steps,
+                                             ini_sys_conf=ini_sys_conf,
+                                             rng_seed=1)
+
+    vmc_chain = vmc_sampling.as_chain()
+    sys_conf_set = vmc_chain.sys_conf_chain[:1000]
+    wf_abs_log_set = vmc_chain.wf_abs_log_chain[:1000]
+
+    cswf_optimizer = \
+        bloch_phonon.CSWFOptimizer(model_spec, sys_conf_set,
+                                   ini_wf_abs_log_set=wf_abs_log_set,
+                                   num_workers=2, log=True)
+    opt_model_spec = cswf_optimizer.exec()
+
+    print("Optimized model spec:")
+    print(opt_model_spec)

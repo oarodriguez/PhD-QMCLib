@@ -1,19 +1,28 @@
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
-from typing import NamedTuple
+from os import cpu_count
+from typing import NamedTuple, Optional, Tuple
 
 import attr
+import dask
+import dask.bag as db
 import numpy as np
 from cached_property import cached_property
 from numba import jit
 from numpy import random
-from scipy.optimize import brentq
+from scipy.optimize import brentq, differential_evolution
 
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
 
 __all__ = [
+    'CFCSpecNT',
     'CoreFuncs',
+    'CSWFOptimizer',
+    'OBFSpecNT',
+    'PhysicalFuncs',
     'Spec',
+    'SpecNT',
+    'TBFSpecNT',
     'core_funcs'
 ]
 
@@ -526,3 +535,121 @@ class PhysicalFuncs(qmc_base.jastrow.PhysicalFuncs):
         """Post-initialization stage."""
         # NOTE: Should we use a new CoreFuncs instance?
         super().__setattr__('core_funcs', core_funcs)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
+    """Class to optimize the trial-wave function.
+
+    It uses the correlated sampling method to minimize the variance of
+    the local energy of the model.
+    """
+
+    #: The spec of the model.
+    spec: Spec
+
+    #: The system configurations used for the minimization process.
+    sys_conf_set: np.ndarray = attr.ib(cmp=False)
+
+    #: The energy of reference to minimize the variance of the local energy.
+    ref_energy: Optional[float] = attr.ib(cmp=False, default=None)
+
+    #: The initial wave function values. Used to calculate the weights.
+    ini_wf_abs_log_set: Optional[np.ndarray] = attr.ib(cmp=False, default=None)
+
+    #: Use threads or multiple process.
+    use_threads: bool = attr.ib(default=True, cmp=False)
+
+    #: Number of threads or process to use.
+    num_workers: int = attr.ib(default=cpu_count(), cmp=False)
+
+    #: Display log messages or not.
+    log: bool = attr.ib(default=False, cmp=False)
+
+    #: The system configurations as a dak bag.
+    sys_conf_set_db: db.Bag = attr.ib(init=False, cmp=False, repr=False)
+
+    def __attrs_post_init__(self):
+        """Por-initialization process."""
+        sys_conf_set = [sys_conf for sys_conf in self.sys_conf_set]
+        sys_conf_set_db = db.from_sequence(sys_conf_set)
+        super().__setattr__('sys_conf_set_db', sys_conf_set_db)
+
+    def update_spec(self, tbf_contact_cutoff: float):
+        """Updates the model spec.
+
+        :param tbf_contact_cutoff:
+        :return:
+        """
+        # NOTE: We have to convert to float first (numba errors
+        #  appear otherwise 🤔)
+        tbf_contact_cutoff = float(tbf_contact_cutoff)
+        return attr.evolve(self.spec, tbf_contact_cutoff=tbf_contact_cutoff)
+
+    @cached_property
+    def _threaded_func(self):
+        """"""
+        wf_abs_log = core_funcs.wf_abs_log
+        energy = core_funcs.energy
+
+        @jit(nopython=True, nogil=True)
+        def __threaded_func(sys_conf: np.ndarray, cfc_spec: CFCSpecNT):
+            """Evaluates the energy and wave function, and releases de GIL.
+
+            :param sys_conf: The system configuration.
+            :param cfc_spec: The spec of the core functions.
+            :return:
+            """
+            wf_abs_log_v = wf_abs_log(sys_conf, cfc_spec)
+            energy_v = energy(sys_conf, cfc_spec)
+            return wf_abs_log_v, energy_v
+
+        return __threaded_func
+
+    def wf_abs_log_and_energy_set(self, cfc_spec: CFCSpecNT) -> \
+            Tuple[np.ndarray, np.ndarray]:
+        """"""
+
+        # The function to execute in parallel. It return lists.
+        func = self._threaded_func
+        sys_conf_set_db = self.sys_conf_set_db
+        db_results = sys_conf_set_db.map(func, cfc_spec=cfc_spec).compute()
+        wf_abs_log_set, energies_set = list(zip(*db_results))
+
+        # We need arrays.
+        wf_abs_log_set = np.array(wf_abs_log_set)
+        energies_set = np.array(energies_set)
+
+        return wf_abs_log_set, energies_set
+
+    @property
+    def principal_function_bounds(self):
+        """Boundaries of the variables of the principal function."""
+
+        sc_size = self.spec.supercell_size
+        sc_size_lower_bound = 5e-2
+        sc_size_upper_bound = (0.5 - 5e-3) * sc_size
+
+        func_bounds = [(sc_size_lower_bound, sc_size_upper_bound)]
+        return func_bounds
+
+    def exec(self):
+        """Starts the variance minimization process.
+
+        :return: The initial spec, updated with the value of the
+            ``tbf_contact_cutoff`` parameter that minimizes the variance,
+            i.e., that optimizes the trial wave function.
+        """
+
+        log = self.log
+        num_workers = self.num_workers
+        use_threads = self.use_threads
+        bounds = self.principal_function_bounds
+        scheduler = 'threads' if use_threads else 'processes'
+        with dask.config.set(scheduler=scheduler, num_workers=num_workers):
+            # Realize the minimization process.
+            opt_params = differential_evolution(self.principal_function,
+                                                bounds=bounds, disp=log)
+
+        opt_tbf_contact_cutoff, = opt_params.x
+        return self.update_spec(opt_tbf_contact_cutoff)
