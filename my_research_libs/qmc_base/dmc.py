@@ -296,14 +296,14 @@ class CoreFuncs(metaclass=ABCMeta):
                 sys_energy = next_state_energies[sys_idx]
                 sys_weight = next_state_weights[sys_idx]
 
-                # Cloning factor.
+                # Cloning factor of the current walker.
                 clone_factor = int(sys_weight + random.rand())
                 cloning_factors[sys_idx] = clone_factor
 
-                # Basic algorithm of branch and rebirth gives a unit weight.
-                # NOTE: Should we multiply by branch_factor instead?
-                state_energy += sys_energy * sys_weight
-                state_weight += sys_weight
+                # The contribution to the total energy and weight of the
+                # new walkers is direct. We do it right here.
+                state_energy += sys_energy * clone_factor
+                state_weight += clone_factor
 
             # We now have the effective number of walkers after branching.
             num_walkers = sync_branching_spec(branching_spec,
@@ -318,7 +318,10 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Cloning process.
                 next_state_conf[sys_idx] = aux_state_conf[ref_idx]
                 next_state_energies[sys_idx] = aux_state_energies[ref_idx]
-                next_state_weights[sys_idx] = aux_state_weights[ref_idx]
+
+                # Basic algorithm of branching gives a unit weight to each
+                # new walker. We set the value here.
+                next_state_weights[sys_idx] = 1.0
 
             return EvoStateResult(state_energy, state_weight, num_walkers)
 
