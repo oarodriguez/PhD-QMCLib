@@ -141,7 +141,10 @@ def test_wf_optimize():
                                    tbf_contact_cutoff=tbf_contact_cutoff)
     move_spread = 0.25 * model_spec.well_width
     num_steps = 4096 * 1
-    ini_sys_conf = model_spec.init_get_sys_conf()
+    dist_type_regular = model_spec.sys_conf_dist_type.REGULAR
+    offset = model_spec.well_width / 2
+    ini_sys_conf = model_spec.init_get_sys_conf(dist_type=dist_type_regular,
+                                                offset=offset)
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
                                              num_steps=num_steps,

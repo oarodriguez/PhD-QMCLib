@@ -264,7 +264,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_wf_abs_log = self.ith_wf_abs_log
 
-        @jit(nopython=True)
+        @jit(nopython=True, nogil=True)
         def _wf_abs_log(sys_conf: np.ndarray,
                         cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of bosons in
@@ -295,7 +295,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         wf_abs_log = self.wf_abs_log
 
-        @jit(nopython=True)
+        @jit(nopython=True, nogil=True)
         def _wf_abs(sys_conf: np.ndarray,
                     cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of
@@ -659,7 +659,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_energy = self.ith_energy
 
-        @jit(nopython=True)
+        @jit(nopython=True, nogil=True)
         def _energy(sys_conf: np.ndarray,
                     cfc_spec: CFCSpecNT):
             """
@@ -870,7 +870,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_one_body_density = self.ith_one_body_density
 
-        @jit(nopython=True)
+        @jit(nopython=True, nogil=True)
         def _one_body_density(sz: float,
                               sys_conf: np.ndarray,
                               cfc_spec: CFCSpecNT):
