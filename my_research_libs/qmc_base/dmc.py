@@ -35,7 +35,7 @@ __all__ = [
 
 
 @enum.unique
-class StateProp(enum.Enum):
+class StateProp(str, enum.Enum):
     """The properties of a configuration."""
     ENERGY = 'ENERGY'
     WEIGHT = 'WEIGHT'
@@ -43,7 +43,7 @@ class StateProp(enum.Enum):
 
 
 @enum.unique
-class IterProp(enum.Enum):
+class IterProp(str, enum.Enum):
     """"""
     ENERGY = 'ENERGY'
     WEIGHT = 'WEIGHT'
@@ -52,7 +52,7 @@ class IterProp(enum.Enum):
 
 
 @enum.unique
-class BranchingSpecField(enum.Enum):
+class BranchingSpecField(str, enum.Enum):
     """The fields of a branching spec."""
     CLONING_FACTOR = 'CLONING_FACTOR'
     CLONING_REF = 'CLONING_REF'
