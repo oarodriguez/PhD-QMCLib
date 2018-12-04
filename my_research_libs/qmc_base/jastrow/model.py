@@ -968,11 +968,11 @@ class PhysicalFuncs(model.PhysicalFuncs):
 
         cfc_spec_nt = self.spec.cfc_spec_nt
         __energy = self.core_funcs.energy
-        signatures = ['(f8[:,:],f8[:])']
-        layout = '(ns,nop)->()'
+        types = ['(f8[:,:],f8[:])']
+        signature = '(ns,nop) -> ()'
 
         # noinspection PyTypeChecker
-        @guvectorize(signatures, layout, nopython=True, target='parallel')
+        @guvectorize(types, signature, nopython=True, target='parallel')
         def _energy(sys_conf: np.ndarray, result: np.ndarray) -> np.ndarray:
             """
 
@@ -990,11 +990,11 @@ class PhysicalFuncs(model.PhysicalFuncs):
 
         cfc_spec_nt = self.spec.cfc_spec_nt
         __one_body_density = self.core_funcs.one_body_density
-        signatures = ['(f8[:],f8[:,:],f8[:])']
-        layout = '(),(ns,nop)->()'
+        types = ['(f8,f8[:,:],f8[:])']
+        signature = '(),(ns,nop) -> ()'
 
         # noinspection PyTypeChecker
-        @guvectorize(signatures, layout, nopython=True, target='parallel')
+        @guvectorize(types, signature, nopython=True, target='parallel')
         def _one_body_density(sz: float, sys_conf: np.ndarray,
                               result: np.ndarray) -> np.ndarray:
             """
@@ -1014,11 +1014,11 @@ class PhysicalFuncs(model.PhysicalFuncs):
 
         cfc_spec_nt = self.spec.cfc_spec_nt
         __structure_factor = self.core_funcs.structure_factor
-        signatures = ['(f8[:],f8[:,:],f8[:])']
-        layout = '(),(ns,nop)->()'
+        types = ['(f8,f8[:,:],f8[:])']
+        signature = '(),(ns,nop) -> ()'
 
         # noinspection PyTypeChecker
-        @guvectorize(signatures, layout, nopython=True, target='parallel')
+        @guvectorize(types, signature, nopython=True, target='parallel')
         def _structure_factor(kz: float,
                               sys_conf: np.ndarray,
                               result: np.ndarray) -> np.ndarray:
