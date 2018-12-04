@@ -13,6 +13,16 @@ from my_research_libs.qmc_base.dmc import SamplingIterData
 from my_research_libs.qmc_base.utils import recast_to_supercell
 from . import model
 
+__all__ = [
+    'BatchFuncResult',
+    'CoreFuncs',
+    'IterProp',
+    'Sampling',
+    'SamplingIterData',
+    'State',
+    'StateProp'
+]
+
 
 class State(qmc_base.dmc.State, t.NamedTuple):
     """"""
@@ -29,6 +39,7 @@ class BatchFuncResult(t.NamedTuple):
 
 
 StateProp = qmc_base.dmc.StateProp
+IterProp = qmc_base.dmc.IterProp
 
 state_confs_dtype = np.float64
 
