@@ -155,12 +155,12 @@ class Sampling(qmc_base.dmc.Sampling):
 
         # This array broadcasting is needed to adjust the mask of
         # the batch data with the external arrays.
-        states_props_array, *ext_arrays = \
+        states_props_array, *_ext_arrays_ = \
             np.broadcast_arrays(states_props_array, *ext_arrays)
 
-        return ext_arrays, SamplingIterData(states_confs_array,
-                                            states_props_array,
-                                            iter_props_array)
+        return _ext_arrays_, SamplingIterData(states_confs_array,
+                                              states_props_array,
+                                              iter_props_array)
 
     @staticmethod
     def energy_batch(iter_data: SamplingIterData):
@@ -540,7 +540,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     def one_body_density(self):
         """"""
 
-        types = ['void(f8,f8[:,:],f8,bool_,f8[:])']
+        types = ['void(f8,f8[:,:],f8,b1,f8[:])']
         signature = '(),(ns,nop),(),() -> ()'
         model_spec = self.model_spec
         cfc_spec = model_spec.cfc_spec_nt
@@ -564,6 +564,8 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             if not sys_mask:
                 sys_obd = one_body_density(rel_dist, sys_conf, cfc_spec)
                 result[0] = sys_weight * sys_obd
+            else:
+                result[0] = 0.
 
         return _one_body_density
 
@@ -571,7 +573,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     def structure_factor(self):
         """The weighed structure factor."""
 
-        types = ['void(f8,f8[:,:],f8,bool_,f8[:])']
+        types = ['void(f8,f8[:,:],f8,b1,f8[:])']
         signature = '(),(ns,nop),(),() -> ()'
         model_spec = self.model_spec
         cfc_spec = model_spec.cfc_spec_nt
@@ -593,8 +595,11 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             :param result:
             :return:
             """
+            # NOTE: We need if... else... to avoid bugs.
             if not sys_mask:
                 sys_sf = structure_factor(momentum, sys_conf, cfc_spec)
                 result[0] = sys_weight * sys_sf
+            else:
+                result[0] = 0.
 
         return _structure_factor
