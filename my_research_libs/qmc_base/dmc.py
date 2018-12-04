@@ -20,9 +20,17 @@ CONF_INDEX = 0
 ENERGY_INDEX = 1
 
 __all__ = [
+    'BranchingSpecField',
     'CoreFuncs',
+    'EvoStateResult',
+    'EvoStatesBatchResult',
+    'IterProp',
     'Sampling',
-    'State'
+    'SamplingIterData',
+    'State',
+    'StateProp',
+    'branching_spec_dtype',
+    'iter_props_dtype'
 ]
 
 
