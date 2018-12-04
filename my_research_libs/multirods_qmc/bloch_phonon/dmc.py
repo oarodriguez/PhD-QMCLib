@@ -4,10 +4,12 @@ from math import exp, sqrt
 import attr
 import numba as nb
 import numpy as np
+import numpy.ma as ma
 from cached_property import cached_property
 from numpy import random
 
 from my_research_libs import qmc_base, utils
+from my_research_libs.qmc_base.dmc import SamplingIterData
 from my_research_libs.qmc_base.utils import recast_to_supercell
 from . import model
 
@@ -20,6 +22,12 @@ class State(qmc_base.dmc.State, t.NamedTuple):
     max_num_walkers: int
 
 
+class BatchFuncResult(t.NamedTuple):
+    """The result of a function evaluated over a sampling batch."""
+    func: np.ndarray
+    iter_props: np.ndarray
+
+
 StateProp = qmc_base.dmc.StateProp
 
 state_confs_dtype = np.float64
@@ -29,6 +37,10 @@ state_props_dtype = np.dtype([
     (StateProp.WEIGHT.value, np.float64),
     (StateProp.MASK.value, np.bool)
 ])
+
+T_ExtArrays = t.Tuple[np.ndarray, ...]
+T_RelDist = t.Union[t.SupportsFloat, np.ndarray]
+T_Momentum = t.Union[t.SupportsFloat, np.ndarray]
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -94,6 +106,161 @@ class Sampling(qmc_base.dmc.Sampling):
 
         return State(state_confs, state_props, num_walkers, max_num_walkers)
 
+    def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
+                                  iter_batch: SamplingIterData) -> t.Tuple:
+        """
+
+        :param iter_batch:
+        :param ext_arrays:
+        :return:
+        """
+        # Broadcast the external arrays. We will use this object to
+        # construct an intermediate shape used to take advantage of
+        # broadcasting.
+        ext_broadcast = np.broadcast(*ext_arrays)
+        ext_broadcast_shape = tuple(1 for _ in ext_broadcast.shape)
+
+        states_confs_array = iter_batch.states_confs
+        states_props_array = iter_batch.states_props
+        iter_props_array = iter_batch.iter_props
+
+        spb_shape = states_props_array.shape
+        ipb_shape = iter_props_array.shape
+        sys_conf_shape = self.model_spec.sys_conf_shape
+
+        # Create new shapes to take advantage of broadcasting.
+        spb_bdc_shape = spb_shape + ext_broadcast_shape
+        scb_bdc_shape = spb_bdc_shape + sys_conf_shape
+        ipb_bdc_shape = ipb_shape + ext_broadcast_shape
+
+        states_confs_array = states_confs_array.reshape(scb_bdc_shape)
+        states_props_array = states_props_array.reshape(spb_bdc_shape)
+        iter_props_array = iter_props_array.reshape(ipb_bdc_shape)
+
+        # This array broadcasting is used to adjust the iteration
+        # properties with the external arrays.
+        iter_props_array, *_ = \
+            np.broadcast_arrays(iter_props_array, *ext_arrays)
+
+        # This array broadcasting is needed to adjust the mask of
+        # the batch data with the external arrays.
+        states_props_array, *ext_arrays = \
+            np.broadcast_arrays(states_props_array, *ext_arrays)
+
+        return ext_arrays, SamplingIterData(states_confs_array,
+                                            states_props_array,
+                                            iter_props_array)
+
+    @staticmethod
+    def energy_batch(iter_data: SamplingIterData):
+        """
+
+        :param iter_data:
+        :return:
+        """
+        state_props_fields = qmc_base.dmc.StateProp
+        energy_field = state_props_fields.ENERGY.value
+        weight_field = state_props_fields.WEIGHT.value
+        mask_field = state_props_fields.MASK.value
+
+        states_props_array = iter_data.states_props
+
+        # Take the weighs and the masks.
+        states_energies_array = states_props_array[energy_field]
+        states_weights_array = states_props_array[weight_field]
+        states_masks_array = states_props_array[mask_field]
+
+        states_energies_array: ma.MaskedArray = \
+            ma.MaskedArray(states_energies_array, mask=states_masks_array)
+        states_weights_array: ma.MaskedArray = \
+            ma.masked_array(states_weights_array, mask=states_masks_array)
+
+        energy_array = states_energies_array * states_weights_array
+        total_energy_array = np.add.reduce(energy_array, axis=1)
+        return BatchFuncResult(total_energy_array, iter_data.iter_props)
+
+    def one_body_density_batch(self, rel_dist: T_RelDist,
+                               iter_data: SamplingIterData,
+                               result: np.ndarray = None):
+        """Calculates the one-body density for a sampling batch.
+
+        :param rel_dist:
+        :param iter_data:
+        :param result:
+        :return:
+        """
+        core_funcs = self.core_funcs
+        state_props_fields = qmc_base.dmc.StateProp
+        weight_field = state_props_fields.WEIGHT.value
+        mask_field = state_props_fields.MASK.value
+
+        rel_dist = np.asarray(rel_dist)
+        (rel_dist,), iter_data = \
+            self.broadcast_with_iter_batch((rel_dist,), iter_data)
+
+        states_confs_array = iter_data.states_confs
+        states_props_array = iter_data.states_props
+
+        # Take the weighs and the masks.
+        states_weights_array: np.ndarray = states_props_array[weight_field]
+        states_masks_array: np.ndarray = states_props_array[mask_field]
+
+        # noinspection PyTypeChecker
+        obd_array = core_funcs.one_body_density(rel_dist,
+                                                states_confs_array,
+                                                states_weights_array,
+                                                states_masks_array,
+                                                result)
+
+        obd_masked_array: ma.MaskedArray = \
+            ma.MaskedArray(obd_array, mask=states_masks_array)
+
+        # Sum over the axis that indexes the walkers.
+        total_obd_array = np.add.reduce(obd_masked_array, axis=1)
+        return BatchFuncResult(total_obd_array, iter_data.iter_props)
+
+    def structure_factor_batch(self, momentum: T_Momentum,
+                               batch_data: SamplingIterData,
+                               result: np.ndarray = None) -> BatchFuncResult:
+        """Evaluates the static structure factor for a sampling batch.
+
+        :param momentum:
+        :param batch_data:
+        :param result:
+        :return:
+        """
+        core_funcs = self.core_funcs
+        state_props_fields = qmc_base.dmc.StateProp
+        weight_field = state_props_fields.WEIGHT.value
+        mask_field = state_props_fields.MASK.value
+
+        momentum = np.asarray(momentum)
+        (momentum,), batch_data = \
+            self.broadcast_with_iter_batch((momentum,), batch_data)
+
+        states_confs_array = batch_data.states_confs
+        states_props_array = batch_data.states_props
+
+        # Take the weighs and the masks.
+        states_weights_array: np.ndarray = states_props_array[weight_field]
+        states_masks_array: np.ndarray = states_props_array[mask_field]
+
+        # noinspection PyTypeChecker
+        sf_array = core_funcs.structure_factor(momentum,
+                                               states_confs_array,
+                                               states_weights_array,
+                                               states_masks_array,
+                                               result)
+
+        # Mask the resulting array
+        sf_masked_array: ma.MaskedArray = \
+            ma.MaskedArray(sf_array, mask=states_masks_array)
+
+        # Sum over the axis that indexes the walkers.
+        total_sf_array = np.add.reduce(sf_masked_array, axis=1)
+        return BatchFuncResult(total_sf_array, batch_data.iter_props)
+
+    #
     def __iter__(self) -> \
             t.Generator[qmc_base.dmc.SamplingIterData, t.Any, None]:
         """Iterable interface."""
@@ -357,3 +524,66 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                 state_mask[sys_idx] = False
 
         return _prepare_ini_state
+
+    @cached_property
+    def one_body_density(self):
+        """"""
+
+        types = ['void(f8,f8[:,:],f8,bool_,f8[:])']
+        signature = '(),(ns,nop),(),() -> ()'
+        model_spec = self.model_spec
+        cfc_spec = model_spec.cfc_spec_nt
+
+        one_body_density = model.core_funcs.one_body_density
+
+        @nb.guvectorize(types, signature, nopython=True, target='parallel')
+        def _one_body_density(rel_dist: float,
+                              sys_conf: np.ndarray,
+                              sys_weight: float,
+                              sys_mask: bool,
+                              result: np.ndarray):
+            """
+
+            :param sys_conf:
+            :param sys_weight:
+            :param sys_mask:
+            :param result:
+            :return:
+            """
+            if not sys_mask:
+                sys_obd = one_body_density(rel_dist, sys_conf, cfc_spec)
+                result[0] = sys_weight * sys_obd
+
+        return _one_body_density
+
+    @cached_property
+    def structure_factor(self):
+        """The weighed structure factor."""
+
+        types = ['void(f8,f8[:,:],f8,bool_,f8[:])']
+        signature = '(),(ns,nop),(),() -> ()'
+        model_spec = self.model_spec
+        cfc_spec = model_spec.cfc_spec_nt
+
+        structure_factor = model.core_funcs.structure_factor
+
+        # noinspection PyTypeChecker
+        @nb.guvectorize(types, signature, nopython=True, target='parallel')
+        def _structure_factor(momentum: float,
+                              sys_conf: np.ndarray,
+                              sys_weight: float,
+                              sys_mask: bool,
+                              result: np.ndarray) -> np.ndarray:
+            """
+
+            :param sys_conf:
+            :param sys_weight:
+            :param sys_mask:
+            :param result:
+            :return:
+            """
+            if not sys_mask:
+                sys_sf = structure_factor(momentum, sys_conf, cfc_spec)
+                result[0] = sys_weight * sys_sf
+
+        return _structure_factor
