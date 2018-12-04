@@ -502,6 +502,11 @@ class CoreFuncs(metaclass=ABCMeta):
 
             # The initial iter properties.
             ini_ipb_shape = (1,)
+
+            # NOTE: We may use the data of the initial state directly, and
+            #  return only views of the arrays. However, we use copies.
+            ini_states_confs_array = ini_state_confs.copy()
+            ini_states_props_array = ini_state_props.copy()
             ini_iter_props_array = \
                 np.zeros(ini_ipb_shape, dtype=iter_props_dtype)
 
@@ -525,8 +530,11 @@ class CoreFuncs(metaclass=ABCMeta):
             # The one-element batch.
             ini_scb_shape = ini_ipb_shape + ini_state_confs.shape
             ini_spb_shape = ini_ipb_shape + ini_state_props.shape
-            ini_states_confs_array = ini_state_confs.reshape(ini_scb_shape)
-            ini_states_props_array = ini_state_props.reshape(ini_spb_shape)
+
+            ini_states_confs_array = \
+                ini_states_confs_array.reshape(ini_scb_shape)
+            ini_states_props_array = \
+                ini_states_props_array.reshape(ini_spb_shape)
 
             return SamplingIterData(ini_states_confs_array,
                                     ini_states_props_array,
@@ -575,7 +583,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
             # The shape of the batches.
             scb_shape = (nts_batch,) + isc_shape
-            scp_shape = (nts_batch,) + isp_shape
+            spb_shape = (nts_batch,) + isp_shape
             ipb_shape = nts_batch,
 
             # Array dtypes.
@@ -586,7 +594,7 @@ class CoreFuncs(metaclass=ABCMeta):
             states_confs_array = np.zeros(scb_shape, dtype=state_confs_dtype)
 
             # Array for the states properties data.
-            states_props_array = np.zeros(scp_shape, dtype=state_props_dtype)
+            states_props_array = np.zeros(spb_shape, dtype=state_props_dtype)
 
             # Array to store the configuration data of a batch of states.
             iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
