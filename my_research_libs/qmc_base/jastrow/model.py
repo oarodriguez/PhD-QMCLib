@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
-from typing import ClassVar, NamedTuple
+from typing import ClassVar, NamedTuple, Optional, Tuple
 
 import numpy as np
 from cached_property import cached_property
@@ -13,13 +13,14 @@ from ..utils import sign
 __all__ = [
     'CFCSpecNT',
     'CoreFuncs',
+    'CSWFOptimizer',
     'OBFSpecNT',
     'PhysicalFuncs',
     'Spec',
     'SpecNT',
-    'TBFSpecNT',
     'SysConfSlot',
     'SysConfDistType',
+    'TBFSpecNT'
 ]
 
 
@@ -263,7 +264,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_wf_abs_log = self.ith_wf_abs_log
 
-        @jit(nopython=True)
+        @jit(nopython=True, nogil=True)
         def _wf_abs_log(sys_conf: np.ndarray,
                         cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of bosons in
@@ -294,7 +295,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         wf_abs_log = self.wf_abs_log
 
-        @jit(nopython=True)
+        @jit(nopython=True, nogil=True)
         def _wf_abs(sys_conf: np.ndarray,
                     cfc_spec: CFCSpecNT):
             """Computes the variational wave function of a system of
@@ -658,7 +659,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_energy = self.ith_energy
 
-        @jit(nopython=True)
+        @jit(nopython=True, nogil=True)
         def _energy(sys_conf: np.ndarray,
                     cfc_spec: CFCSpecNT):
             """
@@ -869,7 +870,7 @@ class CoreFuncs(model.CoreFuncs):
         """
         ith_one_body_density = self.ith_one_body_density
 
-        @jit(nopython=True)
+        @jit(nopython=True, nogil=True)
         def _one_body_density(sz: float,
                               sys_conf: np.ndarray,
                               cfc_spec: CFCSpecNT):
@@ -1032,3 +1033,92 @@ class PhysicalFuncs(model.PhysicalFuncs):
             result[0] = __structure_factor(kz, sys_conf, cfc_spec_nt)
 
         return _structure_factor
+
+
+class CSWFOptimizer(model.WFOptimizer):
+    """Class to optimize the trial-wave function.
+
+    It uses the correlated sampling method to minimize the variance of
+    the local energy.
+    """
+
+    __slots__ = ()
+
+    #: The spec of the model.
+    spec: Spec
+
+    #: The system configurations used for the minimization process.
+    sys_conf_set: np.ndarray
+
+    #: The initial wave function values. Used to calculate the weights.
+    ini_wf_abs_log_set: np.ndarray
+
+    #: The energy of reference to minimize the variance of the local energy.
+    ref_energy: Optional[float]
+
+    # noinspection PyUnusedLocal
+    @staticmethod
+    def weighed_variance(weights_log_set: np.ndarray,
+                         energy_set: np.ndarray,
+                         ref_energy: float = None):
+        """Basic calculation of the weighed variance.
+
+        :param energy_set: The set of energies.
+        :param weights_log_set: The set of weights.
+        :param ref_energy: The energy of reference.
+        :return: The variance.
+        """
+        rel_weights = np.exp(weights_log_set - weights_log_set.max())
+        weight_sum = rel_weights.sum()
+
+        ref_energy = (rel_weights * energy_set).sum() / weight_sum
+        e_diff = rel_weights * (energy_set - ref_energy) ** 2
+
+        return e_diff.sum() / weight_sum
+
+    @abstractmethod
+    def update_spec(self, tbf_contact_cutoff: float):
+        """Updates the initial model spec with a new variational parameter.
+
+        :param tbf_contact_cutoff: The variational parameter.
+        :return: The updated ``Spec`` instance.
+        """
+        pass
+
+    @abstractmethod
+    def wf_abs_log_and_energy_set(self, cfc_spec: CFCSpecNT) -> \
+            Tuple[np.ndarray, np.ndarray]:
+        """Evaluates the wave function and energy for all the configurations.
+
+        :param cfc_spec: The spec of the core functions.
+        :return: Two arrays: one with the values of the wave function, and
+            the second with the values of the energy.
+        """
+        pass
+
+    def principal_function(self, tbf_contact_cutoff: float):
+        """Evaluates the variance.
+
+        :param tbf_contact_cutoff:
+        :return: The weighed variance.
+        """
+
+        # Temporary spec with the variational parameter modified
+        upd_model_spec = self.update_spec(tbf_contact_cutoff)
+        cfc_spec = upd_model_spec.cfc_spec_nt
+
+        # The function to get the energy and weights.
+        core_funcs_data = self.wf_abs_log_and_energy_set(cfc_spec)
+        wf_abs_log_set, energies_set = core_funcs_data
+
+        # Move to a internal gufunc
+        ini_wf_abs_log_set = self.ini_wf_abs_log_set
+        weights_log_set = 2 * (wf_abs_log_set - ini_wf_abs_log_set)
+
+        # Calculate the weighed variance.
+        return self.weighed_variance(weights_log_set, energies_set)
+
+    @abstractmethod
+    def exec(self):
+        """Starts the minimization process."""
+        pass

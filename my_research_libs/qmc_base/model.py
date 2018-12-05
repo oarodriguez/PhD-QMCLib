@@ -1,5 +1,7 @@
 from abc import ABCMeta, abstractmethod
-from typing import NamedTuple
+from typing import NamedTuple, Optional
+
+import numpy as np
 
 __all__ = [
     'CoreFuncs',
@@ -7,7 +9,8 @@ __all__ = [
     'PhysicalFuncs',
     'Spec',
     'SpecMeta',
-    'SpecNT'
+    'SpecNT',
+    'WFOptimizer'
 ]
 
 
@@ -161,4 +164,42 @@ class PhysicalFuncs(metaclass=ABCMeta):
     @property
     @abstractmethod
     def structure_factor(self):
+        pass
+
+
+class WFOptimizer(metaclass=ABCMeta):
+    """Class to optimize the trial-wave function of a model."""
+
+    __slots__ = ()
+
+    #: The spec of the model.
+    spec: Spec
+
+    #: The system configurations used for the minimization process.
+    sys_conf_set: np.ndarray
+
+    #: The initial wave function values. Used to calculate the weights.
+    ini_wf_abs_log_set: np.ndarray
+
+    #: The energy of reference to minimize the variance of the local energy.
+    ref_energy: Optional[float]
+
+    @abstractmethod
+    def update_spec(self, *args, **kwargs):
+        """Updates the initial model spec."""
+        pass
+
+    @property
+    @abstractmethod
+    def principal_function_bounds(self):
+        pass
+
+    @abstractmethod
+    def principal_function(self, *args, **kwargs):
+        """Evaluates the quantity to minimize (optimize)."""
+        pass
+
+    @abstractmethod
+    def exec(self):
+        """Starts the minimization process."""
         pass
