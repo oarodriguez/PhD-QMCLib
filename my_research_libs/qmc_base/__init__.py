@@ -5,7 +5,7 @@
     Main package for Quantum Monte Carlo routines.
 """
 #
-from . import jastrow, vmc
+from . import dmc, jastrow, vmc
 
 #
 from .model import *
