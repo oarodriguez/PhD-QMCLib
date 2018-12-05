@@ -173,6 +173,63 @@ def test_dmc():
         print(iter_props)
 
 
+def test_dmc_energy():
+    """Testing the energy calculation during the DMC sampling."""
+    boson_number = 50
+    supercell_size = 50
+    tbf_contact_cutoff = 0.25 * supercell_size
+
+    # TODO: Improve this test.
+    model_spec = bloch_phonon.Spec(lattice_depth=LATTICE_DEPTH,
+                                   lattice_ratio=LATTICE_RATIO,
+                                   interaction_strength=INTERACTION_STRENGTH,
+                                   boson_number=boson_number,
+                                   supercell_size=supercell_size,
+                                   tbf_contact_cutoff=tbf_contact_cutoff)
+
+    move_spread = 0.25 * model_spec.well_width
+    num_steps = 1024 * 1
+    ini_sys_conf = model_spec.init_get_sys_conf()
+    vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
+                                             move_spread=move_spread,
+                                             num_steps=num_steps,
+                                             ini_sys_conf=ini_sys_conf,
+                                             rng_seed=1)
+    vmc_chain_data = vmc_sampling.as_chain()
+    sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
+
+    time_step = 1e-2
+    num_blocks = 4
+    num_time_steps_block = 32
+    ini_sys_conf_set = sys_conf_chain[-128:]
+    target_num_walkers = 512
+    max_num_walkers = 512 + 128
+    ini_ref_energy = None
+    rng_seed = None
+    dmc_sampling = bloch_phonon.dmc.Sampling(model_spec,
+                                             time_step,
+                                             num_blocks,
+                                             num_time_steps_block,
+                                             ini_sys_conf_set,
+                                             ini_ref_energy,
+                                             max_num_walkers,
+                                             target_num_walkers,
+                                             rng_seed=rng_seed)
+
+    # Alias.
+    energy_batch = dmc_sampling.energy_batch
+    energy_field = bloch_phonon.dmc.IterProp.ENERGY
+
+    for iter_data in dmc_sampling:
+        #
+        energy_result = energy_batch(iter_data)
+        egy = energy_result.func
+        iter_props = iter_data.iter_props
+        iter_energy = iter_props[energy_field]
+        print(np.stack((egy, iter_energy), axis=-1))
+        assert np.allclose(egy, iter_energy)
+
+
 def test_dmc_batch_func():
     """Testing functions evaluated over DMC sampling data."""
     boson_number = 50

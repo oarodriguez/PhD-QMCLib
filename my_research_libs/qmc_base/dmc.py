@@ -289,9 +289,6 @@ class CoreFuncs(metaclass=ABCMeta):
             state_energy = 0.
             state_weight = 0.
 
-            # Initially, mask all the configurations.
-            next_state_masks[:] = True
-
             # Diffusion process (parallel).
             for sys_idx in nb.prange(actual_num_walkers):
 
@@ -320,6 +317,10 @@ class CoreFuncs(metaclass=ABCMeta):
             num_walkers = sync_branching_spec(branching_spec,
                                               actual_num_walkers,
                                               max_num_walkers)
+
+            # NOTE: We could do the energy sum in the next parallel loop.
+            # Initially, mask all the configurations.
+            next_state_masks[:] = True
 
             # Branching process (parallel for).
             for sys_idx in nb.prange(num_walkers):

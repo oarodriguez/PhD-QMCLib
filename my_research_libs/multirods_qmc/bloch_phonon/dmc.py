@@ -188,7 +188,13 @@ class Sampling(qmc_base.dmc.Sampling):
             ma.masked_array(states_weights_array, mask=states_masks_array)
 
         energy_array = states_energies_array * states_weights_array
-        total_energy_array = np.add.reduce(energy_array, axis=1)
+        # NOTE: How should we do this summation?
+        #   1. np.add doesn't handle masked arrays correctly.
+        #   2. ndarray.sum seems to handle masked arrays correctly.
+        #   3. ma.add exists. Is this a better option?
+        #   .
+        #   The same considerations apply for other batch functions.
+        total_energy_array = energy_array.sum(axis=1)
         return BatchFuncResult(total_energy_array, iter_data.iter_props)
 
     def one_body_density_batch(self, rel_dist: T_RelDist,
@@ -228,7 +234,7 @@ class Sampling(qmc_base.dmc.Sampling):
             ma.MaskedArray(obd_array, mask=states_masks_array)
 
         # Sum over the axis that indexes the walkers.
-        total_obd_array = np.add.reduce(obd_masked_array, axis=1)
+        total_obd_array = obd_masked_array.sum(axis=1)
         return BatchFuncResult(total_obd_array, iter_data.iter_props)
 
     def structure_factor_batch(self, momentum: T_Momentum,
@@ -269,7 +275,7 @@ class Sampling(qmc_base.dmc.Sampling):
             ma.MaskedArray(sf_array, mask=states_masks_array)
 
         # Sum over the axis that indexes the walkers.
-        total_sf_array = np.add.reduce(sf_masked_array, axis=1)
+        total_sf_array = sf_masked_array.sum(axis=1)
         return BatchFuncResult(total_sf_array, batch_data.iter_props)
 
     #
@@ -453,7 +459,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             weight_next = exp(-time_step * (mean_energy - ref_energy))
 
             # Copy drift slot data back to aux_conf
-            aux_conf[:] = next_conf[:]
+            aux_conf[drift_slot, :] = next_conf[drift_slot, :]
 
             # Update the energy of the next configuration.
             aux_state_energy[sys_idx] = energy_next
