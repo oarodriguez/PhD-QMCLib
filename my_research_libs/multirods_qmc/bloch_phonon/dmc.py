@@ -79,7 +79,8 @@ class Sampling(qmc_base.dmc.Sampling):
             rng_seed = utils.get_random_rng_seed()
             super().__setattr__('rng_seed', rng_seed)
 
-        super().__setattr__('core_funcs', CoreFuncs(self.model_spec))
+        core_funcs = CoreFuncs.from_model_spec(self.model_spec)
+        super().__setattr__('core_funcs', core_funcs)
 
     @property
     def state_confs_shape(self):
@@ -307,12 +308,30 @@ class Sampling(qmc_base.dmc.Sampling):
 class CoreFuncs(qmc_base.dmc.CoreFuncs):
     """The DMC core functions for the Bloch-Phonon model."""
 
-    model_spec: model.Spec
+    #: The boundaries of the QMC supercell.
+    boundaries: t.Tuple[float, float]
+
+    #: The slots of a system configuration array.
+    sys_conf_slots: model.Spec.sys_conf_slots
+
+    #: The common (fixed) spec to pass to the core functions of the model.
+    cfc_spec_nt: model.CFCSpecNT
+
+    @classmethod
+    def from_model_spec(cls, model_spec: model.Spec):
+        """Initializes the core functions from a model spec.
+
+        :param model_spec: The model spec.
+        :return: An instance of the core functions.
+        """
+        return cls(model_spec.boundaries,
+                   model_spec.sys_conf_slots,
+                   model_spec.cfc_spec_nt)
 
     @cached_property
     def recast(self):
         """Apply the periodic boundary conditions on a configuration."""
-        z_min, z_max = self.model_spec.boundaries
+        z_min, z_max = self.boundaries
 
         @nb.jit(nopython=True)
         def _recast(z: float):
@@ -331,8 +350,8 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         :return:
         """
-        pos_slot = int(self.model_spec.sys_conf_slots.pos)
-        drift_slot = int(self.model_spec.sys_conf_slots.drift)
+        pos_slot = int(self.sys_conf_slots.pos)
+        drift_slot = int(self.sys_conf_slots.drift)
         recast = self.recast
 
         @nb.jit(nopython=True)
@@ -367,10 +386,9 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         :return:
         """
-        model_spec = self.model_spec
-        cfc_spec = model_spec.cfc_spec_nt
-        pos_slot = int(model_spec.sys_conf_slots.pos)
-        drift_slot = int(model_spec.sys_conf_slots.drift)
+        cfc_spec = self.cfc_spec_nt
+        pos_slot = int(self.sys_conf_slots.pos)
+        drift_slot = int(self.sys_conf_slots.drift)
 
         # JIT functions.
         ith_diffusion = self.ith_diffusion
@@ -451,11 +469,10 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     def prepare_ini_ith_system(self):
         """Prepare a system of the initial state of the sampling."""
 
-        model_spec = self.model_spec
-        nop = model_spec.boson_number
-        cfc_spec = model_spec.cfc_spec_nt
-        pos_slot = int(model_spec.sys_conf_slots.pos)
-        drift_slot = int(model_spec.sys_conf_slots.drift)
+        cfc_spec = self.cfc_spec_nt
+        nop = cfc_spec.model_spec.boson_number
+        pos_slot = int(self.sys_conf_slots.pos)
+        drift_slot = int(self.sys_conf_slots.drift)
 
         # JIT functions.
         ith_energy_and_drift = model.core_funcs.ith_energy_and_drift
@@ -542,8 +559,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         types = ['void(f8,f8[:,:],f8,b1,f8[:])']
         signature = '(),(ns,nop),(),() -> ()'
-        model_spec = self.model_spec
-        cfc_spec = model_spec.cfc_spec_nt
+        cfc_spec = self.cfc_spec_nt
 
         one_body_density = model.core_funcs.one_body_density
 
@@ -575,8 +591,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         types = ['void(f8,f8[:,:],f8,b1,f8[:])']
         signature = '(),(ns,nop),(),() -> ()'
-        model_spec = self.model_spec
-        cfc_spec = model_spec.cfc_spec_nt
+        cfc_spec = self.cfc_spec_nt
 
         structure_factor = model.core_funcs.structure_factor
 

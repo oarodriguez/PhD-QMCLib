@@ -180,9 +180,6 @@ class CoreFuncs(metaclass=ABCMeta):
 
     __slots__ = ()
 
-    #
-    model_spec: Sampling
-
     @property
     @abstractmethod
     def evolve_system(self):
