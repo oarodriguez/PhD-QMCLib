@@ -240,7 +240,7 @@ def test_dmc_energy():
     time_step = 1e-2
     num_blocks = 4
     num_time_steps_block = 32
-    ini_sys_conf_set = sys_conf_chain[-128:]
+    ini_sys_conf_set = sys_conf_chain[-768:]
     target_num_walkers = 512
     max_num_walkers = 512 + 128
     ini_ref_energy = None
