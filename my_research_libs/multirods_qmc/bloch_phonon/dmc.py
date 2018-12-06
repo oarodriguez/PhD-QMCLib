@@ -79,6 +79,11 @@ class Sampling(qmc_base.dmc.Sampling):
             rng_seed = utils.get_random_rng_seed()
             super().__setattr__('rng_seed', rng_seed)
 
+        # Only take as much sys_conf items as max_num_walkers.
+        # NOTE: Take the configurations counting from the last one.
+        ini_sys_conf_set = self.ini_sys_conf_set[-self.max_num_walkers:]
+        super().__setattr__('ini_sys_conf_set', ini_sys_conf_set)
+
         core_funcs = CoreFuncs.from_model_spec(self.model_spec)
         super().__setattr__('core_funcs', core_funcs)
 
