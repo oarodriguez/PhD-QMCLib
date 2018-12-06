@@ -285,10 +285,6 @@ class CoreFuncs(metaclass=ABCMeta):
             cloning_factors = branching_spec[branch_factor_field]
             cloning_refs = branching_spec[branch_ref_field]
 
-            # Total energy and weight of the next configuration.
-            state_energy = 0.
-            state_weight = 0.
-
             # Diffusion process (parallel).
             for sys_idx in nb.prange(actual_num_walkers):
 
@@ -301,24 +297,21 @@ class CoreFuncs(metaclass=ABCMeta):
                               next_state_weights)
 
                 # Current system energy and weight.
-                sys_energy = next_state_energies[sys_idx]
-                sys_weight = next_state_weights[sys_idx]
+                sys_weight = aux_state_weights[sys_idx]
 
                 # Cloning factor of the current walker.
                 clone_factor = int(sys_weight + random.rand())
                 cloning_factors[sys_idx] = clone_factor
-
-                # The contribution to the total energy and weight of the
-                # new walkers is direct. We do it right here.
-                state_energy += sys_energy * clone_factor
-                state_weight += clone_factor
 
             # We now have the effective number of walkers after branching.
             num_walkers = sync_branching_spec(branching_spec,
                                               actual_num_walkers,
                                               max_num_walkers)
 
-            # NOTE: We could do the energy sum in the next parallel loop.
+            # Total energy and weight of the next configuration.
+            state_energy = 0.
+            state_weight = 0.
+
             # Initially, mask all the configurations.
             next_state_masks[:] = True
 
@@ -329,13 +322,18 @@ class CoreFuncs(metaclass=ABCMeta):
 
                 # Cloning process.
                 next_state_conf[sys_idx] = aux_state_conf[ref_idx]
-                next_state_energies[sys_idx] = aux_state_energies[ref_idx]
+                sys_energy = aux_state_energies[ref_idx]
+                next_state_energies[sys_idx] = sys_energy
 
                 # Basic algorithm of branching gives a unit weight to each
                 # new walker. We set the value here. In addition, we unmask
                 # the walker, i.e., we mark it as valid.
                 next_state_weights[sys_idx] = 1.0
                 next_state_masks[sys_idx] = False
+
+                # The contribution to the total energy and weight.
+                state_energy += sys_energy
+                state_weight += 1.0
 
             return EvoStateResult(state_energy, state_weight, num_walkers)
 
