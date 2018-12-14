@@ -28,12 +28,11 @@ __all__ = [
 class SysConfSlot(IntEnum):
     """Slots to store the configuration of a single particle."""
 
-    # NOTE: We have added an slot to store the energy
-    # It is very convenient, for instance, in Diffusion Monte Carlo
-    # calculations.
+    #: Position slot.
     pos: int = 0
+
+    # Drift slot.
     drift: int = 1
-    energy: int = 2
 
 
 class SysConfDistType(Enum):
@@ -755,38 +754,6 @@ class CoreFuncs(model.CoreFuncs):
             return ith_energy, ith_drift
 
         return _ith_energy_and_drift
-
-    @cached_property
-    def energy_and_drift(self):
-        """
-
-        :return:
-        """
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
-        energy_slot = int(self.sys_conf_slots.energy)
-        ith_energy_and_drift = self.ith_energy_and_drift
-
-        @jit(nopython=True)
-        def _energy_and_drift(sys_conf: np.ndarray,
-                              cfc_spec: CFCSpecNT,
-                              result):
-            """Computes the local energy for a given configuration of the
-            position of the bodies.
-
-            :param sys_conf:
-            :param cfc_spec:
-            :param result:
-            """
-            nop = cfc_spec.model_spec.boson_number
-            for i_ in range(nop):
-                ith_energy, ith_drift = ith_energy_and_drift(i_, sys_conf,
-                                                             cfc_spec)
-                result[pos_slot, i_] = sys_conf[pos_slot, i_]
-                result[drift_slot, i_] = ith_drift
-                result[energy_slot, i_] = ith_energy
-
-        return _energy_and_drift
 
     @cached_property
     def ith_one_body_density(self):
