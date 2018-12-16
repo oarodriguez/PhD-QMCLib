@@ -53,16 +53,12 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
     move_spread: float
     num_steps: int
     ini_sys_conf: np.ndarray = attr.ib(cmp=False)
-    rng_seed: Optional[int] = attr.ib(cmp=False, default=None)
-    core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
+    rng_seed: Optional[int] = attr.ib(default=None)
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
-        # NOTE: Should we use a new CoreFuncs instance?
-        super().__setattr__('core_funcs', core_funcs)
-
         if self.rng_seed is None:
-            rng_seed = utils.get_random_rng_seed()
+            rng_seed = int(utils.get_random_rng_seed())
             super().__setattr__('rng_seed', rng_seed)
 
     @property
@@ -73,6 +69,12 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
         z_min, z_max = self.model_spec.boundaries
         return UTPFSpecNT(boson_number, move_spread=move_spread,
                           lower_bound=z_min, upper_bound=z_max)
+
+    @property
+    def core_funcs(self) -> 'CoreFuncs':
+        """The core functions of the sampling."""
+        # NOTE: Should we use a new CoreFuncs instance?
+        return core_funcs
 
 
 class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
@@ -147,16 +149,12 @@ class NormalSampling(qmc_base.jastrow.vmc.NormalSampling):
     time_step: float
     num_steps: int
     ini_sys_conf: np.ndarray = attr.ib(cmp=False)
-    rng_seed: Optional[int] = attr.ib(cmp=False, default=None)
-    core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
+    rng_seed: Optional[int] = attr.ib(default=None)
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
-        # NOTE: Should we use a new CoreFuncs instance?
-        super().__setattr__('core_funcs', normal_core_funcs)
-
         if self.rng_seed is None:
-            rng_seed = utils.get_random_rng_seed()
+            rng_seed = int(utils.get_random_rng_seed())
             super().__setattr__('rng_seed', rng_seed)
 
     @property
@@ -167,6 +165,12 @@ class NormalSampling(qmc_base.jastrow.vmc.NormalSampling):
         z_min, z_max = self.model_spec.boundaries
         return TPFSpecNT(boson_number, sigma=sigma,
                          lower_bound=z_min, upper_bound=z_max)
+
+    @property
+    def core_funcs(self) -> 'NormalCoreFuncs':
+        """The core functions of the sampling."""
+        # NOTE: Should we use a new NormalCoreFuncs instance?
+        return normal_core_funcs
 
 
 class NormalCoreFuncs(CoreFuncs, qmc_base.vmc.NormalCoreFuncs):

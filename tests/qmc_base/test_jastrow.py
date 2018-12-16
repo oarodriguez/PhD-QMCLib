@@ -24,6 +24,7 @@ class Spec(jastrow.Spec):
     """A simple spec for testing."""
 
     boson_number: int
+
     supercell_size: float
 
     @property
@@ -85,6 +86,10 @@ class Spec(jastrow.Spec):
         return jastrow.CFCSpecNT(self.as_nt,
                                  self.obf_spec_nt,
                                  self.tbf_spec_nt)
+
+    @property
+    def phys_funcs(self):
+        raise NotImplementedError
 
 
 class CoreFuncs(jastrow.CoreFuncs):

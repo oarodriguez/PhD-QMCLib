@@ -38,7 +38,7 @@ class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
     move_spread: float
 
 
-class Sampling(vmc.Sampling):
+class Sampling(vmc.Sampling, metaclass=ABCMeta):
     """Spec for the VMC sampling of a Bijl-Jastrow model."""
 
     #: The spec of a concrete Jastrow model.
@@ -48,7 +48,6 @@ class Sampling(vmc.Sampling):
     num_steps: int
     ini_sys_conf: np.ndarray
     rng_seed: int
-    core_funcs: 'CoreFuncs'
 
     @property
     def wf_spec_nt(self):
@@ -62,7 +61,7 @@ class Sampling(vmc.Sampling):
         return UTPFSpecNT(boson_number, self.move_spread)
 
 
-class NormalSampling(vmc.NormalSampling):
+class NormalSampling(vmc.NormalSampling, metaclass=ABCMeta):
     """Spec for the VMC sampling of a Bijl-Jastrow model."""
 
     #: The spec of a concrete Jastrow model.
@@ -72,7 +71,6 @@ class NormalSampling(vmc.NormalSampling):
     num_steps: int
     ini_sys_conf: np.ndarray
     rng_seed: int
-    core_funcs: 'CoreFuncs'
 
     @property
     def wf_spec_nt(self):

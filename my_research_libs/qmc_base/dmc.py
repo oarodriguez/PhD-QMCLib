@@ -124,9 +124,6 @@ class Sampling(Iterable, metaclass=ABCMeta):
     #: The seed of the pseudo-RNG used to realize the sampling.
     rng_seed: int
 
-    #: The sampling core functions.
-    core_funcs: 'CoreFuncs'
-
     #:
     state_props: t.ClassVar = StateProp
 
@@ -159,6 +156,12 @@ class Sampling(Iterable, metaclass=ABCMeta):
         The state includes the drift, the energies wne the weights of
         each one of the initial system configurations.
         """
+        pass
+
+    @property
+    @abstractmethod
+    def core_funcs(self) -> 'CoreFuncs':
+        """The sampling core functions."""
         pass
 
 

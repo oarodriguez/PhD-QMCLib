@@ -1,3 +1,4 @@
+import attr
 import numpy as np
 import pytest
 from matplotlib import pyplot
@@ -24,6 +25,7 @@ def test_init():
     """"""
     model_spec = bloch_phonon.Spec(**BASE_SPEC_ITEMS)
     print(repr(model_spec))
+    print(attr.asdict(model_spec))
 
 
 def test_update_params():

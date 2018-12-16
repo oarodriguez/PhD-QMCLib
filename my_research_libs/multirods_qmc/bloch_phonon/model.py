@@ -103,16 +103,7 @@ class Spec(qmc_base.jastrow.Spec):
     #: The variational parameter of the two-body functions.
     tbf_contact_cutoff: float
 
-    #: Functions to calculate the main physical properties of a model.
-    phys_funcs: 'PhysicalFuncs' = attr.ib(init=False, cmp=False, repr=False)
-
     # TODO: Implement improved __init__.
-
-    def __attrs_post_init__(self):
-        """"""
-        # NOTE: Should we use a new CoreFuncs instance?
-        physical_funcs = PhysicalFuncs(self)
-        super().__setattr__('phys_funcs', physical_funcs)
 
     @property
     def boundaries(self):
@@ -309,6 +300,12 @@ class Spec(qmc_base.jastrow.Spec):
         obf_spec = self.obf_spec_nt
         tbf_spec = self.tbf_spec_nt
         return CFCSpecNT(self_spec, obf_spec, tbf_spec)
+
+    @cached_property
+    def phys_funcs(self):
+        """Functions to calculate the main physical properties of a model."""
+        # NOTE: Should we use a new PhysicalFuncs instance?
+        return PhysicalFuncs(self)
 
 
 @jit(nopython=True)
@@ -529,12 +526,11 @@ class PhysicalFuncs(qmc_base.jastrow.PhysicalFuncs):
     """Functions to calculate the main physical properties of the model."""
 
     spec: Spec
-    core_funcs: CoreFuncs = attr.ib(init=False, cmp=False, repr=False)
 
-    def __attrs_post_init__(self):
-        """Post-initialization stage."""
-        # NOTE: Should we use a new CoreFuncs instance?
-        super().__setattr__('core_funcs', core_funcs)
+    @cached_property
+    def core_funcs(self):
+        """The core functions of the model."""
+        return core_funcs
 
 
 @attr.s(auto_attribs=True, frozen=True)

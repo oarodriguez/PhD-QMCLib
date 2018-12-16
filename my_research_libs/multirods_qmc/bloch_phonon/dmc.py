@@ -71,8 +71,6 @@ class Sampling(qmc_base.dmc.Sampling):
     num_walkers_control_factor: t.Optional[float] = 0.5
     rng_seed: t.Optional[int] = None
 
-    core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
-
     def __attrs_post_init__(self):
         """Post-initialization stage."""
         if self.rng_seed is None:
@@ -313,6 +311,11 @@ class Sampling(qmc_base.dmc.Sampling):
                                               target_num_walkers,
                                               rng_seed=self.rng_seed)
         return generator
+
+    @cached_property
+    def core_funcs(self) -> 'CoreFuncs':
+        """The sampling core functions."""
+        return CoreFuncs.from_model_spec(self.model_spec)
 
 
 @attr.s(auto_attribs=True, frozen=True)

@@ -4,6 +4,7 @@ from typing import NamedTuple
 import attr
 import numba as nb
 import numpy as np
+from cached_property import cached_property
 from matplotlib import pyplot
 from numpy.linalg import norm
 
@@ -40,13 +41,6 @@ class NormalSampling(vmc.NormalSampling):
     num_steps: int
     ini_sys_conf: np.ndarray
     rng_seed: int
-    core_funcs: 'CoreFuncs' = attr.ib(init=False, cmp=False, repr=False)
-
-    def __attrs_post_init__(self):
-        """"""
-        # NOTE: Should we use a new CoreFuncs instance?
-        core_funcs = NormalCoreFuncs()
-        super().__setattr__('core_funcs', core_funcs)
 
     @property
     def wf_spec_nt(self):
@@ -58,6 +52,11 @@ class NormalSampling(vmc.NormalSampling):
         """"""
         sigma = sqrt(self.time_step)
         return NTPFSpecNT(self.dims, sigma)
+
+    @cached_property
+    def core_funcs(self) -> 'NormalCoreFuncs':
+        """The core functions of the sampling."""
+        return NormalCoreFuncs()
 
 
 def init_get_sys_conf(dims: int):

@@ -92,9 +92,6 @@ class Spec(model.Spec):
     #: The size of the QMC simulation box.
     supercell_size: float
 
-    #: Functions to calculate the main physical properties of a model.
-    phys_funcs: 'PhysicalFuncs'
-
     #: The slots of the system configuration array.
     sys_conf_slots: ClassVar = SysConfSlot
 
@@ -899,8 +896,11 @@ class PhysicalFuncs(model.PhysicalFuncs):
     #: The model spec these functions correspond to.
     spec: Spec
 
-    #: The core functions of the model.
-    core_funcs: CoreFuncs
+    @property
+    @abstractmethod
+    def core_funcs(self) -> CoreFuncs:
+        """The core functions of the model."""
+        pass
 
     @cached_property
     def wf_abs_log(self):
