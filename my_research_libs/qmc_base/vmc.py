@@ -127,9 +127,6 @@ class Sampling(Iterable, metaclass=ABCMeta):
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: int
 
-    #: The core functions of the sampling.
-    core_funcs: 'NormalCoreFuncs'
-
     @property
     @abstractmethod
     def wf_spec_nt(self):
@@ -151,15 +148,21 @@ class Sampling(Iterable, metaclass=ABCMeta):
                       self.ini_sys_conf,
                       self.rng_seed)
 
-    def __iter__(self):
-        """Iterable interface."""
-        vmc_spec = self.spec_nt
-        return self.core_funcs.generator(*vmc_spec)
-
     def as_chain(self):
         """Returns the VMC sampling as an array object."""
         sampling_spec = self.spec_nt
         return self.core_funcs.as_chain(*sampling_spec)
+
+    @property
+    @abstractmethod
+    def core_funcs(self) -> 'NormalCoreFuncs':
+        """The core functions of the sampling."""
+        pass
+
+    def __iter__(self):
+        """Iterable interface."""
+        vmc_spec = self.spec_nt
+        return self.core_funcs.generator(*vmc_spec)
 
 
 class NormalSampling(Iterable, metaclass=ABCMeta):
@@ -183,9 +186,6 @@ class NormalSampling(Iterable, metaclass=ABCMeta):
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: int
 
-    #: The core functions of the sampling.
-    core_funcs: 'CoreFuncs'
-
     @property
     @abstractmethod
     def wf_spec_nt(self):
@@ -207,15 +207,21 @@ class NormalSampling(Iterable, metaclass=ABCMeta):
                       self.ini_sys_conf,
                       self.rng_seed)
 
-    def __iter__(self):
-        """Iterable interface."""
-        vmc_spec = self.spec_nt
-        return self.core_funcs.generator(*vmc_spec)
-
     def as_chain(self):
         """Returns the VMC sampling as an array object."""
         sampling_spec = self.spec_nt
         return self.core_funcs.as_chain(*sampling_spec)
+
+    @property
+    @abstractmethod
+    def core_funcs(self) -> 'CoreFuncs':
+        """The core functions of the sampling."""
+        pass
+
+    def __iter__(self):
+        """Iterable interface."""
+        vmc_spec = self.spec_nt
+        return self.core_funcs.generator(*vmc_spec)
 
 
 # noinspection PyUnusedLocal

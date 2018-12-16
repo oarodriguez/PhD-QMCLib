@@ -34,9 +34,6 @@ class Spec(metaclass=SpecMeta):
     """
     __slots__ = ()
 
-    #: Functions to calculate the main physical properties of a model.
-    phys_funcs: 'PhysicalFuncs'
-
     @property
     @abstractmethod
     def boundaries(self):
@@ -67,6 +64,12 @@ class Spec(metaclass=SpecMeta):
         in the corresponding :class:`CoreFuncs` instance of the model
         (:attr:`Spec.core_funcs` attribute).
         """
+        pass
+
+    @property
+    @abstractmethod
+    def phys_funcs(self):
+        """Functions to calculate the main physical properties of a model."""
         pass
 
 
@@ -143,9 +146,6 @@ class PhysicalFuncs(metaclass=ABCMeta):
     #: The model spec these functions correspond to.
     spec: Spec
 
-    #:  The core functions of the model.
-    core_funcs: CoreFuncs
-
     @property
     @abstractmethod
     def wf_abs_log(self):
@@ -164,6 +164,12 @@ class PhysicalFuncs(metaclass=ABCMeta):
     @property
     @abstractmethod
     def structure_factor(self):
+        pass
+
+    @property
+    @abstractmethod
+    def core_funcs(self):
+        """The core functions of the model."""
         pass
 
 
