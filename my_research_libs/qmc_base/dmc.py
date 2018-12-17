@@ -243,7 +243,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
         # JIT methods.
         evolve_system = self.evolve_system
-        sync_branching_spec = self.sync_branching_spec
+        # sync_branching_spec = self.sync_branching_spec
 
         @nb.jit(nopython=True, parallel=True)
         def _evolve_state(prev_state_confs: np.ndarray,
@@ -252,7 +252,7 @@ class CoreFuncs(metaclass=ABCMeta):
                           actual_state_props: np.ndarray,
                           aux_next_state_confs: np.ndarray,
                           aux_next_state_props: np.ndarray,
-                          prev_num_walkers: int,
+                          actual_num_walkers: int,
                           max_num_walkers: int,
                           time_step: float,
                           ref_energy: float,
@@ -273,7 +273,6 @@ class CoreFuncs(metaclass=ABCMeta):
             :param ref_energy:
             :return:
             """
-
             # Arrays of properties.
             prev_state_energies = prev_state_props[props_energy_field]
             actual_state_energies = actual_state_props[props_energy_field]
@@ -292,16 +291,17 @@ class CoreFuncs(metaclass=ABCMeta):
             # Initially, mask all the configurations.
             actual_state_masks[:] = True
 
-            # We now have the effective number of walkers after branching.
-            num_walkers = sync_branching_spec(branching_spec,
-                                              prev_num_walkers,
-                                              max_num_walkers)
-
             cloning_factors = branching_spec[branch_factor_field]
             cloning_refs = branching_spec[branch_ref_field]
 
             # Branching and diffusion process (parallel for).
-            for sys_idx in nb.prange(num_walkers):
+            for sys_idx in nb.prange(max_num_walkers):
+
+                # Beyond the actual number of walkers just pass to
+                # the next iteration.
+                if sys_idx >= actual_num_walkers:
+                    continue
+
                 # Lookup which configuration should be cloned.
                 ref_idx = cloning_refs[sys_idx]
                 sys_energy = prev_state_energies[ref_idx]
@@ -341,7 +341,8 @@ class CoreFuncs(metaclass=ABCMeta):
                 clone_factor = int(sys_weight + random.rand())
                 cloning_factors[sys_idx] = clone_factor
 
-            return EvoStateResult(state_energy, state_weight, num_walkers)
+            return EvoStateResult(state_energy, state_weight,
+                                  actual_num_walkers)
 
         return _evolve_state
 
@@ -362,6 +363,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
         # JIT functions.
         evolve_state = self.evolve_state
+        sync_branching_spec = self.sync_branching_spec
 
         @nb.jit(nopython=True)
         def _evolve_states_batch(ini_state_confs: np.ndarray,
@@ -403,8 +405,8 @@ class CoreFuncs(metaclass=ABCMeta):
             aux_next_state_props = np.zeros_like(ini_state_props)
 
             # Actual states configurations.
-            actual_state_confs = np.zeros_like(ini_state_confs)
-            actual_state_props = np.zeros_like(ini_state_props)
+            # actual_state_confs = np.zeros_like(ini_state_confs)
+            # actual_state_props = np.zeros_like(ini_state_props)
 
             # Table to control the branching process.
             branching_spec = \
@@ -434,8 +436,13 @@ class CoreFuncs(metaclass=ABCMeta):
 
             for sj_ in range(sj_ini, sj_end):
                 # The next configuration of this block.
-                # actual_state_confs = states_confs_array[sj_]
-                # actual_state_props = states_props_array[sj_]
+                actual_state_confs = states_confs_array[sj_]
+                actual_state_props = states_props_array[sj_]
+
+                # We now have the effective number of walkers after branching.
+                actual_num_walkers = sync_branching_spec(branching_spec,
+                                                         prev_num_walkers,
+                                                         max_num_walkers)
 
                 evo_result = evolve_state(prev_state_confs,
                                           prev_state_props,
@@ -443,7 +450,7 @@ class CoreFuncs(metaclass=ABCMeta):
                                           actual_state_props,
                                           aux_next_state_confs,
                                           aux_next_state_props,
-                                          prev_num_walkers,
+                                          actual_num_walkers,
                                           max_num_walkers,
                                           time_step,
                                           ref_energy,
@@ -452,7 +459,7 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Update total energy and weight of the system.
                 sj_energy = evo_result.energy
                 sj_weight = evo_result.weight
-                sj_num_walkers = evo_result.num_walkers
+                sj_num_walkers = actual_num_walkers
                 batch_energy += sj_energy
                 batch_weight += sj_weight
 
