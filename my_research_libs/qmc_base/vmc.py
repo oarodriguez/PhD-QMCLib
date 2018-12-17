@@ -380,9 +380,12 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             wf_abs_log_actual = wf_abs_log(actual_conf, wf_spec)
 
             # Yield initial value.
+            # TODO: Remove the sum from the expression STAT_REJECTED + 0 when
+            #  numba project gets this bug resolved (version 0.42 apparently).
+            #  See https://github.com/numba/numba/issues/3565
             yield SamplingIterDataNT(actual_conf,
                                      wf_abs_log_actual,
-                                     STAT_REJECTED)
+                                     STAT_REJECTED + 0)
 
             for cj_ in range(cj_ini, cj_end):
 
