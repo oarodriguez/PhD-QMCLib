@@ -111,7 +111,7 @@ class Sampling(qmc_base.dmc.Sampling):
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
         ini_sys_conf_set = self.ini_sys_conf_set
-        ini_ref_energy = self.ini_ref_energy
+        ref_energy = self.ini_ref_energy
         num_walkers = len(ini_sys_conf_set)
 
         # Initial state arrays.
@@ -128,17 +128,17 @@ class Sampling(qmc_base.dmc.Sampling):
         state_energy = (state_energies * state_weights).sum()
         state_weight = state_weights.sum()
 
-        if ini_ref_energy is None:
+        if ref_energy is None:
             # Calculate the initial energy of reference as the
             # average of the energy of the initial state.
-            ini_ref_energy = state_energy / state_weight
+            ref_energy = state_energy / state_weight
 
         return State(confs=state_confs,
                      props=state_props,
                      energy=state_energy,
                      weight=state_weight,
                      num_walkers=num_walkers,
-                     ref_energy=ini_ref_energy,
+                     ref_energy=ref_energy,
                      max_num_walkers=max_num_walkers)
 
     def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
@@ -300,34 +300,6 @@ class Sampling(qmc_base.dmc.Sampling):
         # Sum over the axis that indexes the walkers.
         total_sf_array = sf_masked_array.sum(axis=1)
         return BatchFuncResult(total_sf_array, batch_data.iter_props)
-
-    #
-    def __iter__(self) -> \
-            t.Generator[qmc_base.dmc.SamplingIterData, t.Any, None]:
-        """Iterable interface."""
-
-        # Initial
-        ini_state = self.init_get_ini_state()
-        ini_ref_energy = self.ini_ref_energy
-
-        # Calculate the initial energy of reference as the average of the
-        # energy of the initial state.
-        if ini_ref_energy is None:
-            #
-            ini_ref_energy = ini_state.ref_energy
-
-        time_step = self.time_step
-        num_batches = self.num_batches
-        num_time_steps_batch = self.num_time_steps_batch
-        target_num_walkers = self.target_num_walkers
-        generator = self.core_funcs.generator(time_step,
-                                              num_batches,
-                                              num_time_steps_batch,
-                                              ini_state,
-                                              ini_ref_energy,
-                                              target_num_walkers,
-                                              rng_seed=self.rng_seed)
-        return generator
 
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':

@@ -213,7 +213,8 @@ def test_dmc():
                                              target_num_walkers,
                                              rng_seed=rng_seed)
 
-    for state_conf, state_props, iter_props in dmc_sampling:
+    for iter_data in dmc_sampling:
+        iter_props = iter_data.iter_props
         print(iter_props)
 
 
