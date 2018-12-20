@@ -33,6 +33,7 @@ class State(qmc_base.dmc.State, t.NamedTuple):
     num_walkers: int
     ref_energy: float
     max_num_walkers: int
+    branching_spec: t.Optional[np.ndarray] = None
 
 
 class BatchFuncResult(t.NamedTuple):
@@ -133,6 +134,7 @@ class Sampling(qmc_base.dmc.Sampling):
             # average of the energy of the initial state.
             ref_energy = state_energy / state_weight
 
+        # NOTE: The branching spec for the initial state is None.
         return State(confs=state_confs,
                      props=state_props,
                      energy=state_energy,

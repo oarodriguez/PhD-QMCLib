@@ -68,6 +68,7 @@ class State(t.NamedTuple):
     num_walkers: int
     ref_energy: float
     max_num_walkers: int
+    branching_spec: t.Optional[np.ndarray] = None
 
 
 class EvoStateResult(t.NamedTuple):
@@ -468,7 +469,8 @@ class CoreFuncs(metaclass=ABCMeta):
                             weight=state_weight,
                             num_walkers=actual_num_walkers,
                             ref_energy=ref_energy,
-                            max_num_walkers=max_num_walkers)
+                            max_num_walkers=max_num_walkers,
+                            branching_spec=branching_spec)
 
                 prev_state_confs = aux_next_state_confs
                 prev_state_props = aux_next_state_props
