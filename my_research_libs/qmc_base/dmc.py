@@ -195,36 +195,41 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
-        factor_field = BranchingSpecField.CLONING_FACTOR.value
+        props_weight_field = StateProp.WEIGHT.value
         clone_ref_field = BranchingSpecField.CLONING_REF.value
 
         @nb.jit(nopython=True)
-        def _sync_branching_spec(branching_spec: np.ndarray,
-                                 actual_num_walkers: int,
-                                 max_num_walkers: int):
+        def _sync_branching_spec(prev_state_props: np.ndarray,
+                                 prev_num_walkers: int,
+                                 max_num_walkers: int,
+                                 branching_spec: np.ndarray):
             """
 
             :param branching_spec:
-            :param max_num_walkers:
             :return:
             """
-            clone_refs = branching_spec[clone_ref_field]
-            cloning_factors = branching_spec[factor_field]
+            prev_state_weights = prev_state_props[props_weight_field]
+            cloning_refs = branching_spec[clone_ref_field]
 
-            new_num_walkers = 0
-            for sys_idx in range(actual_num_walkers):
+            final_num_walkers = 0
+            for sys_idx in range(prev_num_walkers):
                 # NOTE: num_walkers cannot be greater, right?
-                if new_num_walkers >= max_num_walkers:
+                if final_num_walkers >= max_num_walkers:
                     break
-                clone_factor = int(cloning_factors[sys_idx])
+                # Cloning factor of the previous walker.
+                sys_weight = prev_state_weights[sys_idx]
+                clone_factor = int(sys_weight + random.rand())
                 if not clone_factor:
                     continue
-                prev_num_walkers = new_num_walkers
-                new_num_walkers = min(max_num_walkers,
-                                      new_num_walkers + clone_factor)
-                clone_refs[prev_num_walkers:new_num_walkers] = sys_idx
+                prev_num_walkers = final_num_walkers
+                final_num_walkers = \
+                    min(max_num_walkers, final_num_walkers + clone_factor)
+                # We will copy the system with index sys_idx as many
+                # times as clone_factor (only limited by the maximum number
+                # of walkers).
+                cloning_refs[prev_num_walkers:final_num_walkers] = sys_idx
 
-            return new_num_walkers
+            return final_num_walkers
 
         return _sync_branching_spec
 
@@ -237,13 +242,10 @@ class CoreFuncs(metaclass=ABCMeta):
         props_energy_field = StateProp.ENERGY.value
         props_weight_field = StateProp.WEIGHT.value
         props_mask_field = StateProp.MASK.value
-
-        branch_factor_field = BranchingSpecField.CLONING_FACTOR.value
         branch_ref_field = BranchingSpecField.CLONING_REF.value
 
         # JIT methods.
         evolve_system = self.evolve_system
-        # sync_branching_spec = self.sync_branching_spec
 
         @nb.jit(nopython=True, parallel=True)
         def _evolve_state(prev_state_confs: np.ndarray,
@@ -283,6 +285,7 @@ class CoreFuncs(metaclass=ABCMeta):
             aux_next_state_weights = aux_next_state_props[props_weight_field]
 
             actual_state_masks = actual_state_props[props_mask_field]
+            cloning_refs = branching_spec[branch_ref_field]
 
             # Total energy and weight of the next configuration.
             state_energy = 0.
@@ -290,9 +293,6 @@ class CoreFuncs(metaclass=ABCMeta):
 
             # Initially, mask all the configurations.
             actual_state_masks[:] = True
-
-            cloning_factors = branching_spec[branch_factor_field]
-            cloning_refs = branching_spec[branch_ref_field]
 
             # Branching and diffusion process (parallel for).
             for sys_idx in nb.prange(max_num_walkers):
@@ -331,15 +331,6 @@ class CoreFuncs(metaclass=ABCMeta):
                               aux_next_state_confs,
                               aux_next_state_energies,
                               aux_next_state_weights)
-
-                # Next system energy and weight.
-                sys_weight = aux_next_state_weights[sys_idx]
-
-                # Cloning factor of the current walker of the next
-                # generation.
-                # NOTE: Keep an eye on cloning_factors array...
-                clone_factor = int(sys_weight + random.rand())
-                cloning_factors[sys_idx] = clone_factor
 
             return EvoStateResult(state_energy, state_weight,
                                   actual_num_walkers)
@@ -440,9 +431,10 @@ class CoreFuncs(metaclass=ABCMeta):
                 actual_state_props = states_props_array[sj_]
 
                 # We now have the effective number of walkers after branching.
-                actual_num_walkers = sync_branching_spec(branching_spec,
+                actual_num_walkers = sync_branching_spec(prev_state_props,
                                                          prev_num_walkers,
-                                                         max_num_walkers)
+                                                         max_num_walkers,
+                                                         branching_spec)
 
                 evo_result = evolve_state(prev_state_confs,
                                           prev_state_props,
