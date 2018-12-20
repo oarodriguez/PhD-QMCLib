@@ -66,12 +66,10 @@ class Sampling(qmc_base.dmc.Sampling):
     model_spec: model.Spec
 
     time_step: float
-    num_batches: int
-    num_time_steps_batch: int
     ini_sys_conf_set: np.ndarray
     ini_ref_energy: t.Optional[float] = None
-    max_num_walkers: int = 1000
-    target_num_walkers: int = 500
+    max_num_walkers: int = 544
+    target_num_walkers: int = 512
     num_walkers_control_factor: t.Optional[float] = 0.5
     rng_seed: t.Optional[int] = None
 

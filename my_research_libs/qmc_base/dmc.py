@@ -93,6 +93,9 @@ class SamplingIterData(t.NamedTuple):
     iter_props: np.ndarray
 
 
+T_BatchesGenerator = t.Generator[SamplingIterData, t.Any, None]
+
+
 class Sampling(Iterable, metaclass=ABCMeta):
     """Realizes a VMC sampling using an iterable interface.
 
@@ -104,17 +107,11 @@ class Sampling(Iterable, metaclass=ABCMeta):
     #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
 
-    #: The number of batches of the sampling.
-    num_batches: int
-
-    #: The number of steps of a sampling batch.
-    num_time_steps_batch: int
-
     #: The initial configuration set of the sampling.
     ini_sys_conf_set: np.ndarray
 
     #: The initial energy of reference.
-    ini_ref_energy: float
+    ini_ref_energy: t.Optional[float] = None
 
     #: The maximum wight of the population of walkers.
     max_num_walkers: int
@@ -133,14 +130,6 @@ class Sampling(Iterable, metaclass=ABCMeta):
 
     #:
     iter_props: t.ClassVar = IterProp
-
-    #:
-    branching_spec: t.ClassVar = BranchingSpecField
-
-    @property
-    def num_steps(self):
-        """The total number of time steps of the sampling"""
-        return self.num_time_steps_batch * self.num_batches
 
     @property
     @abstractmethod
@@ -167,38 +156,31 @@ class Sampling(Iterable, metaclass=ABCMeta):
         """The sampling core functions."""
         pass
 
-    def states(self) -> t.Generator[State, t.Any, None]:
-        """Generator object of the DMC states."""
-
+    def batches(self, num_time_steps_batch: int) -> T_BatchesGenerator:
+        """Generator object that yields batches of states."""
         ini_state = self.init_get_ini_state()
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
+        rng_seed = self.rng_seed
 
-        # Limits of the loop.
-        sj_ini = 0
-        sj_end = self.num_steps
+        return self.core_funcs.batches(time_step,
+                                       ini_state,
+                                       num_time_steps_batch,
+                                       target_num_walkers,
+                                       rng_seed)
 
-        for sj_ in range(sj_ini, sj_end):
-            yield from self.core_funcs.states_generator(time_step,
-                                                        ini_state,
-                                                        target_num_walkers)
-
-    def __iter__(self) -> t.Generator[SamplingIterData, t.Any, None]:
-        """Iterable interface that generates batches of states."""
+    def __iter__(self) -> t.Generator[State, t.Any, None]:
+        """Iterable interface."""
 
         time_step = self.time_step
         rng_seed = self.rng_seed
-        num_batches = self.num_batches
-        num_time_steps_batch = self.num_time_steps_batch
         ini_state = self.init_get_ini_state()
         target_num_walkers = self.target_num_walkers
 
-        return self.core_funcs.generator(time_step,
-                                         num_batches,
-                                         num_time_steps_batch,
-                                         ini_state,
-                                         target_num_walkers,
-                                         rng_seed)
+        return self.core_funcs.states_generator(time_step,
+                                                ini_state,
+                                                target_num_walkers,
+                                                rng_seed)
 
 
 iter_props_dtype = np.dtype([
@@ -386,7 +368,8 @@ class CoreFuncs(metaclass=ABCMeta):
         @nb.jit(nopython=True)
         def _states_generator(time_step: float,
                               ini_state: State,
-                              target_num_walkers: int):
+                              target_num_walkers: int,
+                              rng_seed: int = None):
             """Realizes the DMC sampling state-by-state.
 
             The sampling is done in batches, with each batch having a fixed
@@ -411,6 +394,10 @@ class CoreFuncs(metaclass=ABCMeta):
             # Auxiliary configuration.
             aux_next_state_confs = np.zeros_like(ini_state_confs)
             aux_next_state_props = np.zeros_like(ini_state_props)
+
+            # Seed the numba RNG.
+            if rng_seed:
+                random.seed(rng_seed)
 
             # Table to control the branching process.
             branching_spec = \
@@ -553,7 +540,7 @@ class CoreFuncs(metaclass=ABCMeta):
         return _prepare_ini_iter_data
 
     @cached_property
-    def generator(self):
+    def batches(self):
         """
 
         :return:
@@ -566,16 +553,14 @@ class CoreFuncs(metaclass=ABCMeta):
         states_generator = self.states_generator
 
         @nb.jit(nopython=True, nogil=True)
-        def _generator(time_step: float,
-                       num_batches: int,
-                       num_time_steps_batch: int,
-                       ini_state: State,
-                       target_num_walkers: int,
-                       rng_seed: int):
+        def _batches(time_step: float,
+                     ini_state: State,
+                     num_time_steps_batch: int,
+                     target_num_walkers: int,
+                     rng_seed: int = None):
             """The DMC sampling generator.
 
             :param time_step:
-            :param num_batches:
             :param num_time_steps_batch:
             :param ini_state:
             :param target_num_walkers:
@@ -609,21 +594,17 @@ class CoreFuncs(metaclass=ABCMeta):
             # Array to store the configuration data of a batch of states.
             iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
 
-            # Seed the numba RNG.
-            random.seed(rng_seed)
-
             iter_energies = iter_props_array[iter_energy_field]
             iter_weights = iter_props_array[iter_weight_field]
             iter_num_walkers = iter_props_array[iter_num_walkers_field]
             iter_ref_energies = iter_props_array[ref_energy_field]
 
             # Create a new sampling generator.
-            generator = \
-                states_generator(time_step, ini_state, target_num_walkers)
+            generator = states_generator(time_step, ini_state,
+                                         target_num_walkers, rng_seed)
 
-            # Limits of the sampling.
-            nbj_ini, nbj_end = 0, num_batches
-            for bj_ in range(nbj_ini, nbj_end):
+            # Yield batches indefinitely.
+            while True:
 
                 for sj_, state in enumerate(generator):
 
@@ -646,4 +627,4 @@ class CoreFuncs(metaclass=ABCMeta):
                                              iter_props_array)
                 yield iter_data
 
-        return _generator
+        return _batches
