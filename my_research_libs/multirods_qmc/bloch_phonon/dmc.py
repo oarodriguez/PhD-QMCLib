@@ -28,7 +28,10 @@ class State(qmc_base.dmc.State, t.NamedTuple):
     """"""
     confs: np.ndarray
     props: np.ndarray
+    energy: float
+    weight: float
     num_walkers: int
+    ref_energy: float
     max_num_walkers: int
 
 
@@ -98,8 +101,7 @@ class Sampling(qmc_base.dmc.Sampling):
         max_num_walkers = self.max_num_walkers
         return max_num_walkers,
 
-    @cached_property
-    def ini_state(self):
+    def init_get_ini_state(self) -> State:
         """The initial state for the sampling.
 
         The state includes the drift, the energies wne the weights of
@@ -109,6 +111,7 @@ class Sampling(qmc_base.dmc.Sampling):
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
         ini_sys_conf_set = self.ini_sys_conf_set
+        ref_energy = self.ini_ref_energy
         num_walkers = len(ini_sys_conf_set)
 
         # Initial state arrays.
@@ -119,7 +122,24 @@ class Sampling(qmc_base.dmc.Sampling):
         self.core_funcs.prepare_ini_state(ini_sys_conf_set, state_confs,
                                           state_props)
 
-        return State(state_confs, state_props, num_walkers, max_num_walkers)
+        state_energies = state_props[StateProp.ENERGY][:num_walkers]
+        state_weights = state_props[StateProp.WEIGHT][:num_walkers]
+
+        state_energy = (state_energies * state_weights).sum()
+        state_weight = state_weights.sum()
+
+        if ref_energy is None:
+            # Calculate the initial energy of reference as the
+            # average of the energy of the initial state.
+            ref_energy = state_energy / state_weight
+
+        return State(confs=state_confs,
+                     props=state_props,
+                     energy=state_energy,
+                     weight=state_weight,
+                     num_walkers=num_walkers,
+                     ref_energy=ref_energy,
+                     max_num_walkers=max_num_walkers)
 
     def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
                                   iter_batch: SamplingIterData) -> t.Tuple:
@@ -281,37 +301,6 @@ class Sampling(qmc_base.dmc.Sampling):
         total_sf_array = sf_masked_array.sum(axis=1)
         return BatchFuncResult(total_sf_array, batch_data.iter_props)
 
-    #
-    def __iter__(self) -> \
-            t.Generator[qmc_base.dmc.SamplingIterData, t.Any, None]:
-        """Iterable interface."""
-
-        # Initial
-        ini_state = self.ini_state
-        ini_ref_energy = self.ini_ref_energy
-
-        # Calculate the initial energy of reference as the average of the
-        # energy of the initial state.
-        if ini_ref_energy is None:
-            #
-            inw = ini_state.num_walkers
-            state_energies = ini_state.props[StateProp.ENERGY.value][:inw]
-            state_weights = ini_state.props[StateProp.WEIGHT.value][:inw]
-            ini_ref_energy = np.average(state_energies, weights=state_weights)
-
-        time_step = self.time_step
-        num_batches = self.num_batches
-        num_time_steps_batch = self.num_time_steps_batch
-        target_num_walkers = self.target_num_walkers
-        generator = self.core_funcs.generator(time_step,
-                                              num_batches,
-                                              num_time_steps_batch,
-                                              ini_state,
-                                              ini_ref_energy,
-                                              target_num_walkers,
-                                              rng_seed=self.rng_seed)
-        return generator
-
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':
         """The sampling core functions."""
@@ -411,71 +400,55 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True)
         def _evolve_system(sys_idx: int,
-                           state_conf: np.ndarray,
-                           state_energy: np.ndarray,
-                           state_weight: np.ndarray,
-                           aux_state_conf: np.ndarray,
-                           aux_state_energy: np.ndarray,
-                           aux_state_weight: np.ndarray,
+                           actual_state_confs: np.ndarray,
+                           actual_state_energies: np.ndarray,
+                           actual_state_weights: np.ndarray,
                            time_step: float,
                            ref_energy: float,
-                           next_state_conf: np.ndarray,
-                           next_state_energy: np.ndarray,
-                           next_state_weight: np.ndarray):
+                           next_state_confs: np.ndarray,
+                           next_state_energies: np.ndarray,
+                           next_state_weights: np.ndarray):
             """Executes the diffusion process.
 
             :param sys_idx: The index of the system.
-            :param state_conf:
-            :param state_energy:
-            :param state_weight:
-            :param aux_state_conf:
-            :param aux_state_energy:
-            :param aux_state_weight:
+            :param actual_state_confs:
+            :param actual_state_energies:
+            :param actual_state_weights:
             :param time_step:
             :param ref_energy:
-            :param next_state_conf:
-            :param next_state_energy:
-            :param next_state_weight:
+            :param next_state_confs:
+            :param next_state_energies:
+            :param next_state_weights:
             :return:
             """
             # Standard deviation as a function of time step.
-            sigma = sqrt(2 * time_step)
+            # sigma = sqrt(2 * time_step)
 
-            sys_conf = state_conf[sys_idx]
-            aux_conf = aux_state_conf[sys_idx]
-            next_conf = next_state_conf[sys_idx]
+            sys_conf = actual_state_confs[sys_idx]
+            next_conf = next_state_confs[sys_idx]
 
             nop = cfc_spec.model_spec.boson_number
             for i_ in range(nop):
-                # Diffuse current configuration.
+                # Diffuse current configuration. We can update the position
+                # of the next configuration.
                 z_i_next = ith_diffusion(i_, time_step, sys_conf)
-
-                # Now we can update the position of auxiliary configuration,
-                # and even of the next configuration.
-                aux_conf[pos_slot, i_] = z_i_next
                 next_conf[pos_slot, i_] = z_i_next
 
-            energy = state_energy[sys_idx]
+            energy = actual_state_energies[sys_idx]
             energy_next = 0.
             for i_ in range(nop):
-                ith_energy_drift = ith_energy_and_drift(i_, aux_conf, cfc_spec)
+                ith_energy_drift = ith_energy_and_drift(i_, next_conf,
+                                                        cfc_spec)
                 ith_energy_next, ith_drift_next = ith_energy_drift
-                energy_next += ith_energy_next
                 next_conf[drift_slot, i_] = ith_drift_next
+                energy_next += ith_energy_next
 
             mean_energy = (energy_next + energy) / 2
             weight_next = exp(-time_step * (mean_energy - ref_energy))
 
-            # Copy drift slot data back to aux_conf
-            aux_conf[drift_slot, :] = next_conf[drift_slot, :]
-
-            # Update the energy of the next configuration.
-            aux_state_energy[sys_idx] = energy_next
-            next_state_energy[sys_idx] = energy_next
-
-            # Update the weight of the next configuration.
-            aux_state_weight[sys_idx] = weight_next
-            next_state_weight[sys_idx] = weight_next
+            # Update the energy and weight of the next configuration.
+            next_state_energies[sys_idx] = energy_next
+            next_state_weights[sys_idx] = weight_next
 
         return _evolve_system
 

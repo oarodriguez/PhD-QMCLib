@@ -63,7 +63,10 @@ class State(t.NamedTuple):
     """The """
     confs: np.ndarray
     props: np.ndarray
+    energy: float
+    weight: float
     num_walkers: int
+    ref_energy: float
     max_num_walkers: int
 
 
@@ -148,9 +151,8 @@ class Sampling(Iterable, metaclass=ABCMeta):
     def state_props_shape(self):
         pass
 
-    @property
     @abstractmethod
-    def ini_state(self):
+    def init_get_ini_state(self) -> State:
         """The initial state for the sampling.
 
         The state includes the drift, the energies wne the weights of
@@ -163,6 +165,39 @@ class Sampling(Iterable, metaclass=ABCMeta):
     def core_funcs(self) -> 'CoreFuncs':
         """The sampling core functions."""
         pass
+
+    def states(self) -> t.Generator[State, t.Any, None]:
+        """Generator object of the DMC states."""
+
+        ini_state = self.init_get_ini_state()
+        time_step = self.time_step
+        target_num_walkers = self.target_num_walkers
+
+        # Limits of the loop.
+        sj_ini = 0
+        sj_end = self.num_steps
+
+        for sj_ in range(sj_ini, sj_end):
+            yield from self.core_funcs.states_generator(time_step,
+                                                        ini_state,
+                                                        target_num_walkers)
+
+    def __iter__(self) -> t.Generator[SamplingIterData, t.Any, None]:
+        """Iterable interface that generates batches of states."""
+
+        time_step = self.time_step
+        rng_seed = self.rng_seed
+        num_batches = self.num_batches
+        num_time_steps_batch = self.num_time_steps_batch
+        ini_state = self.init_get_ini_state()
+        target_num_walkers = self.target_num_walkers
+
+        return self.core_funcs.generator(time_step,
+                                         num_batches,
+                                         num_time_steps_batch,
+                                         ini_state,
+                                         target_num_walkers,
+                                         rng_seed)
 
 
 iter_props_dtype = np.dtype([
@@ -195,36 +230,41 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
-        factor_field = BranchingSpecField.CLONING_FACTOR.value
+        props_weight_field = StateProp.WEIGHT.value
         clone_ref_field = BranchingSpecField.CLONING_REF.value
 
         @nb.jit(nopython=True)
-        def _sync_branching_spec(branching_spec: np.ndarray,
-                                 actual_num_walkers: int,
-                                 max_num_walkers: int):
+        def _sync_branching_spec(prev_state_props: np.ndarray,
+                                 prev_num_walkers: int,
+                                 max_num_walkers: int,
+                                 branching_spec: np.ndarray):
             """
 
             :param branching_spec:
-            :param max_num_walkers:
             :return:
             """
-            clone_refs = branching_spec[clone_ref_field]
-            cloning_factors = branching_spec[factor_field]
+            prev_state_weights = prev_state_props[props_weight_field]
+            cloning_refs = branching_spec[clone_ref_field]
 
-            new_num_walkers = 0
-            for sys_idx in range(actual_num_walkers):
+            final_num_walkers = 0
+            for sys_idx in range(prev_num_walkers):
                 # NOTE: num_walkers cannot be greater, right?
-                if new_num_walkers >= max_num_walkers:
+                if final_num_walkers >= max_num_walkers:
                     break
-                clone_factor = int(cloning_factors[sys_idx])
+                # Cloning factor of the previous walker.
+                sys_weight = prev_state_weights[sys_idx]
+                clone_factor = int(sys_weight + random.rand())
                 if not clone_factor:
                     continue
-                prev_num_walkers = new_num_walkers
-                new_num_walkers = min(max_num_walkers,
-                                      new_num_walkers + clone_factor)
-                clone_refs[prev_num_walkers:new_num_walkers] = sys_idx
+                prev_num_walkers = final_num_walkers
+                final_num_walkers = \
+                    min(max_num_walkers, final_num_walkers + clone_factor)
+                # We will copy the system with index sys_idx as many
+                # times as clone_factor (only limited by the maximum number
+                # of walkers).
+                cloning_refs[prev_num_walkers:final_num_walkers] = sys_idx
 
-            return new_num_walkers
+            return final_num_walkers
 
         return _sync_branching_spec
 
@@ -237,21 +277,18 @@ class CoreFuncs(metaclass=ABCMeta):
         props_energy_field = StateProp.ENERGY.value
         props_weight_field = StateProp.WEIGHT.value
         props_mask_field = StateProp.MASK.value
-
-        branch_factor_field = BranchingSpecField.CLONING_FACTOR.value
         branch_ref_field = BranchingSpecField.CLONING_REF.value
 
         # JIT methods.
         evolve_system = self.evolve_system
-        sync_branching_spec = self.sync_branching_spec
 
         @nb.jit(nopython=True, parallel=True)
-        def _evolve_state(actual_state_conf: np.ndarray,
+        def _evolve_state(prev_state_confs: np.ndarray,
+                          prev_state_props: np.ndarray,
+                          actual_state_confs: np.ndarray,
                           actual_state_props: np.ndarray,
-                          next_state_conf: np.ndarray,
-                          next_state_props: np.ndarray,
-                          aux_state_conf: np.ndarray,
-                          aux_state_props: np.ndarray,
+                          aux_next_state_confs: np.ndarray,
+                          aux_next_state_props: np.ndarray,
                           actual_num_walkers: int,
                           max_num_walkers: int,
                           time_step: float,
@@ -262,172 +299,150 @@ class CoreFuncs(metaclass=ABCMeta):
             This function realize a simple diffusion process over each
             one of the walkers, followed by the branching process.
 
-            :param actual_state_conf:
+            :param prev_state_confs:
+            :param prev_state_props:
+            :param actual_state_confs:
             :param actual_state_props:
-            :param next_state_conf:
-            :param next_state_props:
-            :param aux_state_conf:
-            :param aux_state_props:
+            :param aux_next_state_confs:
+            :param aux_next_state_props:
             :param max_num_walkers:
             :param time_step:
             :param ref_energy:
             :return:
             """
-
             # Arrays of properties.
+            prev_state_energies = prev_state_props[props_energy_field]
             actual_state_energies = actual_state_props[props_energy_field]
-            next_state_energies = next_state_props[props_energy_field]
-            aux_state_energies = aux_state_props[props_energy_field]
+            aux_next_state_energies = aux_next_state_props[props_energy_field]
 
+            prev_state_weights = prev_state_props[props_weight_field]
             actual_state_weights = actual_state_props[props_weight_field]
-            next_state_weights = next_state_props[props_weight_field]
-            aux_state_weights = aux_state_props[props_weight_field]
+            aux_next_state_weights = aux_next_state_props[props_weight_field]
 
-            next_state_masks = next_state_props[props_mask_field]
-
-            cloning_factors = branching_spec[branch_factor_field]
+            actual_state_masks = actual_state_props[props_mask_field]
             cloning_refs = branching_spec[branch_ref_field]
-
-            # Diffusion process (parallel).
-            for sys_idx in nb.prange(actual_num_walkers):
-
-                # TODO: Can we return tuples inside a nb.prange?
-                evolve_system(sys_idx, actual_state_conf,
-                              actual_state_energies, actual_state_weights,
-                              aux_state_conf, aux_state_energies,
-                              aux_state_weights, time_step, ref_energy,
-                              next_state_conf, next_state_energies,
-                              next_state_weights)
-
-                # Current system energy and weight.
-                sys_weight = aux_state_weights[sys_idx]
-
-                # Cloning factor of the current walker.
-                clone_factor = int(sys_weight + random.rand())
-                cloning_factors[sys_idx] = clone_factor
-
-            # We now have the effective number of walkers after branching.
-            num_walkers = sync_branching_spec(branching_spec,
-                                              actual_num_walkers,
-                                              max_num_walkers)
 
             # Total energy and weight of the next configuration.
             state_energy = 0.
             state_weight = 0.
 
             # Initially, mask all the configurations.
-            next_state_masks[:] = True
+            actual_state_masks[:] = True
 
-            # Branching process (parallel for).
-            for sys_idx in nb.prange(num_walkers):
+            # Branching and diffusion process (parallel for).
+            for sys_idx in nb.prange(max_num_walkers):
+
+                # Beyond the actual number of walkers just pass to
+                # the next iteration.
+                if sys_idx >= actual_num_walkers:
+                    continue
+
                 # Lookup which configuration should be cloned.
                 ref_idx = cloning_refs[sys_idx]
+                sys_energy = prev_state_energies[ref_idx]
+                sys_weight = prev_state_weights[ref_idx]
 
-                # Cloning process.
-                next_state_conf[sys_idx] = aux_state_conf[ref_idx]
-                sys_energy = aux_state_energies[ref_idx]
-                next_state_energies[sys_idx] = sys_energy
+                # Cloning process. Actual states are not modified.
+                actual_state_confs[sys_idx] = prev_state_confs[ref_idx]
+                actual_state_energies[sys_idx] = sys_energy
 
                 # Basic algorithm of branching gives a unit weight to each
                 # new walker. We set the value here. In addition, we unmask
                 # the walker, i.e., we mark it as valid.
-                next_state_weights[sys_idx] = 1.0
-                next_state_masks[sys_idx] = False
+                actual_state_weights[sys_idx] = sys_weight
+                actual_state_masks[sys_idx] = False
 
                 # The contribution to the total energy and weight.
                 state_energy += sys_energy
                 state_weight += 1.0
 
-            return EvoStateResult(state_energy, state_weight, num_walkers)
+                # Evolve the system for the next iteration.
+                # TODO: Can we return tuples inside a nb.prange?
+                evolve_system(sys_idx, actual_state_confs,
+                              actual_state_energies,
+                              actual_state_weights,
+                              time_step,
+                              ref_energy,
+                              aux_next_state_confs,
+                              aux_next_state_energies,
+                              aux_next_state_weights)
+
+            return EvoStateResult(state_energy, state_weight,
+                                  actual_num_walkers)
 
         return _evolve_state
 
     @cached_property
-    def evolve_states_batch(self):
+    def states_generator(self):
         """
 
         :return:
         """
-        iter_energy_field = IterProp.ENERGY.value
-        iter_weight_field = IterProp.WEIGHT.value
-        iter_num_walkers_field = IterProp.NUM_WALKERS.value
-        ref_energy_field = IterProp.REF_ENERGY.value
-
         # JIT functions.
         evolve_state = self.evolve_state
+        sync_branching_spec = self.sync_branching_spec
 
         @nb.jit(nopython=True)
-        def _evolve_states_batch(ini_state_confs: np.ndarray,
-                                 ini_state_props: np.ndarray,
-                                 ini_num_walkers: int,
-                                 ini_ref_energy: float,
-                                 time_step: float,
-                                 num_time_steps_batch: int,
-                                 target_num_walkers: int,
-                                 max_num_walkers: int,
-                                 states_confs_array: np.ndarray,
-                                 states_props_array: np.ndarray,
-                                 iter_props_array: np.ndarray):
-            """Realizes the DMC sampling in batches.
+        def _states_generator(time_step: float,
+                              ini_state: State,
+                              target_num_walkers: int):
+            """Realizes the DMC sampling state-by-state.
 
             The sampling is done in batches, with each batch having a fixed
             number of time steps given by the ``num_time_steps_batch``
             argument.
 
-            :param ini_state_confs:
-            :param ini_state_props:
-            :param states_confs_array:
-            :param states_props_array:
-            :param iter_props_array:
-            :param num_time_steps_batch:
-            :param max_num_walkers:
+            :param ini_state:
             :param time_step:
-            :param ini_ref_energy:
             :param target_num_walkers:
             :return:
             """
-            iter_energies = iter_props_array[iter_energy_field]
-            iter_weights = iter_props_array[iter_weight_field]
-            iter_num_walkers = iter_props_array[iter_num_walkers_field]
-            iter_ref_energies = iter_props_array[ref_energy_field]
+            # The initial state fixes the arrays of the following states.
+            ini_state_confs = ini_state.confs
+            ini_state_props = ini_state.props
+            max_num_walkers = ini_state.max_num_walkers
+
+            # Configurations and properties of the current
+            # state of the sampling (the one that will be yielded).
+            actual_state_confs = np.zeros_like(ini_state_confs)
+            actual_state_props = np.zeros_like(ini_state_props)
 
             # Auxiliary configuration.
-            aux_state_confs = np.zeros_like(ini_state_confs)
-            aux_state_props = np.zeros_like(ini_state_props)
+            aux_next_state_confs = np.zeros_like(ini_state_confs)
+            aux_next_state_props = np.zeros_like(ini_state_props)
 
             # Table to control the branching process.
             branching_spec = \
                 np.zeros(max_num_walkers, dtype=branching_spec_dtype)
 
+            # The total energy and weight, used to update the
+            # energy of reference for population control.
+            total_energy = 0.
+            total_weight = 0.
+
             # Initial configuration.
-            actual_state_confs = ini_state_confs
-            actual_state_props = ini_state_props
+            prev_state = ini_state
+            prev_state_confs = prev_state.confs
+            prev_state_props = prev_state.props
+            prev_num_walkers = prev_state.num_walkers
+            ref_energy = prev_state.ref_energy
 
-            # NOTE: Is this necessary and/or useful?
-            # states_props_mask = states_props_array[props_mask_field]
-            # states_props_mask[:] = True
+            # The philosophy of the generator is simple: keep sampling
+            # new states until the loop is broken from an outer scope.
+            while True:
 
-            # Energy of reference for population control.
-            batch_energy = 0.
-            batch_weight = 0.
-            ref_energy = ini_ref_energy
-            actual_num_walkers = ini_num_walkers
+                # We now have the effective number of walkers after branching.
+                actual_num_walkers = sync_branching_spec(prev_state_props,
+                                                         prev_num_walkers,
+                                                         max_num_walkers,
+                                                         branching_spec)
 
-            # Limits of the loop.
-            sj_ini = 0
-            sj_end = num_time_steps_batch
-
-            for sj_ in range(sj_ini, sj_end):
-                # The next configuration of this block.
-                next_state_confs = states_confs_array[sj_]
-                next_state_props = states_props_array[sj_]
-
-                evo_result = evolve_state(actual_state_confs,
+                evo_result = evolve_state(prev_state_confs,
+                                          prev_state_props,
+                                          actual_state_confs,
                                           actual_state_props,
-                                          next_state_confs,
-                                          next_state_props,
-                                          aux_state_confs,
-                                          aux_state_props,
+                                          aux_next_state_confs,
+                                          aux_next_state_props,
                                           actual_num_walkers,
                                           max_num_walkers,
                                           time_step,
@@ -435,37 +450,31 @@ class CoreFuncs(metaclass=ABCMeta):
                                           branching_spec)
 
                 # Update total energy and weight of the system.
-                sj_energy = evo_result.energy
-                sj_weight = evo_result.weight
-                sj_num_walkers = evo_result.num_walkers
-                batch_energy += sj_energy
-                batch_weight += sj_weight
+                state_energy = evo_result.energy
+                state_weight = evo_result.weight
+                total_energy += state_energy
+                total_weight += state_weight
 
                 # Update reference energy to avoid the explosion of the
-                # number of walkers...
+                # number of walkers.
                 # TODO: Pass the control factor (0.5) as an argument.
-                ref_energy = batch_energy / batch_weight
+                ref_energy = total_energy / total_weight
                 ref_energy -= 0.5 * log(
-                        sj_weight / target_num_walkers) / time_step
+                        state_weight / target_num_walkers) / time_step
 
-                # Update energy and weights.
-                iter_energies[sj_] = sj_energy
-                iter_weights[sj_] = sj_weight
-                iter_ref_energies[sj_] = ref_energy
+                yield State(confs=actual_state_confs,
+                            props=actual_state_props,
+                            energy=state_energy,
+                            weight=state_weight,
+                            num_walkers=actual_num_walkers,
+                            ref_energy=ref_energy,
+                            max_num_walkers=max_num_walkers)
 
-                # Update the number of walkers of this step.
-                iter_num_walkers[sj_] = sj_num_walkers
+                prev_state_confs = aux_next_state_confs
+                prev_state_props = aux_next_state_props
+                prev_num_walkers = actual_num_walkers
 
-                actual_state_confs = next_state_confs
-                actual_state_props = next_state_props
-                actual_num_walkers = sj_num_walkers
-
-            return EvoStatesBatchResult(actual_state_confs,
-                                        actual_state_props,
-                                        actual_num_walkers,
-                                        ref_energy)
-
-        return _evolve_states_batch
+        return _states_generator
 
     @property
     @abstractmethod
@@ -547,15 +556,18 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
-        evolve_states_batch = self.evolve_states_batch
-        prepare_ini_iter_data = self.prepare_ini_iter_data
+        iter_energy_field = IterProp.ENERGY.value
+        iter_weight_field = IterProp.WEIGHT.value
+        iter_num_walkers_field = IterProp.NUM_WALKERS.value
+        ref_energy_field = IterProp.REF_ENERGY.value
+
+        states_generator = self.states_generator
 
         @nb.jit(nopython=True, nogil=True)
         def _generator(time_step: float,
                        num_batches: int,
                        num_time_steps_batch: int,
                        ini_state: State,
-                       ini_ref_energy: float,
                        target_num_walkers: int,
                        rng_seed: int):
             """The DMC sampling generator.
@@ -564,7 +576,6 @@ class CoreFuncs(metaclass=ABCMeta):
             :param num_batches:
             :param num_time_steps_batch:
             :param ini_state:
-            :param ini_ref_energy:
             :param target_num_walkers:
             :param rng_seed:
             :return:
@@ -572,13 +583,11 @@ class CoreFuncs(metaclass=ABCMeta):
             # Initial state properties.
             ini_state_confs = ini_state.confs
             ini_state_props = ini_state.props
-            ini_num_walkers = ini_state.num_walkers
 
             # Alias 🙂
             nts_batch = num_time_steps_batch
             isc_shape = ini_state_confs.shape
             isp_shape = ini_state_props.shape
-            max_num_walkers = ini_state.max_num_walkers
 
             # The shape of the batches.
             scb_shape = (nts_batch,) + isc_shape
@@ -601,33 +610,38 @@ class CoreFuncs(metaclass=ABCMeta):
             # Seed the numba RNG.
             random.seed(rng_seed)
 
-            # We yield the initial state iter properties.
-            yield prepare_ini_iter_data(ini_state, ini_ref_energy)
+            iter_energies = iter_props_array[iter_energy_field]
+            iter_weights = iter_props_array[iter_weight_field]
+            iter_num_walkers = iter_props_array[iter_num_walkers_field]
+            iter_ref_energies = iter_props_array[ref_energy_field]
+
+            # Create a new sampling generator.
+            generator = \
+                states_generator(time_step, ini_state, target_num_walkers)
 
             # Limits of the sampling.
             nbj_ini, nbj_end = 0, num_batches
-            for nbj in range(nbj_ini, nbj_end):
-                #
-                evo_result = evolve_states_batch(ini_state_confs,
-                                                 ini_state_props,
-                                                 ini_num_walkers,
-                                                 ini_ref_energy,
-                                                 time_step,
-                                                 num_time_steps_batch,
-                                                 target_num_walkers,
-                                                 max_num_walkers,
-                                                 states_confs_array,
-                                                 states_props_array,
-                                                 iter_props_array)
+            for bj_ in range(nbj_ini, nbj_end):
+
+                for sj_, state in enumerate(generator):
+
+                    # Copy the data to the batch.
+                    states_confs_array[sj_] = state.confs[:]
+                    states_props_array[sj_] = state.props[:]
+
+                    # Copy other data to keep track of the evolution.
+                    iter_energies[sj_] = state.energy
+                    iter_weights[sj_] = state.weight
+                    iter_num_walkers[sj_] = state.num_walkers
+                    iter_ref_energies[sj_] = state.ref_energy
+
+                    # Stop/pause the iteration.
+                    if sj_ + 1 >= nts_batch:
+                        break
 
                 iter_data = SamplingIterData(states_confs_array,
                                              states_props_array,
                                              iter_props_array)
                 yield iter_data
-
-                ini_state_confs = evo_result.last_confs.copy()
-                ini_state_props = evo_result.last_props.copy()
-                ini_num_walkers = evo_result.last_num_walkers
-                ini_ref_energy = evo_result.last_ref_energy
 
         return _generator

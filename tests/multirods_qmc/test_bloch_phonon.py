@@ -167,14 +167,17 @@ def test_wf_optimize():
 
 def test_dmc():
     """Testing the DMC sampling."""
+    lattice_depth = 0
+    lattice_ratio = 1
+    interaction_strength = 40
     boson_number = 50
     supercell_size = 50
     tbf_contact_cutoff = 0.25 * supercell_size
 
     # TODO: Improve this test.
-    model_spec = bloch_phonon.Spec(lattice_depth=LATTICE_DEPTH,
-                                   lattice_ratio=LATTICE_RATIO,
-                                   interaction_strength=INTERACTION_STRENGTH,
+    model_spec = bloch_phonon.Spec(lattice_depth=lattice_depth,
+                                   lattice_ratio=lattice_ratio,
+                                   interaction_strength=interaction_strength,
                                    boson_number=boson_number,
                                    supercell_size=supercell_size,
                                    tbf_contact_cutoff=tbf_contact_cutoff)
@@ -192,12 +195,12 @@ def test_dmc():
     sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
     print(f"Acceptance ratio: {ar_:.5g}")
 
-    time_step = 1e-2
-    num_blocks = 256
-    num_time_steps_block = 1
+    time_step = 1e-3
+    num_blocks = 8
+    num_time_steps_block = 128
     ini_sys_conf_set = sys_conf_chain[-100:]
-    target_num_walkers = 500
-    max_num_walkers = 1000
+    target_num_walkers = 512
+    max_num_walkers = 576
     ini_ref_energy = None
     rng_seed = None
     dmc_sampling = bloch_phonon.dmc.Sampling(model_spec,
@@ -210,7 +213,8 @@ def test_dmc():
                                              target_num_walkers,
                                              rng_seed=rng_seed)
 
-    for state_conf, state_props, iter_props in dmc_sampling:
+    for iter_data in dmc_sampling:
+        iter_props = iter_data.iter_props
         print(iter_props)
 
 
@@ -241,7 +245,7 @@ def test_dmc_energy():
 
     time_step = 1e-2
     num_blocks = 4
-    num_time_steps_block = 32
+    num_time_steps_block = 128
     ini_sys_conf_set = sys_conf_chain[-768:]
     target_num_walkers = 512
     max_num_walkers = 512 + 128
