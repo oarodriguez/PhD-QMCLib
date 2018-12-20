@@ -63,7 +63,10 @@ class State(t.NamedTuple):
     """The """
     confs: np.ndarray
     props: np.ndarray
+    energy: float
+    weight: float
     num_walkers: int
+    ref_energy: float
     max_num_walkers: int
 
 
@@ -148,9 +151,8 @@ class Sampling(Iterable, metaclass=ABCMeta):
     def state_props_shape(self):
         pass
 
-    @property
     @abstractmethod
-    def ini_state(self):
+    def init_get_ini_state(self) -> State:
         """The initial state for the sampling.
 
         The state includes the drift, the energies wne the weights of

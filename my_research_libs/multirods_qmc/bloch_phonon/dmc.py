@@ -28,7 +28,10 @@ class State(qmc_base.dmc.State, t.NamedTuple):
     """"""
     confs: np.ndarray
     props: np.ndarray
+    energy: float
+    weight: float
     num_walkers: int
+    ref_energy: float
     max_num_walkers: int
 
 
@@ -98,8 +101,7 @@ class Sampling(qmc_base.dmc.Sampling):
         max_num_walkers = self.max_num_walkers
         return max_num_walkers,
 
-    @cached_property
-    def ini_state(self):
+    def init_get_ini_state(self) -> State:
         """The initial state for the sampling.
 
         The state includes the drift, the energies wne the weights of
@@ -109,6 +111,7 @@ class Sampling(qmc_base.dmc.Sampling):
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
         ini_sys_conf_set = self.ini_sys_conf_set
+        ini_ref_energy = self.ini_ref_energy
         num_walkers = len(ini_sys_conf_set)
 
         # Initial state arrays.
@@ -119,7 +122,24 @@ class Sampling(qmc_base.dmc.Sampling):
         self.core_funcs.prepare_ini_state(ini_sys_conf_set, state_confs,
                                           state_props)
 
-        return State(state_confs, state_props, num_walkers, max_num_walkers)
+        state_energies = state_props[StateProp.ENERGY][:num_walkers]
+        state_weights = state_props[StateProp.WEIGHT][:num_walkers]
+
+        state_energy = (state_energies * state_weights).sum()
+        state_weight = state_weights.sum()
+
+        if ini_ref_energy is None:
+            # Calculate the initial energy of reference as the
+            # average of the energy of the initial state.
+            ini_ref_energy = state_energy / state_weight
+
+        return State(confs=state_confs,
+                     props=state_props,
+                     energy=state_energy,
+                     weight=state_weight,
+                     num_walkers=num_walkers,
+                     ref_energy=ini_ref_energy,
+                     max_num_walkers=max_num_walkers)
 
     def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
                                   iter_batch: SamplingIterData) -> t.Tuple:
@@ -287,17 +307,14 @@ class Sampling(qmc_base.dmc.Sampling):
         """Iterable interface."""
 
         # Initial
-        ini_state = self.ini_state
+        ini_state = self.init_get_ini_state()
         ini_ref_energy = self.ini_ref_energy
 
         # Calculate the initial energy of reference as the average of the
         # energy of the initial state.
         if ini_ref_energy is None:
             #
-            inw = ini_state.num_walkers
-            state_energies = ini_state.props[StateProp.ENERGY.value][:inw]
-            state_weights = ini_state.props[StateProp.WEIGHT.value][:inw]
-            ini_ref_energy = np.average(state_energies, weights=state_weights)
+            ini_ref_energy = ini_state.ref_energy
 
         time_step = self.time_step
         num_batches = self.num_batches
