@@ -192,7 +192,25 @@ class Reblocking:
         bdc_shape = (num_sizes,) + (1,) * len(ext_shape)
         block_sizes = block_sizes.reshape(bdc_shape)
 
+        # Correlation times.
         return 0.5 * block_sizes * self_vars / data_var
+
+    @property
+    def opt_block_size(self):
+        """The optimal block size."""
+        block_sizes = self.block_sizes
+        len_data = len(self.source_data)
+        int_corr_times = self.int_corr_times
+        criterion = block_sizes ** 3 > 2 * len_data * int_corr_times ** 2
+        opt_block_size = block_sizes[criterion].min()
+        return opt_block_size
+
+    @property
+    def opt_int_corr_time(self):
+        """The optimal integrated correlation time."""
+        criterion = self.block_sizes == self.opt_block_size
+        opt_corr_time = self.int_corr_times[criterion]
+        return opt_corr_time[0]
 
     @property
     def corr_time_fit(self):
