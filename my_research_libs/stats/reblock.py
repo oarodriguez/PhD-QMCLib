@@ -1,7 +1,9 @@
 import typing as t
-from math import ceil, floor, log2
+from enum import Enum, unique
+from math import ceil, floor, log, log2
 
 import attr
+import numba as nb
 import numpy as np
 from cached_property import cached_property
 from scipy.optimize import curve_fit
@@ -200,6 +202,217 @@ class Reblocking:
         """The optimal block size."""
         block_sizes = self.block_sizes
         len_data = len(self.source_data)
+        int_corr_times = self.int_corr_times
+        criterion = block_sizes ** 3 > 2 * len_data * int_corr_times ** 2
+        opt_block_size = block_sizes[criterion].min()
+        return opt_block_size
+
+    @property
+    def opt_int_corr_time(self):
+        """The optimal integrated correlation time."""
+        criterion = self.block_sizes == self.opt_block_size
+        opt_corr_time = self.int_corr_times[criterion]
+        return opt_corr_time[0]
+
+    @property
+    def corr_time_fit(self):
+        """Fit of the integrated correlation time."""
+        return CorrTimeFit(self.block_sizes, self.int_corr_times)
+
+
+@unique
+class ReblockingField(str, Enum):
+    """Fields of the reblocking array."""
+    BLOCK_SIZE = 'BLOCK_SIZE'
+    MEANS_SUM = 'MEANS_SUM'
+    MEANS_SQR_SUM = 'MEANS_SQR_SUM'
+    NUM_BLOCKS = 'NUM_BLOCKS'
+
+
+BLOCK_SIZE_FIELD = ReblockingField.BLOCK_SIZE.value
+NUM_BLOCKS_FIELD = ReblockingField.NUM_BLOCKS.value
+MEANS_SQR_SUM_FIELD = ReblockingField.MEANS_SQR_SUM.value
+MEANS_SUM_FIELD = ReblockingField.MEANS_SUM.value
+
+reblocking_dtype = np.dtype([
+    (BLOCK_SIZE_FIELD, np.int64),
+    (MEANS_SUM_FIELD, np.float64),
+    (MEANS_SQR_SUM_FIELD, np.float64),
+    (NUM_BLOCKS_FIELD, np.int64)
+])
+
+
+@nb.njit
+def stratified_reblocking(source_data: np.ndarray,
+                          min_num_blocks: int = 2,
+                          max_order: int = None):
+    """Realizes a reblocking analysis at increasing levels.
+
+    This function calculates a reblocking analysis at increasing levels.
+    Each subsequent level takes twice the number of elements of
+    source_data than the previous to construct a block and to calculate
+    the averages.
+
+    :param source_data:
+    :param min_num_blocks:
+    :param max_order:
+    :return:
+    """
+    #
+    data_len = source_data.shape[0]
+    max_num_blocks = int(floor(log(data_len) / log(2)))
+    min_num_blocks = int(ceil(log(min_num_blocks) / log(2)))
+
+    if max_order is None:
+        max_order = max_num_blocks - min_num_blocks
+    else:
+        assert max_order <= max_num_blocks - min_num_blocks
+
+    reblocking_array = np.zeros(max_order + 1, dtype=reblocking_dtype)
+    means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
+
+    block_size_array = reblocking_array[BLOCK_SIZE_FIELD]
+    means_sum_array = reblocking_array[MEANS_SUM_FIELD]
+    means_sqr_sum_array = reblocking_array[MEANS_SQR_SUM_FIELD]
+    num_blocks_array = reblocking_array[NUM_BLOCKS_FIELD]
+
+    for order in range(max_order + 1):
+        block_size = 1 << order
+        block_size_array[order] = block_size
+
+    order = 0
+    block_size = block_size_array[order]
+    # The size of the next block is twice the previous.
+    next_block_size = block_size << 1
+
+    for index in range(data_len):
+        #
+        data_mean = source_data[index]
+        means_sum_array[order] += data_mean
+        means_sqr_sum_array[order] += data_mean ** 2
+        num_blocks_array[order] += 1
+
+        block_index = index
+        mean_index = block_index % 2
+        means_array[order, mean_index] = data_mean
+
+        if not (index + 1) % next_block_size:
+            next_order = 1
+            recursive_reblocking(means_array, block_size_array,
+                                 means_sum_array, means_sqr_sum_array,
+                                 num_blocks_array, index, next_order,
+                                 max_order, reblocking=reblocking_array)
+
+    return reblocking_array
+
+
+@nb.njit
+def recursive_reblocking(means_array: np.ndarray,
+                         block_size_array: np.ndarray,
+                         means_sum_array: np.ndarray,
+                         means_sqr_sum_array: np.ndarray,
+                         num_blocks_array: np.ndarray,
+                         index: int,
+                         order: int,
+                         max_order: int,
+                         reblocking: np.ndarray):
+    """Does a reblocking analysis at higher orders recursively.
+
+    :param means_array:
+    :param block_size_array:
+    :param means_sum_array:
+    :param means_sqr_sum_array:
+    :param num_blocks_array:
+    :param index:
+    :param order:
+    :param max_order:
+    :param reblocking:
+    :return:
+    """
+    data_mean = means_array[order - 1].mean()
+    means_sum_array[order] += data_mean
+    means_sqr_sum_array[order] += data_mean ** 2
+    num_blocks_array[order] += 1
+
+    block_size = 1 << order
+    block_index = (index + 1) // block_size - 1
+    mean_index = block_index % 2
+    means_array[order, mean_index] = data_mean
+
+    if order < max_order:
+        next_order = order + 1
+        next_block_size = block_size << 1
+
+        if not (index + 1) % next_block_size:
+            recursive_reblocking(means_array, block_size_array,
+                                 means_sum_array, means_sqr_sum_array,
+                                 num_blocks_array, index, next_order,
+                                 max_order, reblocking=reblocking)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class StratifiedReblocking:
+    """"""
+    source_data: np.ndarray
+
+    data_var: t.Optional[float] = None
+
+    var_ddof: int = 1
+
+    def __attrs_post_init__(self):
+        """"""
+        assert self.source_data.dtype == reblocking_dtype
+
+        # NOTE: Allow only 1d arrays by now.
+        assert len(self.source_data.shape) == 1
+
+        if self.data_var is None:
+            data_var = self.vars[0]
+            super().__setattr__('data_var', data_var)
+
+    @property
+    def block_sizes(self):
+        """"""
+        return self.source_data[BLOCK_SIZE_FIELD]
+
+    @property
+    def num_blocks(self):
+        return self.source_data[NUM_BLOCKS_FIELD]
+
+    @cached_property
+    def means(self):
+        """"""
+        means_sum = self.source_data[MEANS_SUM_FIELD]
+        return means_sum / self.num_blocks
+
+    @cached_property
+    def vars(self):
+        """"""
+        num_blocks = self.num_blocks
+        means_sqr_sum = self.source_data[MEANS_SQR_SUM_FIELD]
+        means_sqr = means_sqr_sum / num_blocks
+        ddof_num_blocks = num_blocks - self.var_ddof
+        return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
+
+    @property
+    def errors(self):
+        """Errors of the mean for each of the block sizes."""
+        return np.sqrt(self.vars / self.num_blocks)
+
+    @property
+    def int_corr_times(self):
+        """Integrated correlation times for each of the block sizes."""
+        self_vars = self.vars
+        data_var = self.data_var
+        block_sizes = self.block_sizes
+        # Correlation times.
+        return 0.5 * block_sizes * self_vars / data_var
+
+    @property
+    def opt_block_size(self):
+        """The optimal block size."""
+        block_sizes = self.block_sizes
+        len_data = self.num_blocks[0]
         int_corr_times = self.int_corr_times
         criterion = block_sizes ** 3 > 2 * len_data * int_corr_times ** 2
         opt_block_size = block_sizes[criterion].min()
