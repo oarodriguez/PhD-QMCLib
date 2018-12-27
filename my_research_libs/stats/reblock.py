@@ -144,7 +144,8 @@ class ReblockingBase(metaclass=ABCMeta):
         block_sizes = self.block_sizes
         len_data = len(self.source_data)
         int_corr_times = self.int_corr_times
-        criterion = block_sizes ** 3 > 2 * len_data * int_corr_times ** 2
+        # B^3 > 2N * (2 \tau)^2
+        criterion = block_sizes ** 3 > 8 * len_data * int_corr_times ** 2
         opt_block_size = block_sizes[criterion].min()
         return opt_block_size
 
