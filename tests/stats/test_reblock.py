@@ -15,6 +15,8 @@ def test_stats():
     print(block_analysis.num_blocks)
     print(block_analysis.int_corr_times)
     print(block_analysis.corr_time_fit.params)
+    print(block_analysis.source_data_eff_size)
+    print(block_analysis.source_data_mean_eff_error)
 
 
 def test_stratified_reblocking():

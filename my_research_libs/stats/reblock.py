@@ -1,7 +1,7 @@
 import typing as t
 from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
-from math import ceil, floor, log, log2
+from math import ceil, floor, log, log2, sqrt
 
 import attr
 import numba as nb
@@ -154,6 +154,29 @@ class ReblockingBase(metaclass=ABCMeta):
         criterion = self.block_sizes == self.opt_block_size
         opt_corr_time = self.int_corr_times[criterion]
         return opt_corr_time[0]
+
+    @property
+    def source_data_eff_size(self):
+        """Returns the effective size of the source data.
+
+        The calculation takes into account the temporal correlations
+        between the data to get the effective size of the statistical
+        sample.
+        """
+        len_data = len(self.source_data)
+        # NOTE: Should we return an int or a float?
+        return len_data / (2 * self.opt_int_corr_time)
+
+    @property
+    def source_data_mean_eff_error(self):
+        """The effective error of the mean of the data.
+
+        This value takes into account the temporal correlations between
+        the data to get the effective error of the mean of the statistical
+        sample.
+        """
+        eff_data_len = self.source_data_eff_size
+        return sqrt(self.source_data_var / eff_data_len)
 
     @property
     def corr_time_fit(self):
