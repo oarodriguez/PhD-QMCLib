@@ -346,10 +346,10 @@ def stratified_reblocking(source_data: np.ndarray,
     means_sqr_sum_array = reblocking_array[MEANS_SQR_SUM_FIELD]
     num_blocks_array = reblocking_array[NUM_BLOCKS_FIELD]
 
-    order = 0
-    block_size = block_size_array[order]
     # The size of the next block is twice the previous.
-    next_block_size = block_size << 1
+    ini_order = order = 0
+    ini_block_size = block_size = block_size_array[order]
+    ini_next_block_size = next_block_size = block_size << 1
 
     for index in range(data_len):
         #
@@ -362,12 +362,33 @@ def stratified_reblocking(source_data: np.ndarray,
         mean_index = block_index % 2
         means_array[order, mean_index] = data_mean
 
-        if not (index + 1) % next_block_size:
-            next_order = 1
-            recursive_reblocking(means_array, block_size_array,
-                                 means_sum_array, means_sqr_sum_array,
-                                 num_blocks_array, index, next_order,
-                                 max_order, reblocking=reblocking_array)
+        while True:
+            #
+            if not (index + 1) % next_block_size:
+                #
+                order += 1
+                block_size = block_size << 1
+
+                data_mean = means_array[order - 1].mean()
+                means_sum_array[order] += data_mean
+                means_sqr_sum_array[order] += data_mean ** 2
+                num_blocks_array[order] += 1
+
+                block_index = (index + 1) // block_size - 1
+                mean_index = block_index % 2
+                means_array[order, mean_index] = data_mean
+
+                # Doubles the current block size for the next order.
+                next_block_size = block_size << 1
+
+            else:
+                # Reset order to the initial order.
+                # NOTE: This will be executed always the if test fails.
+                #  This does not seems good.
+                order = ini_order
+                block_size = ini_block_size
+                next_block_size = ini_next_block_size
+                break
 
     return reblocking_array
 
