@@ -1,4 +1,5 @@
 import typing as t
+from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
 from math import ceil, floor, log, log2
 
@@ -80,16 +81,92 @@ class BlockedData:
     data: np.ndarray
 
 
+class ReblockingBase(metaclass=ABCMeta):
+    """"""
+    #: The data to analyze.
+    source_data: np.ndarray
+
+    #: Minimum number of blocks.
+    min_num_blocks: int = 2
+
+    #: Variance delta degrees of freedom.
+    var_ddof: int
+
+    @cached_property
+    def source_data_mean(self):
+        """The mean of the source data."""
+        return self.source_data.mean(axis=0)
+
+    @cached_property
+    def source_data_var(self):
+        """The variance of the source data."""
+        return self.source_data.var(axis=0, ddof=self.var_ddof)
+
+    @property
+    @abstractmethod
+    def block_sizes(self) -> np.ndarray:
+        """The sizes of the blocks used in the reblocking."""
+        pass
+
+    @property
+    @abstractmethod
+    def num_blocks(self) -> np.ndarray:
+        pass
+
+    @property
+    @abstractmethod
+    def means(self) -> np.ndarray:
+        pass
+
+    @property
+    @abstractmethod
+    def vars(self) -> np.ndarray:
+        pass
+
+    @property
+    def errors(self):
+        """Errors of the mean for each of the block sizes."""
+        return np.sqrt(self.vars / self.num_blocks)
+
+    @property
+    def int_corr_times(self):
+        """Integrated correlation times for each of the block sizes."""
+        self_vars = self.vars
+        block_sizes = self.block_sizes
+        data_var = self.source_data_var
+
+        # Correlation times.
+        return 0.5 * block_sizes * self_vars / data_var
+
+    @property
+    def opt_block_size(self):
+        """The optimal block size."""
+        block_sizes = self.block_sizes
+        len_data = len(self.source_data)
+        int_corr_times = self.int_corr_times
+        criterion = block_sizes ** 3 > 2 * len_data * int_corr_times ** 2
+        opt_block_size = block_sizes[criterion].min()
+        return opt_block_size
+
+    @property
+    def opt_int_corr_time(self):
+        """The optimal integrated correlation time."""
+        criterion = self.block_sizes == self.opt_block_size
+        opt_corr_time = self.int_corr_times[criterion]
+        return opt_corr_time[0]
+
+    @property
+    def corr_time_fit(self):
+        """Fit of the integrated correlation time."""
+        return CorrTimeFit(self.block_sizes, self.int_corr_times)
+
+
 @attr.s(auto_attribs=True, frozen=True)
-class Reblocking:
+class Reblocking(ReblockingBase):
     """Realizes a blocking/binning analysis of serially correlated data."""
 
     # The data to analyze.
     source_data: np.ndarray
-
-    #: The sizes of the blocks used to estimate the correlation
-    #: length and integrated time.
-    block_sizes: t.Optional[t.Union[np.ndarray, t.Sequence[int]]] = None
 
     #: Minimum size
     min_num_blocks: int = 2
@@ -97,37 +174,33 @@ class Reblocking:
     #: Variance delta degrees of freedom.
     var_ddof: int = attr.ib(default=1, init=False)
 
-    #:
-    fit_min_block_size: int = 1
-
     def __attrs_post_init__(self):
         """Post initialization stage."""
-        block_sizes = self.block_sizes
-        min_num_blocks = self.min_num_blocks
-        if block_sizes is not None:
-            block_sizes = np.asarray(block_sizes)
-        else:
-            len_data = len(self.source_data)
-            max_num_blocks = int(floor(log2(len_data)))
-            min_num_blocks = int(ceil(log2(min_num_blocks)))
-            block_sizes = 2 ** np.arange(max_num_blocks - min_num_blocks + 1)
-
-        # Update attribute.
-        super().__setattr__('block_sizes', block_sizes.astype(np.int64))
-
         # NOTE: Allow only 1d arrays by now.
-        assert len(block_sizes.shape) == 1
         assert len(self.source_data.shape) == 1
 
         if self.var_ddof < 0:
             raise ValueError('delta degrees of freedom must be a positive '
                              'integer')
 
+        min_num_blocks = self.min_num_blocks
         less_than_min = self.num_blocks < min_num_blocks
         if np.count_nonzero(less_than_min):
             raise ValueError(f'the minimum number of data blocks for the '
                              f'analysis is {min_num_blocks} is not respected '
                              'with the given block_sizes')
+
+    @cached_property
+    def block_sizes(self):
+        """The sizes of the blocks used in the reblocking."""
+        min_num_blocks = self.min_num_blocks
+        len_data = len(self.source_data)
+        max_num_blocks = int(floor(log2(len_data)))
+        min_num_blocks = int(ceil(log2(min_num_blocks)))
+
+        # Powers of 2 for the block sizes.
+        block_sizes = 1 << np.arange(max_num_blocks - min_num_blocks + 1)
+        return block_sizes.astype(np.int64)
 
     @cached_property
     def num_blocks(self):
@@ -175,49 +248,6 @@ class Reblocking:
             data_mean = shaped_data.mean(axis=1).var(axis=0, ddof=var_ddof)
             data_vars.append(data_mean)
         return np.array(data_vars)
-
-    @property
-    def errors(self):
-        """Errors of the mean for each of the block sizes."""
-        return np.sqrt(self.vars / self.num_blocks)
-
-    @property
-    def int_corr_times(self):
-        """Integrated correlation times for each of the block sizes."""
-        self_vars = self.vars
-        var_ddof = self.var_ddof
-        block_sizes = self.block_sizes
-        data_var = self.source_data.var(axis=0, ddof=var_ddof)
-
-        # Reshape block sizes to proceed.
-        num_sizes, *ext_shape = self_vars.shape
-        bdc_shape = (num_sizes,) + (1,) * len(ext_shape)
-        block_sizes = block_sizes.reshape(bdc_shape)
-
-        # Correlation times.
-        return 0.5 * block_sizes * self_vars / data_var
-
-    @property
-    def opt_block_size(self):
-        """The optimal block size."""
-        block_sizes = self.block_sizes
-        len_data = len(self.source_data)
-        int_corr_times = self.int_corr_times
-        criterion = block_sizes ** 3 > 2 * len_data * int_corr_times ** 2
-        opt_block_size = block_sizes[criterion].min()
-        return opt_block_size
-
-    @property
-    def opt_int_corr_time(self):
-        """The optimal integrated correlation time."""
-        criterion = self.block_sizes == self.opt_block_size
-        opt_corr_time = self.int_corr_times[criterion]
-        return opt_corr_time[0]
-
-    @property
-    def corr_time_fit(self):
-        """Fit of the integrated correlation time."""
-        return CorrTimeFit(self.block_sizes, self.int_corr_times)
 
 
 @unique
@@ -364,81 +394,44 @@ def recursive_reblocking(means_array: np.ndarray,
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class StratifiedReblocking:
+class StratifiedReblocking(ReblockingBase):
     """"""
     source_data: np.ndarray
 
-    data_var: t.Optional[float] = None
+    min_num_blocks: int = 2
 
     var_ddof: int = 1
 
     def __attrs_post_init__(self):
         """"""
-        assert self.source_data.dtype == reblocking_dtype
-
         # NOTE: Allow only 1d arrays by now.
         assert len(self.source_data.shape) == 1
 
-        if self.data_var is None:
-            data_var = self.vars[0]
-            super().__setattr__('data_var', data_var)
+    @cached_property
+    def data(self):
+        """"""
+        return stratified_reblocking(self.source_data, self.min_num_blocks)
 
     @property
     def block_sizes(self):
         """"""
-        return self.source_data[BLOCK_SIZE_FIELD]
+        return self.data[BLOCK_SIZE_FIELD]
 
     @property
     def num_blocks(self):
-        return self.source_data[NUM_BLOCKS_FIELD]
+        return self.data[NUM_BLOCKS_FIELD]
 
     @cached_property
     def means(self):
         """"""
-        means_sum = self.source_data[MEANS_SUM_FIELD]
+        means_sum = self.data[MEANS_SUM_FIELD]
         return means_sum / self.num_blocks
 
     @cached_property
     def vars(self):
         """"""
         num_blocks = self.num_blocks
-        means_sqr_sum = self.source_data[MEANS_SQR_SUM_FIELD]
+        means_sqr_sum = self.data[MEANS_SQR_SUM_FIELD]
         means_sqr = means_sqr_sum / num_blocks
         ddof_num_blocks = num_blocks - self.var_ddof
         return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
-
-    @property
-    def errors(self):
-        """Errors of the mean for each of the block sizes."""
-        return np.sqrt(self.vars / self.num_blocks)
-
-    @property
-    def int_corr_times(self):
-        """Integrated correlation times for each of the block sizes."""
-        self_vars = self.vars
-        data_var = self.data_var
-        block_sizes = self.block_sizes
-        # Correlation times.
-        return 0.5 * block_sizes * self_vars / data_var
-
-    @property
-    def opt_block_size(self):
-        """The optimal block size."""
-        block_sizes = self.block_sizes
-        len_data = self.num_blocks[0]
-        int_corr_times = self.int_corr_times
-        criterion = block_sizes ** 3 > 2 * len_data * int_corr_times ** 2
-        opt_block_size = block_sizes[criterion].min()
-        return opt_block_size
-
-    @property
-    def opt_int_corr_time(self):
-        """The optimal integrated correlation time."""
-        criterion = self.block_sizes == self.opt_block_size
-        opt_corr_time = self.int_corr_times[criterion]
-        return opt_corr_time[0]
-
-    @property
-    def corr_time_fit(self):
-        """Fit of the integrated correlation time."""
-        return CorrTimeFit(self.block_sizes, self.int_corr_times)
