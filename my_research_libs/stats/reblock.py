@@ -164,14 +164,8 @@ class ReblockingBase(metaclass=ABCMeta):
 @attr.s(auto_attribs=True, frozen=True)
 class Reblocking(ReblockingBase):
     """Realizes a blocking/binning analysis of serially correlated data."""
-
-    # The data to analyze.
     source_data: np.ndarray
-
-    #: Minimum size
     min_num_blocks: int = 2
-
-    #: Variance delta degrees of freedom.
     var_ddof: int = attr.ib(default=1, init=False)
 
     def __attrs_post_init__(self):
@@ -210,7 +204,7 @@ class Reblocking(ReblockingBase):
         return num_blocks.astype(np.int64)
 
     @cached_property
-    def blocked_data(self) -> t.List[BlockedData]:
+    def data(self) -> t.List[BlockedData]:
         """The source data reshaped in blocks."""
         self_data = self.source_data
         block_sizes = self.block_sizes
@@ -229,7 +223,7 @@ class Reblocking(ReblockingBase):
     @cached_property
     def means(self):
         """Means of each of the blocks."""
-        blocked_data = self.blocked_data
+        blocked_data = self.data
         data_means = []
         for block in blocked_data:
             shaped_data = block.data
@@ -241,7 +235,7 @@ class Reblocking(ReblockingBase):
     def vars(self):
         """Variances of each of the blocks."""
         var_ddof = self.var_ddof
-        blocked_data = self.blocked_data
+        blocked_data = self.data
         data_vars = []
         for block in blocked_data:
             shaped_data = block.data
@@ -395,11 +389,9 @@ def recursive_reblocking(means_array: np.ndarray,
 
 @attr.s(auto_attribs=True, frozen=True)
 class StratifiedReblocking(ReblockingBase):
-    """"""
+    """Realizes a reblocking analysis at increasing levels."""
     source_data: np.ndarray
-
     min_num_blocks: int = 2
-
     var_ddof: int = 1
 
     def __attrs_post_init__(self):

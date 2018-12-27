@@ -1,8 +1,6 @@
 import numpy as np
 
-from my_research_libs.stats.reblock import (
-    Reblocking, StratifiedReblocking
-)
+from my_research_libs.stats.reblock import Reblocking, StratifiedReblocking
 
 
 def test_stats():
