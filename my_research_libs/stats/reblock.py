@@ -243,6 +243,24 @@ reblocking_dtype = np.dtype([
 
 
 @nb.njit
+def init_reblocking_array(max_order: int) -> t.Tuple[np.ndarray, np.ndarray]:
+    """Initializes the reblocking array.
+
+    :param max_order:
+    :return:
+    """
+    reblocking_array = np.zeros(max_order + 1, dtype=reblocking_dtype)
+    means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
+    block_size_array = reblocking_array[BLOCK_SIZE_FIELD]
+
+    for order in range(max_order + 1):
+        block_size = 1 << order
+        block_size_array[order] = block_size
+
+    return reblocking_array, means_array
+
+
+@nb.njit
 def stratified_reblocking(source_data: np.ndarray,
                           min_num_blocks: int = 2,
                           max_order: int = None):
@@ -268,17 +286,12 @@ def stratified_reblocking(source_data: np.ndarray,
     else:
         assert max_order <= max_num_blocks - min_num_blocks
 
-    reblocking_array = np.zeros(max_order + 1, dtype=reblocking_dtype)
-    means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
+    reblocking_array, means_array = init_reblocking_array(max_order)
 
     block_size_array = reblocking_array[BLOCK_SIZE_FIELD]
     means_sum_array = reblocking_array[MEANS_SUM_FIELD]
     means_sqr_sum_array = reblocking_array[MEANS_SQR_SUM_FIELD]
     num_blocks_array = reblocking_array[NUM_BLOCKS_FIELD]
-
-    for order in range(max_order + 1):
-        block_size = 1 << order
-        block_size_array[order] = block_size
 
     order = 0
     block_size = block_size_array[order]
