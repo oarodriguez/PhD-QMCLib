@@ -33,10 +33,11 @@ class CorrTimeFit:
 
     def __attrs_post_init__(self):
         """Post initialization stage."""
-        self_fit = curve_fit(self, self.times, self.int_corr_times)
+        self_fit = curve_fit(self.__func__, self.times, self.int_corr_times)
         super().__setattr__('results', self_fit)
 
-    def __call__(self, times, int_time, exp_time, const):
+    @staticmethod
+    def __func__(times, int_time, exp_time, const):
         """A function to approximate the correlation times..
 
         :param times: The size of the block.
@@ -46,6 +47,10 @@ class CorrTimeFit:
         :return:
         """
         return int_time - const * np.exp(-times / exp_time)
+
+    def __call__(self, times):
+        """Callable interface."""
+        return self.__func__(times, *self.params)
 
     @property
     def params(self):
