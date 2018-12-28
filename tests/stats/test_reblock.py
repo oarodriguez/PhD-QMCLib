@@ -1,6 +1,6 @@
 import numpy as np
 
-from my_research_libs.stats.reblock import OnTheFlyReblocking, Reblocking
+import my_research_libs.stats.reblock as reblock
 
 
 def test_stats():
@@ -9,7 +9,7 @@ def test_stats():
     data_size = 2 ** size_max_order
     data_sample = np.random.random_sample(data_size)
 
-    block_analysis = Reblocking(data_sample, min_num_blocks=32)
+    block_analysis = reblock.Reblocking(data_sample, min_num_blocks=64)
 
     print(block_analysis.block_sizes)
     print(block_analysis.num_blocks)
@@ -25,11 +25,13 @@ def test_dynamic_reblocking():
     data_size = 2 ** size_max_order
     data_sample = np.random.random_sample(data_size)
 
-    dyn_reblocking = OnTheFlyReblocking(data_sample)
+    otf_accum = reblock.on_the_fly_reblocking_accum(data_sample,
+                                                    min_num_blocks=32)
+    dyn_reblocking = reblock.OnTheFlyReblocking(otf_accum)
     dyn_reblocking_vars = dyn_reblocking.vars
     print(dyn_reblocking_vars)
 
-    reblocking = Reblocking(data_sample, min_num_blocks=2)
+    reblocking = reblock.Reblocking(data_sample, min_num_blocks=32)
     reblocking_vars = reblocking.vars
     print(reblocking_vars)
 

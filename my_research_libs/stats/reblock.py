@@ -91,11 +91,14 @@ class ReblockingBase(metaclass=ABCMeta):
     #: The data to analyze.
     source_data: np.ndarray
 
-    #: Minimum number of blocks.
-    min_num_blocks: int = 2
-
     #: Variance delta degrees of freedom.
     var_ddof: int
+
+    @property
+    @abstractmethod
+    def source_data_size(self) -> int:
+        """The size of the source data."""
+        pass
 
     @cached_property
     def source_data_mean(self):
@@ -147,10 +150,10 @@ class ReblockingBase(metaclass=ABCMeta):
     def opt_block_size(self):
         """The optimal block size."""
         block_sizes = self.block_sizes
-        len_data = len(self.source_data)
+        data_size = self.source_data_size
         int_corr_times = self.int_corr_times
         # B^3 > 2N * (2 \tau)^2
-        criterion = block_sizes ** 3 > 8 * len_data * int_corr_times ** 2
+        criterion = block_sizes ** 3 > 8 * data_size * int_corr_times ** 2
         opt_block_size = block_sizes[criterion].min()
         return opt_block_size
 
@@ -169,9 +172,9 @@ class ReblockingBase(metaclass=ABCMeta):
         between the data to get the effective size of the statistical
         sample.
         """
-        len_data = len(self.source_data)
+        data_size = self.source_data_size
         # NOTE: Should we return an int or a float?
-        return len_data / (2 * self.opt_int_corr_time)
+        return data_size / (2 * self.opt_int_corr_time)
 
     @property
     def source_data_mean_eff_error(self):
@@ -181,8 +184,8 @@ class ReblockingBase(metaclass=ABCMeta):
         the data to get the effective error of the mean of the statistical
         sample.
         """
-        eff_data_len = self.source_data_eff_size
-        return sqrt(self.source_data_var / eff_data_len)
+        eff_data_size = self.source_data_eff_size
+        return sqrt(self.source_data_var / eff_data_size)
 
     @property
     def corr_time_fit(self):
@@ -219,12 +222,17 @@ class Reblocking(ReblockingBase):
                              f'analysis is {min_num_blocks} is not respected '
                              'with the given block_sizes')
 
+    @property
+    def source_data_size(self):
+        """The size of the source data."""
+        return len(self.source_data)
+
     @cached_property
     def block_sizes(self):
         """The sizes of the blocks used in the reblocking."""
         min_num_blocks = self.min_num_blocks
-        len_data = len(self.source_data)
-        max_num_blocks = int(floor(log2(len_data)))
+        data_size = self.source_data_size
+        max_num_blocks = int(floor(log2(data_size)))
         min_num_blocks = int(ceil(log2(min_num_blocks)))
 
         # Powers of 2 for the block sizes.
@@ -234,8 +242,8 @@ class Reblocking(ReblockingBase):
     @cached_property
     def num_blocks(self):
         """The number of blocks for each block size."""
-        data_len, *_ = self.source_data.shape
-        num_blocks = data_len // np.array(self.block_sizes, dtype=np.int64)
+        data_size = self.source_data_size
+        num_blocks = data_size // np.array(self.block_sizes, dtype=np.int64)
         return num_blocks.astype(np.int64)
 
     @cached_property
@@ -243,13 +251,13 @@ class Reblocking(ReblockingBase):
         """The source data reshaped in blocks."""
         self_data = self.source_data
         block_sizes = self.block_sizes
-        len_data, *rem_shape = self_data.shape
+        data_size = self.source_data_size
 
         blocked_data = []
         for size in block_sizes:
-            num_blocks = len_data // size
+            num_blocks = data_size // size
             eff_size = num_blocks * size
-            data_shape = (num_blocks, size) + tuple(rem_shape)
+            data_shape = (num_blocks, size)
             shaped_data = self_data[:eff_size].reshape(data_shape)
             data = BlockedData(num_blocks, size, shaped_data)
             blocked_data.append(data)
@@ -302,27 +310,25 @@ accum_array_dtype = np.dtype([
 
 
 @nb.njit
-def init_reblocking_stat(max_order: int) -> t.Tuple[np.ndarray, np.ndarray]:
+def init_reblocking_accum_array(max_order: int) -> np.ndarray:
     """Initializes the reblocking array.
 
     :param max_order:
     :return:
     """
     accum_array = np.zeros(max_order + 1, dtype=accum_array_dtype)
-    means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
     block_size_array = accum_array[BLOCK_SIZE_FIELD]
-
     for order in range(max_order + 1):
         block_size = 1 << order
         block_size_array[order] = block_size
 
-    return accum_array, means_array
+    return accum_array
 
 
 @nb.njit
-def on_the_fly_reblocking(source_data: np.ndarray,
-                          min_num_blocks: int = 2,
-                          max_order: int = None):
+def on_the_fly_reblocking_accum(source_data: np.ndarray,
+                                min_num_blocks: int = 2,
+                                max_order: int = None):
     """Realizes a reblocking analysis at increasing levels.
 
     This function calculates a reblocking analysis at increasing levels.
@@ -345,7 +351,8 @@ def on_the_fly_reblocking(source_data: np.ndarray,
     else:
         assert max_order <= max_num_blocks - min_num_blocks
 
-    accum_array, means_array = init_reblocking_stat(max_order)
+    accum_array = init_reblocking_accum_array(max_order)
+    means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
 
     block_size_array = accum_array[BLOCK_SIZE_FIELD]
     means_sum_array = accum_array[MEANS_SUM_FIELD]
@@ -456,9 +463,6 @@ class OnTheFlyReblocking(ReblockingBase):
     #: The data to analyze.
     source_data: np.ndarray
 
-    #: Minimum number of blocks.
-    min_num_blocks: int = 2
-
     #: Variance delta degrees of freedom.
     var_ddof: int = 1
 
@@ -467,31 +471,44 @@ class OnTheFlyReblocking(ReblockingBase):
         # NOTE: Allow only 1d arrays by now.
         assert len(self.source_data.shape) == 1
 
+        # Only allow reblocking accumulated values.
+        assert self.source_data.dtype == accum_array_dtype
+
     @cached_property
-    def data(self):
+    def source_data_size(self):
         """"""
-        return on_the_fly_reblocking(self.source_data, self.min_num_blocks)
+        return self.num_blocks[0]
+
+    @cached_property
+    def source_data_mean(self):
+        """The mean of the source data."""
+        return self.means[0]
+
+    @cached_property
+    def source_data_var(self):
+        """The variance of the source data."""
+        return self.vars[0]
 
     @property
     def block_sizes(self):
         """"""
-        return self.data[BLOCK_SIZE_FIELD]
+        return self.source_data[BLOCK_SIZE_FIELD]
 
     @property
     def num_blocks(self):
-        return self.data[NUM_BLOCKS_FIELD]
+        return self.source_data[NUM_BLOCKS_FIELD]
 
     @cached_property
     def means(self):
         """"""
-        means_sum = self.data[MEANS_SUM_FIELD]
+        means_sum = self.source_data[MEANS_SUM_FIELD]
         return means_sum / self.num_blocks
 
     @cached_property
     def vars(self):
         """"""
         num_blocks = self.num_blocks
-        means_sqr_sum = self.data[MEANS_SQR_SUM_FIELD]
+        means_sqr_sum = self.source_data[MEANS_SQR_SUM_FIELD]
         means_sqr = means_sqr_sum / num_blocks
         ddof_num_blocks = num_blocks - self.var_ddof
         return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
