@@ -1,6 +1,6 @@
 from abc import ABCMeta
 from math import sqrt
-from typing import NamedTuple, Union
+from typing import NamedTuple, Optional, Union
 
 import numpy as np
 from cached_property import cached_property
@@ -45,9 +45,8 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
     model_spec: model.Spec
 
     move_spread: float
-    num_steps: int
     ini_sys_conf: np.ndarray
-    rng_seed: int
+    rng_seed: Optional[int]
 
     @property
     def wf_spec_nt(self):
@@ -68,7 +67,6 @@ class NormalSampling(vmc.NormalSampling, metaclass=ABCMeta):
     model_spec: model.Spec
 
     time_step: float
-    num_steps: int
     ini_sys_conf: np.ndarray
     rng_seed: int
 

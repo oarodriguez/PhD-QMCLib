@@ -11,7 +11,7 @@ import math
 from abc import ABCMeta, abstractmethod
 from collections import Iterable
 from enum import Enum, IntEnum
-from typing import NamedTuple, Union
+from typing import Iterator, NamedTuple, Optional, Union
 
 import numpy as np
 from cached_property import cached_property
@@ -87,7 +87,6 @@ class SpecNT(NamedTuple):
     """The parameters to realize a sampling."""
     wf_spec: WFSpecNT
     tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]
-    num_steps: int
     ini_sys_conf: np.ndarray
     rng_seed: int
 
@@ -118,14 +117,11 @@ class Sampling(Iterable, metaclass=ABCMeta):
     #: The spread magnitude of the random moves for the sampling.
     move_spread: float
 
-    #: The number of samples to generate after the burn-in phase.
-    num_steps: int
-
     #: The initial configuration of the sampling.
     ini_sys_conf: np.ndarray
 
     #: The seed of the pseudo-RNG used to explore the configuration space.
-    rng_seed: int
+    rng_seed: Optional[int]
 
     @property
     @abstractmethod
@@ -144,14 +140,20 @@ class Sampling(Iterable, metaclass=ABCMeta):
         """The spec of the VMC sampling functions as a named tuple."""
         return SpecNT(self.wf_spec_nt,
                       self.tpf_spec_nt,
-                      self.num_steps,
                       self.ini_sys_conf,
                       self.rng_seed)
 
-    def as_chain(self):
-        """Returns the VMC sampling as an array object."""
-        sampling_spec = self.spec_nt
-        return self.core_funcs.as_chain(*sampling_spec)
+    def as_chain(self, num_steps: int):
+        """Returns the VMC sampling as an array object.
+
+        :param num_steps: The number of states to generate.
+        """
+        spec_nt = self.spec_nt
+        return self.core_funcs.as_chain(spec_nt.wf_spec,
+                                        spec_nt.tpf_spec,
+                                        num_steps,
+                                        spec_nt.ini_sys_conf,
+                                        spec_nt.rng_seed)
 
     @property
     @abstractmethod
@@ -159,10 +161,13 @@ class Sampling(Iterable, metaclass=ABCMeta):
         """The core functions of the sampling."""
         pass
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[SamplingIterDataNT]:
         """Iterable interface."""
-        vmc_spec = self.spec_nt
-        return self.core_funcs.generator(*vmc_spec)
+        spec_nt = self.spec_nt
+        return self.core_funcs.generator(spec_nt.wf_spec,
+                                         spec_nt.tpf_spec,
+                                         spec_nt.ini_sys_conf,
+                                         spec_nt.rng_seed)
 
 
 class NormalSampling(Iterable, metaclass=ABCMeta):
@@ -177,14 +182,11 @@ class NormalSampling(Iterable, metaclass=ABCMeta):
     #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
 
-    #: The number of samples to generate after the burn-in phase.
-    num_steps: int
-
     #: The initial configuration of the sampling.
     ini_sys_conf: np.ndarray
 
     #: The seed of the pseudo-RNG used to explore the configuration space.
-    rng_seed: int
+    rng_seed: Optional[int]
 
     @property
     @abstractmethod
@@ -203,14 +205,20 @@ class NormalSampling(Iterable, metaclass=ABCMeta):
         """The spec of the VMC sampling functions as a named tuple."""
         return SpecNT(self.wf_spec_nt,
                       self.tpf_spec_nt,
-                      self.num_steps,
                       self.ini_sys_conf,
                       self.rng_seed)
 
-    def as_chain(self):
-        """Returns the VMC sampling as an array object."""
-        sampling_spec = self.spec_nt
-        return self.core_funcs.as_chain(*sampling_spec)
+    def as_chain(self, num_steps: int):
+        """Returns the VMC sampling as an array object.
+
+        :param num_steps: The number of states to generate.
+        """
+        spec_nt = self.spec_nt
+        return self.core_funcs.as_chain(spec_nt.wf_spec,
+                                        spec_nt.tpf_spec,
+                                        num_steps,
+                                        spec_nt.ini_sys_conf,
+                                        spec_nt.rng_seed)
 
     @property
     @abstractmethod
@@ -218,10 +226,13 @@ class NormalSampling(Iterable, metaclass=ABCMeta):
         """The core functions of the sampling."""
         pass
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[SamplingIterDataNT]:
         """Iterable interface."""
-        vmc_spec = self.spec_nt
-        return self.core_funcs.generator(*vmc_spec)
+        spec_nt = self.spec_nt
+        return self.core_funcs.generator(spec_nt.wf_spec,
+                                         spec_nt.tpf_spec,
+                                         spec_nt.ini_sys_conf,
+                                         spec_nt.rng_seed)
 
 
 # noinspection PyUnusedLocal
@@ -334,7 +345,6 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         @jit(nopython=True, nogil=True)
         def _generator(wf_spec: WFSpecNT,
                        tpf_spec: Union[NTPFSpecNT, UTPFSpecNT],
-                       num_steps: int,
                        ini_sys_conf: np.ndarray,
                        rng_seed: int):
             """VMC sampling generator.
@@ -349,15 +359,9 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             :param wf_spec: The parameters of the probability density function.
             :param tpf_spec: The parameters of the transition probability
                 function.
-            :param num_steps: The number of steps used for the sampling.
             :param ini_sys_conf: The initial configuration of the particles.
             :param rng_seed: The seed used to generate the random numbers.
             """
-
-            # Check for invalid parameters.
-            if not num_steps >= 1:
-                raise ValueError('num_steps must be nonzero and positive')
-
             # Avoid `Untyped global name error` when executing the code in a
             # multiprocessing pool.
             # Short names :)
@@ -375,8 +379,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             actual_conf, next_conf = main_conf, aux_conf
             actual_conf[:] = ini_sys_conf[:]
 
-            # Initial value of the p.d.f. and loop
-            cj_ini, cj_end = 1, num_steps
+            # Initial value of the p.d.f.
             wf_abs_log_actual = wf_abs_log(actual_conf, wf_spec)
 
             # Yield initial value.
@@ -387,7 +390,8 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
                                      wf_abs_log_actual,
                                      STAT_REJECTED + 0)
 
-            for cj_ in range(cj_ini, cj_end):
+            # Iterate indefinitely.
+            while True:
 
                 # Just keep advancing...
                 sys_conf_tpf(actual_conf, next_conf, tpf_spec)
@@ -438,19 +442,17 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             :return: An array with the Markov chain configurations, the values
                 of the p.d.f. and the acceptance rate.
             """
-            # Check for invalid parameters.
-            # NOTE: The same test is done in the generator 🤔.
+            # Check for invalid parameters 🤔.
             if not num_steps >= 1:
                 raise ValueError('num_steps must be nonzero and positive')
 
-            # TODO: What is better: allocate or pass a pre-allocated buffer?
             mcs = (num_steps,) + ini_sys_conf.shape
             sys_conf_chain = np.zeros(mcs, dtype=np.float64)
             wf_abs_log_chain = np.zeros(num_steps, dtype=np.float64)
             accepted = 0
 
-            sampling_iter = generator(wf_spec, tpf_spec, num_steps,
-                                      ini_sys_conf, rng_seed)
+            sampling_iter = generator(wf_spec, tpf_spec, ini_sys_conf,
+                                      rng_seed)
             for cj_, iter_values in enumerate(sampling_iter):
                 # Metropolis-Hastings iterator.
                 # TODO: Test use of next() function.
@@ -458,6 +460,10 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
                 sys_conf_chain[cj_, :] = sys_conf[:]
                 wf_abs_log_chain[cj_] = pdf_log
                 accepted += move_stat
+
+                # Stop the iteration just before generating a new state 🤔.
+                if cj_ + 1 >= num_steps:
+                    break
 
             # TODO: Should we account burnout and transient moves?
             accept_rate = accepted / num_steps

@@ -51,7 +51,6 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
 
     model_spec: model.Spec
     move_spread: float
-    num_steps: int
     ini_sys_conf: np.ndarray = attr.ib(cmp=False)
     rng_seed: Optional[int] = attr.ib(default=None)
 

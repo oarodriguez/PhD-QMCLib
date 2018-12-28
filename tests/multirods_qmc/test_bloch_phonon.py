@@ -100,16 +100,17 @@ def test_vmc():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
     ar = 0
-    for data in vmc_sampling:
+    for cj_, data in enumerate(vmc_sampling):
         sys_conf, wfv, stat = data
         ar += stat
+        if cj_ + 1 >= num_steps:
+            break
     ar /= num_steps
 
-    chain_data = vmc_sampling.as_chain()
+    chain_data = vmc_sampling.as_chain(num_steps)
     sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
 
     num_slots = len(model_spec.sys_conf_slots)
@@ -148,11 +149,10 @@ def test_wf_optimize():
                                                 offset=offset)
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain = vmc_sampling.as_chain()
+    vmc_chain = vmc_sampling.as_chain(num_steps)
     sys_conf_set = vmc_chain.sys_conf_chain[:1000]
     wf_abs_log_set = vmc_chain.wf_abs_log_chain[:1000]
 
@@ -187,11 +187,10 @@ def test_dmc():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain_data = vmc_sampling.as_chain()
+    vmc_chain_data = vmc_sampling.as_chain(num_steps)
     sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
     print(f"Acceptance ratio: {ar_:.5g}")
 
@@ -237,10 +236,9 @@ def test_dmc_energy():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
-    vmc_chain_data = vmc_sampling.as_chain()
+    vmc_chain_data = vmc_sampling.as_chain(num_steps)
     sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
 
     time_step = 1e-2
@@ -294,10 +292,9 @@ def test_dmc_batch_func():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
-    vmc_chain_data = vmc_sampling.as_chain()
+    vmc_chain_data = vmc_sampling.as_chain(num_steps)
     sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
 
     time_step = 1e-2
