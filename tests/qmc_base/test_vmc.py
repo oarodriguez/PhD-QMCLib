@@ -38,7 +38,6 @@ class NormalSampling(vmc.NormalSampling):
     mu: float
     sigma: float
     time_step: float
-    num_steps: int
     ini_sys_conf: np.ndarray
     rng_seed: int
 
@@ -133,19 +132,18 @@ def test_core_funcs():
     tpf_spec = UTPFSpecNT(dims, move_spread=0.5 * sigma)
     num_steps = 4096 * 64
     ini_sys_conf = init_get_sys_conf(dims)
-    spec_nt = vmc.SpecNT(wf_spec, tpf_spec,
-                         num_steps=num_steps,
-                         ini_sys_conf=ini_sys_conf,
-                         rng_seed=0)
 
     core_funcs = CoreFuncs()
-    chain = core_funcs.as_chain(*spec_nt)
-    sys_conf_chain = chain.sys_conf_chain
+    chain = core_funcs.as_chain(wf_spec, tpf_spec,
+                                num_steps=num_steps,
+                                ini_sys_conf=ini_sys_conf,
+                                rng_seed=0)
+    sys_conf_set = chain.confs
 
-    assert sys_conf_chain.shape == (num_steps, dims)
+    assert sys_conf_set.shape == (num_steps, dims)
 
     ax = pyplot.gca()
-    ax.hist(sys_conf_chain[:, 0], bins=100)
+    ax.hist(sys_conf_set[:, 0], bins=100)
     pyplot.show()
     print(chain)
 
@@ -159,17 +157,16 @@ def test_normal_core_funcs():
     num_steps = 4096 * 64
 
     core_funcs = NormalCoreFuncs()
-    spec_nt = vmc.SpecNT(wf_spec, tpf_spec,
-                         num_steps=num_steps,
-                         ini_sys_conf=ini_sys_conf,
-                         rng_seed=0)
-    chain = core_funcs.as_chain(*spec_nt)
-    sys_conf_chain = chain.sys_conf_chain
+    chain = core_funcs.as_chain(wf_spec, tpf_spec,
+                                num_steps=num_steps,
+                                ini_sys_conf=ini_sys_conf,
+                                rng_seed=0)
+    sys_conf_set = chain.confs
 
-    assert sys_conf_chain.shape == (num_steps, dims)
+    assert sys_conf_set.shape == (num_steps, dims)
 
     ax = pyplot.gca()
-    ax.hist(sys_conf_chain[:, 0], bins=100)
+    ax.hist(sys_conf_set[:, 0], bins=100)
     pyplot.show()
     print(chain)
 
@@ -182,24 +179,26 @@ def test_normal_sampling():
     ini_sys_conf = init_get_sys_conf(dims)
     num_steps = 4096 * 64
     sampling = NormalSampling(dims, mu, sigma, time_step,
-                              num_steps=num_steps,
                               ini_sys_conf=ini_sys_conf,
                               rng_seed=0)
 
     ar = 0
-    for data in sampling:
+    for cj_, data in enumerate(sampling):
         sys_conf, wfv, stat = data
         ar += stat
+        if cj_ + 1 >= num_steps:
+            break
+
     ar /= num_steps
 
-    chain_data = sampling.as_chain()
-    sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
+    chain_data = sampling.as_chain(num_steps)
+    sys_conf_set, sys_props_set, ar_ = chain_data
 
-    assert sys_conf_chain.shape == (sampling.num_steps, sampling.dims)
+    assert sys_conf_set.shape == (num_steps, sampling.dims)
     assert ar == ar_
     print(f"Sampling acceptance rate: {ar:.5g}")
 
     ax = pyplot.gca()
-    ax.hist(sys_conf_chain[:, 0], bins=100)
+    ax.hist(sys_conf_set[:, 0], bins=100)
     pyplot.show()
-    print(sys_conf_chain)
+    print(sys_conf_set)

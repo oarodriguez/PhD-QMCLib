@@ -110,21 +110,25 @@ def test_vmc():
             break
     ar /= num_steps
 
-    chain_data = vmc_sampling.as_chain(num_steps)
-    sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
+    states_data = vmc_sampling.as_chain(num_steps)
+    sys_confs_set, sys_props_set, ar_ = states_data
+
+    move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
+    accepted = np.count_nonzero(sys_props_set[move_stat_field])
+    assert (accepted / num_steps) == ar_
 
     num_slots = len(model_spec.sys_conf_slots)
-    assert sys_conf_chain.shape == (num_steps, num_slots, boson_number)
+    assert sys_confs_set.shape == (num_steps, num_slots, boson_number)
     assert ar == ar_
 
     print(f"Sampling acceptance rate: {ar:.5g}")
     pos_slot = model_spec.sys_conf_slots.pos
 
     ax = pyplot.gca()
-    pos = sys_conf_chain[:, pos_slot]
+    pos = sys_confs_set[:, pos_slot]
     ax.hist(pos.flatten(), bins=20 * supercell_size)
     pyplot.show()
-    print(sys_conf_chain)
+    print(sys_confs_set)
 
 
 def test_wf_optimize():
@@ -152,9 +156,10 @@ def test_wf_optimize():
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
+    wf_abs_log_field = bloch_phonon.vmc.StateProp.WF_ABS_LOG
     vmc_chain = vmc_sampling.as_chain(num_steps)
-    sys_conf_set = vmc_chain.sys_conf_chain[:1000]
-    wf_abs_log_set = vmc_chain.wf_abs_log_chain[:1000]
+    sys_conf_set = vmc_chain.confs[:1000]
+    wf_abs_log_set = vmc_chain.props[wf_abs_log_field][:1000]
 
     cswf_optimizer = bloch_phonon.CSWFOptimizer(model_spec, sys_conf_set,
                                                 wf_abs_log_set, num_workers=2,
@@ -191,13 +196,13 @@ def test_dmc():
                                              rng_seed=1)
 
     vmc_chain_data = vmc_sampling.as_chain(num_steps)
-    sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
+    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
     print(f"Acceptance ratio: {ar_:.5g}")
 
     time_step = 1e-3
     num_blocks = 8
     num_time_steps_block = 128
-    ini_sys_conf_set = sys_conf_chain[-100:]
+    ini_sys_conf_set = sys_conf_set[-100:]
     target_num_walkers = 512
     max_num_walkers = 576
     ini_ref_energy = None
@@ -239,12 +244,12 @@ def test_dmc_energy():
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
     vmc_chain_data = vmc_sampling.as_chain(num_steps)
-    sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
+    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
 
     time_step = 1e-2
     num_blocks = 4
     num_time_steps_block = 128
-    ini_sys_conf_set = sys_conf_chain[-768:]
+    ini_sys_conf_set = sys_conf_set[-768:]
     target_num_walkers = 512
     max_num_walkers = 512 + 128
     ini_ref_energy = None
@@ -295,12 +300,12 @@ def test_dmc_batch_func():
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
     vmc_chain_data = vmc_sampling.as_chain(num_steps)
-    sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
+    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
 
     time_step = 1e-2
     num_blocks = 8
     num_time_steps_block = 256
-    ini_sys_conf_set = sys_conf_chain[-128:]
+    ini_sys_conf_set = sys_conf_set[-128:]
     target_num_walkers = 512
     max_num_walkers = 512 + 128
     ini_ref_energy = None

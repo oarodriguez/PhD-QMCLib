@@ -16,9 +16,13 @@ __all__ = [
     'TPFSpecNT',
     'NormalCoreFuncs',
     'NormalSampling',
+    'StateProp',
     'UTPFSpecNT',
     'core_funcs'
 ]
+
+# Export symbols from base modules.
+StateProp = qmc_base.vmc.StateProp
 
 
 class TPFSpecNT(qmc_base.jastrow.vmc.NTPFSpecNT, NamedTuple):
