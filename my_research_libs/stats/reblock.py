@@ -370,6 +370,10 @@ def on_the_fly_reblocking(source_data: np.ndarray,
 
         while True:
             #
+            if order >= max_order:
+                #
+                break
+
             if not (index + 1) % next_block_size:
                 #
                 order += 1
@@ -388,13 +392,15 @@ def on_the_fly_reblocking(source_data: np.ndarray,
                 next_block_size = block_size << 1
 
             else:
-                # Reset order to the initial order.
-                # NOTE: This will be executed always the if test fails.
-                #  This does not seems good.
-                order = ini_order
-                block_size = ini_block_size
-                next_block_size = ini_next_block_size
+                #
                 break
+
+        # Reset order to the initial order.
+        # NOTE: This will be executed always the if loop breaks.
+        #  This does not seems good.
+        order = ini_order
+        block_size = ini_block_size
+        next_block_size = ini_next_block_size
 
     return accum_array
 
