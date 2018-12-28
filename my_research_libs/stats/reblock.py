@@ -14,6 +14,7 @@ __all__ = [
     'CorrTimeFit',
     'Reblocking',
     'ReblockingField',
+    'get_reblocking_order',
     'init_reblocking_accum_array',
     'on_the_fly_reblocking_accum'
 ]
@@ -319,6 +320,30 @@ accum_array_dtype = np.dtype([
 
 
 @nb.njit
+def get_reblocking_order(source_data: np.ndarray,
+                         min_num_blocks: int = 1,
+                         max_order: int = None):
+    """Estimates the maximum order of an on-the-fly reblocking.
+
+    The maximum order determines the size of the output array of the
+    on-the-fly reblocking process.
+
+    :param source_data:
+    :param min_num_blocks:
+    :param max_order:
+    :return:
+    """
+    data_length = source_data.shape[0]
+    max_num_blocks = int(floor(log(data_length) / log(2)))
+    min_num_blocks = int(ceil(log(min_num_blocks) / log(2)))
+
+    if max_order is None:
+        max_order = max_num_blocks
+    order = max_num_blocks - min_num_blocks
+    return min(order, max_order)
+
+
+@nb.njit
 def init_reblocking_accum_array(max_order: int) -> np.ndarray:
     """Initializes the reblocking array.
 
@@ -350,16 +375,9 @@ def on_the_fly_reblocking_accum(source_data: np.ndarray,
     :param max_order:
     :return:
     """
-    #
-    data_len = source_data.shape[0]
-    max_num_blocks = int(floor(log(data_len) / log(2)))
-    min_num_blocks = int(ceil(log(min_num_blocks) / log(2)))
+    max_order = get_reblocking_order(source_data, min_num_blocks, max_order)
 
-    if max_order is None:
-        max_order = max_num_blocks - min_num_blocks
-    else:
-        assert max_order <= max_num_blocks - min_num_blocks
-
+    # Initialize arrays.
     accum_array = init_reblocking_accum_array(max_order)
     means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
 
@@ -373,7 +391,8 @@ def on_the_fly_reblocking_accum(source_data: np.ndarray,
     ini_block_size = block_size = block_size_array[order]
     ini_next_block_size = next_block_size = block_size << 1
 
-    for index in range(data_len):
+    data_length = source_data.shape[0]
+    for index in range(data_length):
         #
         data_mean = source_data[index]
         means_sum_array[order] += data_mean
