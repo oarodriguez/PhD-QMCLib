@@ -36,3 +36,26 @@ def test_dynamic_reblocking():
     print(reblocking_vars)
 
     assert np.allclose(dyn_reblocking_vars, reblocking_vars)
+
+
+def test_update_reblocking_accum():
+    """"""
+    size_max_order = 20
+    min_num_blocks = 16
+    data_size = 2 ** size_max_order
+
+    data_sample = np.random.random_sample(data_size)
+    max_order = reblock.get_reblocking_order(data_sample, min_num_blocks)
+    batch_accum = reblock.init_reblocking_accum_array(max_order)
+
+    num_accum = 2 ** 6
+    for _ in range(num_accum):
+        data_sample = np.random.random_sample(data_size)
+        reblocking_accum = \
+            reblock.on_the_fly_reblocking_accum(data_sample, min_num_blocks)
+        reblock.update_reblocking_accum(batch_accum, reblocking_accum)
+
+    otf_reblocking = reblock.OnTheFlyReblocking(batch_accum)
+    print(otf_reblocking.int_corr_times)
+    print(otf_reblocking.corr_time_fit.params)
+    print(otf_reblocking.opt_int_corr_time)

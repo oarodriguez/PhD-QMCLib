@@ -540,3 +540,24 @@ class OnTheFlyReblocking(ReblockingBase):
         means_sqr = means_sqr_sum / num_blocks
         ddof_num_blocks = num_blocks - self.var_ddof
         return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
+
+
+def update_reblocking_accum(accum_array: np.ndarray,
+                            extra_array: np.ndarray):
+    """Updates the accumulated data of a reblocking with other accumulated.
+
+    This function serves to update the accumulated data of a given
+    reblocking with the accumulated data of a new, compatible reblocking.
+
+    :param accum_array:
+    :param extra_array:
+    :return:
+    """
+    accum_block_size = accum_array[BLOCK_SIZE_FIELD]
+    extra_block_size = extra_array[BLOCK_SIZE_FIELD]
+
+    assert np.all(accum_block_size == extra_block_size)
+
+    accum_array[MEANS_SUM_FIELD] += extra_array[MEANS_SUM_FIELD]
+    accum_array[MEANS_SQR_SUM_FIELD] += extra_array[MEANS_SQR_SUM_FIELD]
+    accum_array[NUM_BLOCKS_FIELD] += extra_array[NUM_BLOCKS_FIELD]
