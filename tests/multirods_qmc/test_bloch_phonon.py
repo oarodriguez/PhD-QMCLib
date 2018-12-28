@@ -1,3 +1,5 @@
+from itertools import islice
+
 import attr
 import numpy as np
 import pytest
@@ -129,6 +131,55 @@ def test_vmc():
     ax.hist(pos.flatten(), bins=20 * supercell_size)
     pyplot.show()
     print(sys_confs_set)
+
+
+def test_vmc_batches():
+    """Testing the generator of batches.
+
+    :return:
+    """
+    boson_number = 10
+    supercell_size = 10
+    tbf_contact_cutoff = 0.25 * supercell_size
+
+    # TODO: Improve this test.
+    model_spec = bloch_phonon.Spec(lattice_depth=LATTICE_DEPTH,
+                                   lattice_ratio=LATTICE_RATIO,
+                                   interaction_strength=INTERACTION_STRENGTH,
+                                   boson_number=boson_number,
+                                   supercell_size=supercell_size,
+                                   tbf_contact_cutoff=tbf_contact_cutoff)
+    move_spread = 0.25 * model_spec.well_width
+    num_batches = 128 + 1
+    num_steps_batch = 4096
+    ini_sys_conf = model_spec.init_get_sys_conf()
+    vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
+                                             move_spread=move_spread,
+                                             ini_sys_conf=ini_sys_conf,
+                                             rng_seed=1)
+
+    # Both samplings (in batches and as_chain) have a total number
+    # of steps of ``num_batches * num_steps_batch``, but the first
+    # batch will be discarded, so the effective number is
+    # ``(num_batches - 1) * num_steps_batch``.
+    num_steps = num_batches * num_steps_batch
+    eff_num_steps = (num_batches - 1) * num_steps_batch
+
+    sampling_batches = vmc_sampling.batches(num_steps_batch)
+    accepted = 0.
+    for states_batch in islice(sampling_batches, 1, num_batches):
+        accept_rate = states_batch.accept_rate
+        accepted += accept_rate * num_steps_batch
+    batches_accept_rate = accepted / eff_num_steps
+
+    move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
+    states_data = vmc_sampling.as_chain(num_steps)
+    sys_props_set = states_data.props[num_steps_batch:]
+    accepted = np.count_nonzero(sys_props_set[move_stat_field])
+    chain_accept_rate = accepted / eff_num_steps
+
+    # Both acceptance ratios should be equal.
+    assert batches_accept_rate == chain_accept_rate
 
 
 def test_wf_optimize():

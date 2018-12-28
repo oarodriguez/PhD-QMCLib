@@ -171,6 +171,19 @@ class Sampling(Iterable, metaclass=ABCMeta):
                                         spec_nt.ini_sys_conf,
                                         spec_nt.rng_seed)
 
+    def batches(self, num_steps_batch: int):
+        """
+
+        :param num_steps_batch:
+        :return:
+        """
+        spec_nt = self.spec_nt
+        return self.core_funcs.batches(spec_nt.wf_spec,
+                                       spec_nt.tpf_spec,
+                                       num_steps_batch,
+                                       spec_nt.ini_sys_conf,
+                                       spec_nt.rng_seed)
+
     def __iter__(self) -> Iterator[StateNT]:
         """Iterable interface."""
         spec_nt = self.spec_nt
@@ -242,6 +255,19 @@ class NormalSampling(Iterable, metaclass=ABCMeta):
                                         num_steps,
                                         spec_nt.ini_sys_conf,
                                         spec_nt.rng_seed)
+
+    def batches(self, num_steps_batch: int):
+        """
+
+        :param num_steps_batch:
+        :return:
+        """
+        spec_nt = self.spec_nt
+        return self.core_funcs.batches(spec_nt.wf_spec,
+                                       spec_nt.tpf_spec,
+                                       num_steps_batch,
+                                       spec_nt.ini_sys_conf,
+                                       spec_nt.rng_seed)
 
     def __iter__(self) -> Iterator[StateNT]:
         """Iterable interface."""
@@ -436,17 +462,15 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
         :return: The JIT compiled function that execute the Monte Carlo
             integration.
         """
-        wf_abs_log_field = StateProp.WF_ABS_LOG.value
-        move_stat_field = StateProp.MOVE_STAT.value
-        generator = self.generator
+        self_batches = self.batches
 
         @jit(nopython=True, nogil=True)
         def _as_chain(wf_spec: WFSpecNT,
                       tpf_spec: Union[NTPFSpecNT, UTPFSpecNT],
                       num_steps: int,
                       ini_sys_conf: np.ndarray,
-                      rng_seed: int):
-            """Returns the VMC sampling as an array object.
+                      rng_seed: int) -> StatesBatchNT:
+            """Returns the VMC sampling as a single batch.
 
             :param wf_spec: The parameters of the probability density function.
             :param tpf_spec: The parameters of the transition probability
@@ -457,21 +481,68 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
             :return: An array with the Markov chain configurations, the values
                 of the p.d.f. and the acceptance rate.
             """
-            # Check for invalid parameters 🤔.
-            if not num_steps >= 1:
-                raise ValueError('num_steps must be nonzero and positive')
+            num_steps_batch = num_steps
 
-            scb_shape = (num_steps,) + ini_sys_conf.shape
+            # Return the only batch as the result.
+            return next(self_batches(wf_spec, tpf_spec, num_steps_batch,
+                                     ini_sys_conf, rng_seed))
+
+        return _as_chain
+
+    @cached_property
+    def batches(self):
+        """Returns the VMC sampling as an array object.
+
+        JIT-compiled function to generate a Markov chain with the
+        sampling of the probability density function.
+
+        :return: The JIT compiled function that execute the Monte Carlo
+            integration.
+        """
+        wf_abs_log_field = StateProp.WF_ABS_LOG.value
+        move_stat_field = StateProp.MOVE_STAT.value
+        generator = self.generator
+
+        @jit(nopython=True, nogil=True)
+        def _batches(wf_spec: WFSpecNT,
+                     tpf_spec: Union[NTPFSpecNT, UTPFSpecNT],
+                     num_steps_batch: int,
+                     ini_sys_conf: np.ndarray,
+                     rng_seed: int):
+            """Returns the VMC sampling batches of states configurations.
+
+            :param wf_spec: The parameters of the probability density function.
+            :param tpf_spec: The parameters of the transition probability
+                function.
+            :param num_steps_batch: The number of steps per batch.
+            :param ini_sys_conf: The initial configuration of the particles.
+            :param rng_seed: The seed used to generate the random numbers.
+            :return: An array with the Markov chain configurations, the values
+                of the p.d.f. and the acceptance rate.
+            """
+            # Check for invalid parameters 🤔.
+            if not num_steps_batch >= 1:
+                raise ValueError('num_steps_batch must be nonzero and '
+                                 'positive')
+
+            scb_shape = (num_steps_batch,) + ini_sys_conf.shape
             states_confs = np.zeros(scb_shape, dtype=np.float64)
-            states_props = np.empty(num_steps, dtype=states_props_dtype)
+            states_props = np.empty(num_steps_batch, dtype=states_props_dtype)
 
             wf_abs_log_set = states_props[wf_abs_log_field]
             move_stat_set = states_props[move_stat_field]
-            accepted = 0
 
+            accepted = 0
             sampling_iter = generator(wf_spec, tpf_spec, ini_sys_conf,
                                       rng_seed)
-            for cj_, iter_values in enumerate(sampling_iter):
+
+            # Yield batches indefinitely.
+            for cj_count, iter_values in enumerate(sampling_iter):
+
+                # Get the correct cj_ index from cj_count.
+                cj_ = cj_count % num_steps_batch
+
+                # This loop with start in the last generated state.
                 # Metropolis-Hastings iterator.
                 # TODO: Test use of next() function.
                 sys_conf, wf_abs_log, move_stat = iter_values
@@ -480,15 +551,21 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
                 move_stat_set[cj_] = bool(move_stat)
                 accepted += move_stat
 
-                # Stop the iteration just before generating a new state 🤔.
-                if cj_ + 1 >= num_steps:
-                    break
+                # Yield the batch just before generating a new state 🤔.
+                if cj_ + 1 >= num_steps_batch:
+                    # Get the acceptance rate.
+                    accept_rate = accepted / num_steps_batch
 
-            # TODO: Should we account burnout and transient moves?
-            accept_rate = accepted / num_steps
-            return StatesBatchNT(states_confs, states_props, accept_rate)
+                    # NOTE: We yield references to the internal buffer.
+                    #  Delegate to the caller the choice to make any
+                    #  copies of it.
+                    yield StatesBatchNT(states_confs, states_props,
+                                        accept_rate)
 
-        return _as_chain
+                    # Reset accepted counter.
+                    accepted = 0
+
+        return _batches
 
 
 class NormalCoreFuncs(CoreFuncs, metaclass=ABCMeta):
