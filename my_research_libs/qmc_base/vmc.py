@@ -115,17 +115,13 @@ class StatesBatchNT(NamedTuple):
     accept_rate: float
 
 
-class Sampling(Iterable, metaclass=ABCMeta):
+class _SamplingBase(Iterable, metaclass=ABCMeta):
     """Realizes a VMC sampling.
 
-    Defines the parameters and methods to realize of a Variational Monte
-    Carlo calculation. A uniform distribution is used to generate random
-    numbers.
+    Defines the common parameters and methods to realize of a Variational
+    Monte Carlo calculation.
     """
     __slots__ = ()
-
-    #: The spread magnitude of the random moves for the sampling.
-    move_spread: float
 
     #: The initial configuration of the sampling.
     ini_sys_conf: np.ndarray
@@ -136,92 +132,7 @@ class Sampling(Iterable, metaclass=ABCMeta):
     @property
     @abstractmethod
     def wf_spec_nt(self):
-        """The parameters of the trial eave function."""
-        pass
-
-    @property
-    @abstractmethod
-    def tpf_spec_nt(self):
-        """The parameters of the transition probability function."""
-        pass
-
-    @property
-    def spec_nt(self):
-        """The spec of the VMC sampling functions as a named tuple."""
-        return SpecNT(self.wf_spec_nt,
-                      self.tpf_spec_nt,
-                      self.ini_sys_conf,
-                      self.rng_seed)
-
-    @property
-    @abstractmethod
-    def core_funcs(self) -> 'NormalCoreFuncs':
-        """The core functions of the sampling."""
-        pass
-
-    def as_chain(self, num_steps: int):
-        """Returns the VMC sampling as an array object.
-
-        :param num_steps: The number of states to generate.
-        """
-        spec_nt = self.spec_nt
-        return self.core_funcs.as_chain(spec_nt.wf_spec,
-                                        spec_nt.tpf_spec,
-                                        num_steps,
-                                        spec_nt.ini_sys_conf,
-                                        spec_nt.rng_seed)
-
-    def batches(self, num_steps_batch: int):
-        """
-
-        :param num_steps_batch:
-        :return:
-        """
-        spec_nt = self.spec_nt
-        return self.core_funcs.batches(spec_nt.wf_spec,
-                                       spec_nt.tpf_spec,
-                                       num_steps_batch,
-                                       spec_nt.ini_sys_conf,
-                                       spec_nt.rng_seed)
-
-    def __iter__(self) -> Iterator[StateNT]:
-        """Iterable interface."""
-        spec_nt = self.spec_nt
-        return self.core_funcs.generator(spec_nt.wf_spec,
-                                         spec_nt.tpf_spec,
-                                         spec_nt.ini_sys_conf,
-                                         spec_nt.rng_seed)
-
-
-# Numpy dtype for the properties of a VMC sampling state.
-states_props_dtype = np.dtype([
-    (StateProp.WF_ABS_LOG.value, np.float64),
-    (StateProp.MOVE_STAT.value, np.bool)
-])
-
-
-class NormalSampling(Iterable, metaclass=ABCMeta):
-    """Realizes a VMC sampling.
-
-    Defines the parameters and methods to realize of a Variational Monte
-    Carlo calculation. A normal distribution is used to generate random
-    numbers.
-    """
-    __slots__ = ()
-
-    #: The "time-step" (squared, average move spread) of the sampling.
-    time_step: float
-
-    #: The initial configuration of the sampling.
-    ini_sys_conf: np.ndarray
-
-    #: The seed of the pseudo-RNG used to explore the configuration space.
-    rng_seed: Optional[int]
-
-    @property
-    @abstractmethod
-    def wf_spec_nt(self):
-        """The parameters of the trial eave function."""
+        """The parameters of the trial wave function."""
         pass
 
     @property
@@ -259,7 +170,7 @@ class NormalSampling(Iterable, metaclass=ABCMeta):
     def batches(self, num_steps_batch: int):
         """
 
-        :param num_steps_batch:
+        :param num_steps_batch: The number of steps per batch to generate.
         :return:
         """
         spec_nt = self.spec_nt
@@ -276,6 +187,57 @@ class NormalSampling(Iterable, metaclass=ABCMeta):
                                          spec_nt.tpf_spec,
                                          spec_nt.ini_sys_conf,
                                          spec_nt.rng_seed)
+
+
+class Sampling(_SamplingBase, metaclass=ABCMeta):
+    """Realizes a VMC sampling.
+
+    Defines the parameters and methods to realize of a Variational Monte
+    Carlo calculation. A uniform distribution is used to generate random
+    numbers.
+    """
+    __slots__ = ()
+
+    #: The spread magnitude of the random moves for the sampling.
+    move_spread: float
+
+    #: The initial configuration of the sampling.
+    ini_sys_conf: np.ndarray
+
+    #: The seed of the pseudo-RNG used to explore the configuration space.
+    rng_seed: Optional[int]
+
+
+# Numpy dtype for the properties of a VMC sampling state.
+states_props_dtype = np.dtype([
+    (StateProp.WF_ABS_LOG.value, np.float64),
+    (StateProp.MOVE_STAT.value, np.bool)
+])
+
+
+class NormalSampling(_SamplingBase):
+    """Realizes a VMC sampling.
+
+    Defines the parameters and methods to realize of a Variational Monte
+    Carlo calculation. A normal distribution is used to generate random
+    numbers.
+    """
+    __slots__ = ()
+
+    #: The "time-step" (squared, average move spread) of the sampling.
+    time_step: float
+
+    #: The initial configuration of the sampling.
+    ini_sys_conf: np.ndarray
+
+    #: The seed of the pseudo-RNG used to explore the configuration space.
+    rng_seed: Optional[int]
+
+    @property
+    @abstractmethod
+    def core_funcs(self) -> 'NormalCoreFuncs':
+        """The core functions of the sampling."""
+        pass
 
 
 # noinspection PyUnusedLocal
