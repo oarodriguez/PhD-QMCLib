@@ -1,6 +1,6 @@
 import numpy as np
 
-from my_research_libs.stats.reblock import Reblocking, StratifiedReblocking
+from my_research_libs.stats.reblock import OnTheFlyReblocking, Reblocking
 
 
 def test_stats():
@@ -19,18 +19,18 @@ def test_stats():
     print(block_analysis.source_data_mean_eff_error)
 
 
-def test_stratified_reblocking():
+def test_dynamic_reblocking():
     """"""
     size_max_order = 22
     data_size = 2 ** size_max_order
     data_sample = np.random.random_sample(data_size)
 
-    strat_reblocking = StratifiedReblocking(data_sample)
-    strat_reblocking_vars = strat_reblocking.vars
-    print(strat_reblocking_vars)
+    dyn_reblocking = OnTheFlyReblocking(data_sample)
+    dyn_reblocking_vars = dyn_reblocking.vars
+    print(dyn_reblocking_vars)
 
     reblocking = Reblocking(data_sample, min_num_blocks=2)
     reblocking_vars = reblocking.vars
     print(reblocking_vars)
 
-    assert np.allclose(strat_reblocking_vars, reblocking_vars)
+    assert np.allclose(dyn_reblocking_vars, reblocking_vars)

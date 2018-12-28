@@ -193,8 +193,14 @@ class ReblockingBase(metaclass=ABCMeta):
 @attr.s(auto_attribs=True, frozen=True)
 class Reblocking(ReblockingBase):
     """Realizes a blocking/binning analysis of serially correlated data."""
+
+    #: The data to analyze.
     source_data: np.ndarray
+
+    #: Minimum number of blocks.
     min_num_blocks: int = 2
+
+    #: Variance delta degrees of freedom.
     var_ddof: int = attr.ib(default=1, init=False)
 
     def __attrs_post_init__(self):
@@ -287,7 +293,7 @@ NUM_BLOCKS_FIELD = ReblockingField.NUM_BLOCKS.value
 MEANS_SQR_SUM_FIELD = ReblockingField.MEANS_SQR_SUM.value
 MEANS_SUM_FIELD = ReblockingField.MEANS_SUM.value
 
-reblocking_dtype = np.dtype([
+accum_array_dtype = np.dtype([
     (BLOCK_SIZE_FIELD, np.int64),
     (MEANS_SUM_FIELD, np.float64),
     (MEANS_SQR_SUM_FIELD, np.float64),
@@ -296,25 +302,25 @@ reblocking_dtype = np.dtype([
 
 
 @nb.njit
-def init_reblocking_array(max_order: int) -> t.Tuple[np.ndarray, np.ndarray]:
+def init_reblocking_stat(max_order: int) -> t.Tuple[np.ndarray, np.ndarray]:
     """Initializes the reblocking array.
 
     :param max_order:
     :return:
     """
-    reblocking_array = np.zeros(max_order + 1, dtype=reblocking_dtype)
+    accum_array = np.zeros(max_order + 1, dtype=accum_array_dtype)
     means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
-    block_size_array = reblocking_array[BLOCK_SIZE_FIELD]
+    block_size_array = accum_array[BLOCK_SIZE_FIELD]
 
     for order in range(max_order + 1):
         block_size = 1 << order
         block_size_array[order] = block_size
 
-    return reblocking_array, means_array
+    return accum_array, means_array
 
 
 @nb.njit
-def stratified_reblocking(source_data: np.ndarray,
+def on_the_fly_reblocking(source_data: np.ndarray,
                           min_num_blocks: int = 2,
                           max_order: int = None):
     """Realizes a reblocking analysis at increasing levels.
@@ -339,12 +345,12 @@ def stratified_reblocking(source_data: np.ndarray,
     else:
         assert max_order <= max_num_blocks - min_num_blocks
 
-    reblocking_array, means_array = init_reblocking_array(max_order)
+    accum_array, means_array = init_reblocking_stat(max_order)
 
-    block_size_array = reblocking_array[BLOCK_SIZE_FIELD]
-    means_sum_array = reblocking_array[MEANS_SUM_FIELD]
-    means_sqr_sum_array = reblocking_array[MEANS_SQR_SUM_FIELD]
-    num_blocks_array = reblocking_array[NUM_BLOCKS_FIELD]
+    block_size_array = accum_array[BLOCK_SIZE_FIELD]
+    means_sum_array = accum_array[MEANS_SUM_FIELD]
+    means_sqr_sum_array = accum_array[MEANS_SQR_SUM_FIELD]
+    num_blocks_array = accum_array[NUM_BLOCKS_FIELD]
 
     # The size of the next block is twice the previous.
     ini_order = order = 0
@@ -390,7 +396,7 @@ def stratified_reblocking(source_data: np.ndarray,
                 next_block_size = ini_next_block_size
                 break
 
-    return reblocking_array
+    return accum_array
 
 
 @nb.njit
@@ -438,10 +444,16 @@ def recursive_reblocking(means_array: np.ndarray,
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class StratifiedReblocking(ReblockingBase):
+class OnTheFlyReblocking(ReblockingBase):
     """Realizes a reblocking analysis at increasing levels."""
+
+    #: The data to analyze.
     source_data: np.ndarray
+
+    #: Minimum number of blocks.
     min_num_blocks: int = 2
+
+    #: Variance delta degrees of freedom.
     var_ddof: int = 1
 
     def __attrs_post_init__(self):
@@ -452,7 +464,7 @@ class StratifiedReblocking(ReblockingBase):
     @cached_property
     def data(self):
         """"""
-        return stratified_reblocking(self.source_data, self.min_num_blocks)
+        return on_the_fly_reblocking(self.source_data, self.min_num_blocks)
 
     @property
     def block_sizes(self):
