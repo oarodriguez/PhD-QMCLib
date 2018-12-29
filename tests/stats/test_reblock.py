@@ -3,7 +3,7 @@ import numpy as np
 import my_research_libs.stats.reblock as reblock
 
 
-def test_stats():
+def test_reblocking():
     """"""
     size_max_order = 16
     data_size = 2 ** size_max_order
@@ -19,7 +19,7 @@ def test_stats():
     print(block_analysis.source_data_mean_eff_error)
 
 
-def test_dynamic_reblocking():
+def test_on_the_fly_reblocking():
     """"""
     size_max_order = 22
     data_size = 2 ** size_max_order
