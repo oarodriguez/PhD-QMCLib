@@ -14,6 +14,7 @@ __all__ = [
     'IACTimeFit',
     'OnTheFlyDataField',
     'Reblocking',
+    'extend_on_the_fly_dataset',
     'init_on_the_fly_proc_data',
     'on_the_fly_proc_exec',
     'on_the_fly_proc_from_dataset',
@@ -577,3 +578,60 @@ def update_on_the_fly_data(data_array: np.ndarray,
     data_array[MEANS_FIELD] += extra_array[MEANS_FIELD]
     data_array[MEANS_SQR_FIELD] += extra_array[MEANS_SQR_FIELD]
     data_array[NUM_BLOCKS_FIELD] += extra_array[NUM_BLOCKS_FIELD]
+
+
+T_DataSet = t.Union[np.ndarray, t.Sequence[np.ndarray]]
+
+
+def on_the_fly_proc_from_dataset(data_set: T_DataSet):
+    """Does a reblocking from a collection of reblocking data.
+
+    :param data_set:
+    :return:
+    """
+    # Checks that the data has a valid dtype.
+    data_set: np.ndarray = np.asarray(data_set)
+    assert data_set.dtype == otf_data_dtype
+
+    # Check that the data has a consistent format.
+    block_size_set = data_set[BLOCK_SIZE_FIELD]
+    assert np.all(np.diff(block_size_set, axis=0) == 0)
+
+    # Calculate the accumulated extension. We need the accumulated data
+    # corresponding to the greatest order of each one of the accumulated
+    # data in the set.
+    last_means_set = data_set[MEANS_FIELD]
+    accum_extension = on_the_fly_proc_exec(last_means_set)
+
+    # Fix up the block sizes of the extension.
+    last_block_size = data_set[BLOCK_SIZE_FIELD][-1]
+    block_size_ext = accum_extension[BLOCK_SIZE_FIELD]
+    block_size_ext *= last_block_size
+
+    # NOTE: The number of blocks of the extension array are not fixed up.
+    return accum_extension[1:]
+
+
+def extend_on_the_fly_dataset(data_set: T_DataSet):
+    """
+
+    :param data_set:
+    :return:
+    """
+    # Checks that the data has a valid dtype.
+    data_set: np.ndarray = np.asarray(data_set)
+    assert data_set.dtype == otf_data_dtype
+
+    num_data, max_order = data_set.shape
+
+    dataset_last_order_data = []
+    data_total = init_on_the_fly_proc_data(max_order - 1)
+
+    for data_index in range(num_data):
+        ext_data: np.ndarray = data_set[data_index]
+        update_on_the_fly_data(data_total, ext_data)
+        last_order_data: np.ndarray = ext_data[-1]
+        dataset_last_order_data.append(last_order_data)
+
+    data_ext = on_the_fly_proc_from_dataset(dataset_last_order_data)
+    return np.hstack((data_total, data_ext))

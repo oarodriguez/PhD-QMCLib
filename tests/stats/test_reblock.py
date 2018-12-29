@@ -57,6 +57,23 @@ def test_update_reblocking_accum():
     print(otf_reblocking.iac_times)
     print(otf_reblocking.iac_time_fit.params)
     print(otf_reblocking.opt_iac_time)
-    print(otf_reblocking.iac_times)
-    print(otf_reblocking.iac_time_fit.params)
-    print(otf_reblocking.opt_iac_time)
+
+
+def test_extend_on_the_fly_dataset():
+    """"""
+    size_max_order = 10
+    data_size = 2 ** size_max_order
+
+    num_accum = 2 ** 5
+    reblock_dataset = []
+    for _ in range(num_accum):
+        data_sample = np.random.random_sample(data_size)
+        reblock_data = \
+            reblock.on_the_fly_proc_exec(data_sample)
+        reblock_dataset.append(reblock_data)
+
+    reblock_total = reblock.extend_on_the_fly_dataset(reblock_dataset)
+    print(reblock_total)
+
+    otf_reblocking = reblock.OnTheFlyReblocking(reblock_total)
+    print(otf_reblocking.means)
