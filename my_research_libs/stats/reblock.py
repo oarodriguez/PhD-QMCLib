@@ -45,7 +45,12 @@ class IACTimeFit:
 
     def __attrs_post_init__(self):
         """Post initialization stage."""
-        self_fit = curve_fit(self.__func__, self.times, self.iac_times)
+        try:
+            self_fit = curve_fit(self.__func__, self.times, self.iac_times)
+        except TypeError as e:
+            exc_msg = f'attempt to fit data to target function failed'
+            raise TypeError(exc_msg) from e
+
         super().__setattr__('results', self_fit)
 
     @staticmethod
@@ -227,12 +232,9 @@ class Reblocking(ReblockingBase):
             raise ValueError('delta degrees of freedom must be a positive '
                              'integer')
 
-        min_num_blocks = self.min_num_blocks
-        less_than_min = self.num_blocks < min_num_blocks
-        if np.count_nonzero(less_than_min):
-            raise ValueError(f'the minimum number of data blocks for the '
-                             f'analysis is {min_num_blocks} is not respected '
-                             'with the given block_sizes')
+        if self.min_num_blocks < 2:
+            raise ValueError('the minimum number of blocks of the reblocking '
+                             'is two')
 
     @property
     def source_data_size(self):
@@ -243,12 +245,16 @@ class Reblocking(ReblockingBase):
     def block_sizes(self):
         """The sizes of the blocks used in the reblocking."""
         min_num_blocks = self.min_num_blocks
-        data_size = self.source_data_size
-        max_num_blocks = int(floor(log2(data_size)))
-        min_num_blocks = int(ceil(log2(min_num_blocks)))
+        data_length = len(self.source_data)
+        max_order = int(floor(log2(data_length)))
+        min_order = int(ceil(log2(min_num_blocks)))
+
+        if max_order < min_order:
+            raise ValueError('source data cannot be grouped in the minimum '
+                             'number of blocks requested')
 
         # Powers of 2 for the block sizes.
-        block_sizes = 1 << np.arange(max_num_blocks - min_num_blocks + 1)
+        block_sizes = 1 << np.arange(max_order - min_order + 1)
         return block_sizes.astype(np.int64)
 
     @cached_property
