@@ -228,9 +228,10 @@ class Reblocking(ReblockingBase):
         # NOTE: Allow only 1d arrays by now.
         assert len(self.source_data.shape) == 1
 
-        if self.var_ddof < 0:
-            raise ValueError('delta degrees of freedom must be a positive '
-                             'integer')
+        # NOTE: Set var_ddof attribute to one always.
+        # TODO: Maybe we should remove the attribute from init.
+        var_ddof = 1
+        super().__setattr__('var_ddof', var_ddof)
 
         if self.min_num_blocks < 2:
             raise ValueError('the minimum number of blocks of the reblocking '
@@ -498,6 +499,11 @@ class OnTheFlyReblocking(ReblockingBase):
 
         # Only allow reblocking accumulated values.
         assert self.source_data.dtype == otf_data_dtype
+
+        # NOTE: Set var_ddof attribute to one always.
+        # TODO: Maybe we should remove the attribute from init.
+        var_ddof = 1
+        super().__setattr__('var_ddof', var_ddof)
 
         if self.min_num_blocks < 2:
             raise ValueError('the minimum number of blocks of the reblocking '
