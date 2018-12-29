@@ -328,39 +328,29 @@ otf_data_dtype = np.dtype([
 
 
 @nb.njit
-def on_the_fly_proc_order(source_data: np.ndarray,
-                          min_num_blocks: int = 1,
-                          max_order: int = None):
+def on_the_fly_proc_order(source_data: np.ndarray):
     """Estimates the maximum order of an on-the-fly reblocking.
 
     The maximum order determines the size of the output array of the
     on-the-fly reblocking process.
 
     :param source_data:
-    :param min_num_blocks:
-    :param max_order:
     :return:
     """
     data_length = source_data.shape[0]
-    max_num_blocks = int(floor(log(data_length) / log(2)))
-    min_num_blocks = int(ceil(log(min_num_blocks) / log(2)))
-
-    if max_order is None:
-        max_order = max_num_blocks
-    order = max_num_blocks - min_num_blocks
-    return min(order, max_order)
+    return int(floor(log(data_length) / log(2)))
 
 
 @nb.njit
-def init_on_the_fly_proc_data(max_order: int) -> np.ndarray:
+def init_on_the_fly_proc_data(order: int) -> np.ndarray:
     """Initializes the reblocking array.
 
-    :param max_order:
+    :param order:
     :return:
     """
-    otf_data_array = np.zeros(max_order + 1, dtype=otf_data_dtype)
+    otf_data_array = np.zeros(order + 1, dtype=otf_data_dtype)
     block_size_array = otf_data_array[BLOCK_SIZE_FIELD]
-    for order in range(max_order + 1):
+    for order in range(order + 1):
         block_size = 1 << order
         block_size_array[order] = block_size
 
@@ -368,9 +358,7 @@ def init_on_the_fly_proc_data(max_order: int) -> np.ndarray:
 
 
 @nb.njit
-def on_the_fly_proc_exec(source_data: np.ndarray,
-                         min_num_blocks: int = 2,
-                         max_order: int = None):
+def on_the_fly_proc_exec(source_data: np.ndarray):
     """Realizes a reblocking analysis at increasing levels.
 
     This function calculates a reblocking analysis at increasing levels.
@@ -379,11 +367,9 @@ def on_the_fly_proc_exec(source_data: np.ndarray,
     the averages.
 
     :param source_data:
-    :param min_num_blocks:
-    :param max_order:
     :return:
     """
-    max_order = on_the_fly_proc_order(source_data, min_num_blocks, max_order)
+    max_order = on_the_fly_proc_order(source_data)
 
     # Initialize arrays.
     otf_data_array = init_on_the_fly_proc_data(max_order)
@@ -499,6 +485,9 @@ class OnTheFlyReblocking(ReblockingBase):
     #: The data to analyze.
     source_data: np.ndarray
 
+    #: Minimum number of blocks.
+    min_num_blocks: int = 2
+
     #: Variance delta degrees of freedom.
     var_ddof: int = 1
 
@@ -509,6 +498,19 @@ class OnTheFlyReblocking(ReblockingBase):
 
         # Only allow reblocking accumulated values.
         assert self.source_data.dtype == otf_data_dtype
+
+        if self.min_num_blocks < 2:
+            raise ValueError('the minimum number of blocks of the reblocking '
+                             'is two')
+
+        data_num_blocks = self.source_data[NUM_BLOCKS_FIELD]
+        criterion = data_num_blocks >= self.min_num_blocks
+        if not np.count_nonzero(criterion):
+            raise ValueError('the source data is empty for the requested '
+                             'minimum number of blocks.')
+
+        source_data = self.source_data[criterion]
+        super().__setattr__('source_data', source_data)
 
     @cached_property
     def source_data_size(self):
