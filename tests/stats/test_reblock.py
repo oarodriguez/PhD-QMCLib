@@ -13,8 +13,8 @@ def test_reblocking():
 
     print(block_analysis.block_sizes)
     print(block_analysis.num_blocks)
-    print(block_analysis.int_corr_times)
-    print(block_analysis.corr_time_fit.params)
+    print(block_analysis.iac_times)
+    print(block_analysis.iac_time_fit.params)
     print(block_analysis.source_data_eff_size)
     print(block_analysis.source_data_mean_eff_error)
 
@@ -25,8 +25,8 @@ def test_on_the_fly_reblocking():
     data_size = 2 ** size_max_order
     data_sample = np.random.random_sample(data_size)
 
-    otf_accum = reblock.on_the_fly_reblocking_accum(data_sample,
-                                                    min_num_blocks=32)
+    otf_accum = reblock.on_the_fly_proc_exec(data_sample,
+                                             min_num_blocks=32)
     dyn_reblocking = reblock.OnTheFlyReblocking(otf_accum)
     dyn_reblocking_vars = dyn_reblocking.vars
     print(dyn_reblocking_vars)
@@ -45,17 +45,17 @@ def test_update_reblocking_accum():
     data_size = 2 ** size_max_order
 
     data_sample = np.random.random_sample(data_size)
-    max_order = reblock.get_reblocking_order(data_sample, min_num_blocks)
-    batch_accum = reblock.init_reblocking_accum_array(max_order)
+    max_order = reblock.on_the_fly_proc_order(data_sample, min_num_blocks)
+    total_accum = reblock.init_on_the_fly_proc_data(max_order)
 
     num_accum = 2 ** 6
     for _ in range(num_accum):
         data_sample = np.random.random_sample(data_size)
         reblocking_accum = \
-            reblock.on_the_fly_reblocking_accum(data_sample, min_num_blocks)
-        reblock.update_reblocking_accum(batch_accum, reblocking_accum)
+            reblock.on_the_fly_proc_exec(data_sample, min_num_blocks)
+        reblock.update_on_the_fly_data(total_accum, reblocking_accum)
 
-    otf_reblocking = reblock.OnTheFlyReblocking(batch_accum)
-    print(otf_reblocking.int_corr_times)
-    print(otf_reblocking.corr_time_fit.params)
-    print(otf_reblocking.opt_int_corr_time)
+    otf_reblocking = reblock.OnTheFlyReblocking(total_accum)
+    print(otf_reblocking.iac_times)
+    print(otf_reblocking.iac_time_fit.params)
+    print(otf_reblocking.opt_iac_time)

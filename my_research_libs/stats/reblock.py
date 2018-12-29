@@ -10,53 +10,55 @@ from cached_property import cached_property
 from scipy.optimize import curve_fit
 
 __all__ = [
-    'CorrFitParams',
-    'CorrTimeFit',
+    'IACFitParams',
+    'IACTimeFit',
+    'OnTheFlyDataField',
     'Reblocking',
-    'ReblockingField',
-    'get_reblocking_order',
-    'init_reblocking_accum_array',
-    'on_the_fly_reblocking_accum'
+    'init_on_the_fly_proc_data',
+    'on_the_fly_proc_exec',
+    'on_the_fly_proc_from_dataset',
+    'on_the_fly_proc_order'
 ]
 
 
-class CorrFitParams(t.NamedTuple):
+class IACFitParams(t.NamedTuple):
     """"""
-    int_time: float
-    exp_time: float
-    const: float
+    iac_time: float
+    eac_time: float
+    c_time: float
 
 
-class CorrFitErrors(t.NamedTuple):
+class IACFitErrors(t.NamedTuple):
     """"""
-    int_time: float
-    exp_time: float
-    const: float
+    iac_time: float
+    eac_time: float
+    c_time: float
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class CorrTimeFit:
-    """"""
+class IACTimeFit:
+    """Fit for the integrated autocorrelation time."""
+    # TODO: Add docstrings...
     times: np.ndarray
-    int_corr_times: np.ndarray
+    iac_times: np.ndarray
     results: t.Tuple = attr.ib(init=False, repr=False)
 
     def __attrs_post_init__(self):
         """Post initialization stage."""
-        self_fit = curve_fit(self.__func__, self.times, self.int_corr_times)
+        self_fit = curve_fit(self.__func__, self.times, self.iac_times)
         super().__setattr__('results', self_fit)
 
     @staticmethod
-    def __func__(times, int_time, exp_time, const):
+    def __func__(time, iac_time, eac_time, const):
         """A function to approximate the correlation times..
 
-        :param times: The size of the block.
-        :param int_time:  The integrated correlation time.
-        :param exp_time:  The exponential correlation time.
+        :param time: The size of the block.
+        :param iac_time:  The integrated autocorrelation time.
+        :param eac_time:  The exponential autocorrelation time.
         :param const: The fitting constant.
         :return:
         """
-        return int_time - const * np.exp(-times / exp_time)
+        return iac_time - const * np.exp(-time / eac_time)
 
     def __call__(self, times):
         """Callable interface."""
@@ -65,7 +67,7 @@ class CorrTimeFit:
     @property
     def params(self):
         """The fit parameters."""
-        return CorrFitParams(*self.results[0])
+        return IACFitParams(*self.results[0])
 
     @property
     def cov_matrix(self):
@@ -75,17 +77,17 @@ class CorrTimeFit:
     @property
     def errors(self):
         """The errors of the fit parameters."""
-        return CorrFitErrors(*np.sqrt(np.diag(self.cov_matrix)))
+        return IACFitErrors(*np.sqrt(np.diag(self.cov_matrix)))
 
     @property
-    def int_time(self):
-        """Integrated correlation time."""
-        return self.params.int_time
+    def iac_time(self):
+        """Integrated autocorrelation time."""
+        return self.params.iac_time
 
     @property
-    def exp_time(self):
-        """Exponential correlation time."""
-        return self.params.exp_time
+    def eac_time(self):
+        """Exponential autocorrelation time."""
+        return self.params.eac_time
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -147,8 +149,8 @@ class ReblockingBase(metaclass=ABCMeta):
         return np.sqrt(self.vars / self.num_blocks)
 
     @property
-    def int_corr_times(self):
-        """Integrated correlation times for each of the block sizes."""
+    def iac_times(self):
+        """Integrated autocorrelation times for each of the block sizes."""
         self_vars = self.vars
         block_sizes = self.block_sizes
         data_var = self.source_data_var
@@ -161,17 +163,17 @@ class ReblockingBase(metaclass=ABCMeta):
         """The optimal block size."""
         block_sizes = self.block_sizes
         data_size = self.source_data_size
-        int_corr_times = self.int_corr_times
+        int_corr_times = self.iac_times
         # B^3 > 2N * (2 \tau)^2
         criterion = block_sizes ** 3 > 8 * data_size * int_corr_times ** 2
         opt_block_size = block_sizes[criterion].min()
         return opt_block_size
 
     @property
-    def opt_int_corr_time(self):
-        """The optimal integrated correlation time."""
+    def opt_iac_time(self):
+        """The optimal integrated autocorrelation time."""
         criterion = self.block_sizes == self.opt_block_size
-        opt_corr_time = self.int_corr_times[criterion]
+        opt_corr_time = self.iac_times[criterion]
         return opt_corr_time[0]
 
     @property
@@ -184,7 +186,7 @@ class ReblockingBase(metaclass=ABCMeta):
         """
         data_size = self.source_data_size
         # NOTE: Should we return an int or a float?
-        return data_size / (2 * self.opt_int_corr_time)
+        return data_size / (2 * self.opt_iac_time)
 
     @property
     def source_data_mean_eff_error(self):
@@ -198,9 +200,9 @@ class ReblockingBase(metaclass=ABCMeta):
         return sqrt(self.source_data_var / eff_data_size)
 
     @property
-    def corr_time_fit(self):
-        """Fit of the integrated correlation time."""
-        return CorrTimeFit(self.block_sizes, self.int_corr_times)
+    def iac_time_fit(self):
+        """Fit of the integrated autocorrelation time."""
+        return IACTimeFit(self.block_sizes, self.iac_times)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -298,31 +300,31 @@ class Reblocking(ReblockingBase):
 
 
 @unique
-class ReblockingField(str, Enum):
-    """Fields of the reblocking array."""
+class OnTheFlyDataField(str, Enum):
+    """Fields of the reblocking accumulated array."""
     BLOCK_SIZE = 'BLOCK_SIZE'
-    MEANS_SUM = 'MEANS_SUM'
-    MEANS_SQR_SUM = 'MEANS_SQR_SUM'
+    MEANS = 'MEANS'
+    MEANS_SQR = 'MEANS_SQR'
     NUM_BLOCKS = 'NUM_BLOCKS'
 
 
-BLOCK_SIZE_FIELD = ReblockingField.BLOCK_SIZE.value
-NUM_BLOCKS_FIELD = ReblockingField.NUM_BLOCKS.value
-MEANS_SQR_SUM_FIELD = ReblockingField.MEANS_SQR_SUM.value
-MEANS_SUM_FIELD = ReblockingField.MEANS_SUM.value
+BLOCK_SIZE_FIELD = OnTheFlyDataField.BLOCK_SIZE.value
+NUM_BLOCKS_FIELD = OnTheFlyDataField.NUM_BLOCKS.value
+MEANS_SQR_FIELD = OnTheFlyDataField.MEANS_SQR.value
+MEANS_FIELD = OnTheFlyDataField.MEANS.value
 
-accum_array_dtype = np.dtype([
+otf_data_dtype = np.dtype([
     (BLOCK_SIZE_FIELD, np.int64),
-    (MEANS_SUM_FIELD, np.float64),
-    (MEANS_SQR_SUM_FIELD, np.float64),
+    (MEANS_FIELD, np.float64),
+    (MEANS_SQR_FIELD, np.float64),
     (NUM_BLOCKS_FIELD, np.int64)
 ])
 
 
 @nb.njit
-def get_reblocking_order(source_data: np.ndarray,
-                         min_num_blocks: int = 1,
-                         max_order: int = None):
+def on_the_fly_proc_order(source_data: np.ndarray,
+                          min_num_blocks: int = 1,
+                          max_order: int = None):
     """Estimates the maximum order of an on-the-fly reblocking.
 
     The maximum order determines the size of the output array of the
@@ -344,25 +346,25 @@ def get_reblocking_order(source_data: np.ndarray,
 
 
 @nb.njit
-def init_reblocking_accum_array(max_order: int) -> np.ndarray:
+def init_on_the_fly_proc_data(max_order: int) -> np.ndarray:
     """Initializes the reblocking array.
 
     :param max_order:
     :return:
     """
-    accum_array = np.zeros(max_order + 1, dtype=accum_array_dtype)
-    block_size_array = accum_array[BLOCK_SIZE_FIELD]
+    otf_data_array = np.zeros(max_order + 1, dtype=otf_data_dtype)
+    block_size_array = otf_data_array[BLOCK_SIZE_FIELD]
     for order in range(max_order + 1):
         block_size = 1 << order
         block_size_array[order] = block_size
 
-    return accum_array
+    return otf_data_array
 
 
 @nb.njit
-def on_the_fly_reblocking_accum(source_data: np.ndarray,
-                                min_num_blocks: int = 2,
-                                max_order: int = None):
+def on_the_fly_proc_exec(source_data: np.ndarray,
+                         min_num_blocks: int = 2,
+                         max_order: int = None):
     """Realizes a reblocking analysis at increasing levels.
 
     This function calculates a reblocking analysis at increasing levels.
@@ -375,16 +377,16 @@ def on_the_fly_reblocking_accum(source_data: np.ndarray,
     :param max_order:
     :return:
     """
-    max_order = get_reblocking_order(source_data, min_num_blocks, max_order)
+    max_order = on_the_fly_proc_order(source_data, min_num_blocks, max_order)
 
     # Initialize arrays.
-    accum_array = init_reblocking_accum_array(max_order)
+    otf_data_array = init_on_the_fly_proc_data(max_order)
     means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
 
-    block_size_array = accum_array[BLOCK_SIZE_FIELD]
-    means_sum_array = accum_array[MEANS_SUM_FIELD]
-    means_sqr_sum_array = accum_array[MEANS_SQR_SUM_FIELD]
-    num_blocks_array = accum_array[NUM_BLOCKS_FIELD]
+    block_size_array = otf_data_array[BLOCK_SIZE_FIELD]
+    means_sum_array = otf_data_array[MEANS_FIELD]
+    means_sqr_sum_array = otf_data_array[MEANS_SQR_FIELD]
+    num_blocks_array = otf_data_array[NUM_BLOCKS_FIELD]
 
     # The size of the next block is twice the previous.
     ini_order = order = 0
@@ -437,7 +439,7 @@ def on_the_fly_reblocking_accum(source_data: np.ndarray,
         block_size = ini_block_size
         next_block_size = ini_next_block_size
 
-    return accum_array
+    return otf_data_array
 
 
 @nb.njit
@@ -500,7 +502,7 @@ class OnTheFlyReblocking(ReblockingBase):
         assert len(self.source_data.shape) == 1
 
         # Only allow reblocking accumulated values.
-        assert self.source_data.dtype == accum_array_dtype
+        assert self.source_data.dtype == otf_data_dtype
 
     @cached_property
     def source_data_size(self):
@@ -529,35 +531,35 @@ class OnTheFlyReblocking(ReblockingBase):
     @cached_property
     def means(self):
         """"""
-        means_sum = self.source_data[MEANS_SUM_FIELD]
+        means_sum = self.source_data[MEANS_FIELD]
         return means_sum / self.num_blocks
 
     @cached_property
     def vars(self):
         """"""
         num_blocks = self.num_blocks
-        means_sqr_sum = self.source_data[MEANS_SQR_SUM_FIELD]
+        means_sqr_sum = self.source_data[MEANS_SQR_FIELD]
         means_sqr = means_sqr_sum / num_blocks
         ddof_num_blocks = num_blocks - self.var_ddof
         return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
 
 
-def update_reblocking_accum(accum_array: np.ndarray,
-                            extra_array: np.ndarray):
+def update_on_the_fly_data(data_array: np.ndarray,
+                           extra_array: np.ndarray):
     """Updates the accumulated data of a reblocking with other accumulated.
 
     This function serves to update the accumulated data of a given
     reblocking with the accumulated data of a new, compatible reblocking.
 
-    :param accum_array:
+    :param data_array:
     :param extra_array:
     :return:
     """
-    accum_block_size = accum_array[BLOCK_SIZE_FIELD]
+    accum_block_size = data_array[BLOCK_SIZE_FIELD]
     extra_block_size = extra_array[BLOCK_SIZE_FIELD]
 
     assert np.all(accum_block_size == extra_block_size)
 
-    accum_array[MEANS_SUM_FIELD] += extra_array[MEANS_SUM_FIELD]
-    accum_array[MEANS_SQR_SUM_FIELD] += extra_array[MEANS_SQR_SUM_FIELD]
-    accum_array[NUM_BLOCKS_FIELD] += extra_array[NUM_BLOCKS_FIELD]
+    data_array[MEANS_FIELD] += extra_array[MEANS_FIELD]
+    data_array[MEANS_SQR_FIELD] += extra_array[MEANS_SQR_FIELD]
+    data_array[NUM_BLOCKS_FIELD] += extra_array[NUM_BLOCKS_FIELD]
