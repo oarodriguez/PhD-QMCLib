@@ -276,7 +276,8 @@ def test_dmc():
     iter_enum: t_enum_dmc_sampling = enumerate(dmc_sampling_slice)
     for i_, state in iter_enum:
         state_data = \
-            (state.energy, state.weight, state.num_walkers, state.ref_energy)
+            (state.energy, state.weight, state.num_walkers,
+             state.ref_energy, state.accum_energy)
         state_props = np.array(state_data, dtype=dmc_base.iter_props_dtype)
         print(i_, state_props)
 

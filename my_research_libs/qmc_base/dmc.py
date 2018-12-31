@@ -49,6 +49,7 @@ class IterProp(str, enum.Enum):
     WEIGHT = 'WEIGHT'
     NUM_WALKERS = 'NUM_WALKERS'
     REF_ENERGY = 'REF_ENERGY'
+    ACCUM_ENERGY = 'ACCUM_ENERGY'
 
 
 @enum.unique
@@ -67,6 +68,7 @@ class State(t.NamedTuple):
     weight: float
     num_walkers: int
     ref_energy: float
+    accum_energy: float
     max_num_walkers: int
     branching_spec: t.Optional[np.ndarray] = None
 
@@ -187,7 +189,8 @@ iter_props_dtype = np.dtype([
     (IterProp.ENERGY.value, np.float64),
     (IterProp.WEIGHT.value, np.float64),
     (IterProp.NUM_WALKERS.value, np.uint32),
-    (IterProp.REF_ENERGY.value, np.float64)
+    (IterProp.REF_ENERGY.value, np.float64),
+    (IterProp.ACCUM_ENERGY.value, np.float64)
 ])
 
 branching_spec_dtype = np.dtype([
@@ -298,7 +301,7 @@ class CoreFuncs(metaclass=ABCMeta):
             actual_state_energies = actual_state_props[props_energy_field]
             aux_next_state_energies = aux_next_state_props[props_energy_field]
 
-            prev_state_weights = prev_state_props[props_weight_field]
+            # prev_state_weights = prev_state_props[props_weight_field]
             actual_state_weights = actual_state_props[props_weight_field]
             aux_next_state_weights = aux_next_state_props[props_weight_field]
 
@@ -323,7 +326,7 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Lookup which configuration should be cloned.
                 ref_idx = cloning_refs[sys_idx]
                 sys_energy = prev_state_energies[ref_idx]
-                sys_weight = prev_state_weights[ref_idx]
+                # sys_weight = prev_state_weights[ref_idx]
 
                 # Cloning process. Actual states are not modified.
                 actual_state_confs[sys_idx] = prev_state_confs[ref_idx]
@@ -332,12 +335,12 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Basic algorithm of branching gives a unit weight to each
                 # new walker. We set the value here. In addition, we unmask
                 # the walker, i.e., we mark it as valid.
-                actual_state_weights[sys_idx] = sys_weight
+                actual_state_weights[sys_idx] = 1.
                 actual_state_masks[sys_idx] = False
 
                 # The contribution to the total energy and weight.
                 state_energy += sys_energy
-                state_weight += 1.0
+                state_weight += 1.
 
                 # Evolve the system for the next iteration.
                 # TODO: Can we return tuples inside a nb.prange?
@@ -446,8 +449,8 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Update reference energy to avoid the explosion of the
                 # number of walkers.
                 # TODO: Pass the control factor (0.5) as an argument.
-                ref_energy = total_energy / total_weight
-                ref_energy -= 0.5 * log(
+                accum_energy = total_energy / total_weight
+                ref_energy = accum_energy - 0.5 * log(
                         state_weight / target_num_walkers) / time_step
 
                 yield State(confs=actual_state_confs,
@@ -456,6 +459,7 @@ class CoreFuncs(metaclass=ABCMeta):
                             weight=state_weight,
                             num_walkers=actual_num_walkers,
                             ref_energy=ref_energy,
+                            accum_energy=accum_energy,
                             max_num_walkers=max_num_walkers,
                             branching_spec=branching_spec)
 
@@ -549,6 +553,7 @@ class CoreFuncs(metaclass=ABCMeta):
         iter_weight_field = IterProp.WEIGHT.value
         iter_num_walkers_field = IterProp.NUM_WALKERS.value
         ref_energy_field = IterProp.REF_ENERGY.value
+        accum_energy_field = IterProp.ACCUM_ENERGY.value
 
         states_generator = self.states_generator
 
@@ -598,6 +603,7 @@ class CoreFuncs(metaclass=ABCMeta):
             iter_weights = iter_props_array[iter_weight_field]
             iter_num_walkers = iter_props_array[iter_num_walkers_field]
             iter_ref_energies = iter_props_array[ref_energy_field]
+            iter_accum_energies = iter_props_array[accum_energy_field]
 
             # Create a new sampling generator.
             generator = states_generator(time_step, ini_state,
@@ -617,6 +623,7 @@ class CoreFuncs(metaclass=ABCMeta):
                     iter_weights[sj_] = state.weight
                     iter_num_walkers[sj_] = state.num_walkers
                     iter_ref_energies[sj_] = state.ref_energy
+                    iter_accum_energies[sj_] = state.accum_energy
 
                     # Stop/pause the iteration.
                     if sj_ + 1 >= nts_batch:
