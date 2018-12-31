@@ -16,9 +16,13 @@ __all__ = [
     'TPFSpecNT',
     'NormalCoreFuncs',
     'NormalSampling',
+    'StateProp',
     'UTPFSpecNT',
     'core_funcs'
 ]
+
+# Export symbols from base modules.
+StateProp = qmc_base.vmc.StateProp
 
 
 class TPFSpecNT(qmc_base.jastrow.vmc.NTPFSpecNT, NamedTuple):
@@ -51,7 +55,6 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
 
     model_spec: model.Spec
     move_spread: float
-    num_steps: int
     ini_sys_conf: np.ndarray = attr.ib(cmp=False)
     rng_seed: Optional[int] = attr.ib(default=None)
 

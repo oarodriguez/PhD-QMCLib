@@ -49,6 +49,7 @@ class IterProp(str, enum.Enum):
     WEIGHT = 'WEIGHT'
     NUM_WALKERS = 'NUM_WALKERS'
     REF_ENERGY = 'REF_ENERGY'
+    ACCUM_ENERGY = 'ACCUM_ENERGY'
 
 
 @enum.unique
@@ -67,6 +68,7 @@ class State(t.NamedTuple):
     weight: float
     num_walkers: int
     ref_energy: float
+    accum_energy: float
     max_num_walkers: int
     branching_spec: t.Optional[np.ndarray] = None
 
@@ -93,6 +95,9 @@ class SamplingIterData(t.NamedTuple):
     iter_props: np.ndarray
 
 
+T_BatchesGenerator = t.Generator[SamplingIterData, t.Any, None]
+
+
 class Sampling(Iterable, metaclass=ABCMeta):
     """Realizes a VMC sampling using an iterable interface.
 
@@ -104,17 +109,11 @@ class Sampling(Iterable, metaclass=ABCMeta):
     #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
 
-    #: The number of batches of the sampling.
-    num_batches: int
-
-    #: The number of steps of a sampling batch.
-    num_time_steps_batch: int
-
     #: The initial configuration set of the sampling.
     ini_sys_conf_set: np.ndarray
 
     #: The initial energy of reference.
-    ini_ref_energy: float
+    ini_ref_energy: t.Optional[float] = None
 
     #: The maximum wight of the population of walkers.
     max_num_walkers: int
@@ -133,14 +132,6 @@ class Sampling(Iterable, metaclass=ABCMeta):
 
     #:
     iter_props: t.ClassVar = IterProp
-
-    #:
-    branching_spec: t.ClassVar = BranchingSpecField
-
-    @property
-    def num_steps(self):
-        """The total number of time steps of the sampling"""
-        return self.num_time_steps_batch * self.num_batches
 
     @property
     @abstractmethod
@@ -167,45 +158,39 @@ class Sampling(Iterable, metaclass=ABCMeta):
         """The sampling core functions."""
         pass
 
-    def states(self) -> t.Generator[State, t.Any, None]:
-        """Generator object of the DMC states."""
-
+    def batches(self, num_time_steps_batch: int) -> T_BatchesGenerator:
+        """Generator object that yields batches of states."""
         ini_state = self.init_get_ini_state()
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
+        rng_seed = self.rng_seed
 
-        # Limits of the loop.
-        sj_ini = 0
-        sj_end = self.num_steps
+        return self.core_funcs.batches(time_step,
+                                       ini_state,
+                                       num_time_steps_batch,
+                                       target_num_walkers,
+                                       rng_seed)
 
-        for sj_ in range(sj_ini, sj_end):
-            yield from self.core_funcs.states_generator(time_step,
-                                                        ini_state,
-                                                        target_num_walkers)
-
-    def __iter__(self) -> t.Generator[SamplingIterData, t.Any, None]:
-        """Iterable interface that generates batches of states."""
+    def __iter__(self) -> t.Generator[State, t.Any, None]:
+        """Iterable interface."""
 
         time_step = self.time_step
         rng_seed = self.rng_seed
-        num_batches = self.num_batches
-        num_time_steps_batch = self.num_time_steps_batch
         ini_state = self.init_get_ini_state()
         target_num_walkers = self.target_num_walkers
 
-        return self.core_funcs.generator(time_step,
-                                         num_batches,
-                                         num_time_steps_batch,
-                                         ini_state,
-                                         target_num_walkers,
-                                         rng_seed)
+        return self.core_funcs.states_generator(time_step,
+                                                ini_state,
+                                                target_num_walkers,
+                                                rng_seed)
 
 
 iter_props_dtype = np.dtype([
     (IterProp.ENERGY.value, np.float64),
     (IterProp.WEIGHT.value, np.float64),
     (IterProp.NUM_WALKERS.value, np.uint32),
-    (IterProp.REF_ENERGY.value, np.float64)
+    (IterProp.REF_ENERGY.value, np.float64),
+    (IterProp.ACCUM_ENERGY.value, np.float64)
 ])
 
 branching_spec_dtype = np.dtype([
@@ -316,7 +301,7 @@ class CoreFuncs(metaclass=ABCMeta):
             actual_state_energies = actual_state_props[props_energy_field]
             aux_next_state_energies = aux_next_state_props[props_energy_field]
 
-            prev_state_weights = prev_state_props[props_weight_field]
+            # prev_state_weights = prev_state_props[props_weight_field]
             actual_state_weights = actual_state_props[props_weight_field]
             aux_next_state_weights = aux_next_state_props[props_weight_field]
 
@@ -341,7 +326,7 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Lookup which configuration should be cloned.
                 ref_idx = cloning_refs[sys_idx]
                 sys_energy = prev_state_energies[ref_idx]
-                sys_weight = prev_state_weights[ref_idx]
+                # sys_weight = prev_state_weights[ref_idx]
 
                 # Cloning process. Actual states are not modified.
                 actual_state_confs[sys_idx] = prev_state_confs[ref_idx]
@@ -350,12 +335,12 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Basic algorithm of branching gives a unit weight to each
                 # new walker. We set the value here. In addition, we unmask
                 # the walker, i.e., we mark it as valid.
-                actual_state_weights[sys_idx] = sys_weight
+                actual_state_weights[sys_idx] = 1.
                 actual_state_masks[sys_idx] = False
 
                 # The contribution to the total energy and weight.
                 state_energy += sys_energy
-                state_weight += 1.0
+                state_weight += 1.
 
                 # Evolve the system for the next iteration.
                 # TODO: Can we return tuples inside a nb.prange?
@@ -386,7 +371,8 @@ class CoreFuncs(metaclass=ABCMeta):
         @nb.jit(nopython=True)
         def _states_generator(time_step: float,
                               ini_state: State,
-                              target_num_walkers: int):
+                              target_num_walkers: int,
+                              rng_seed: int = None):
             """Realizes the DMC sampling state-by-state.
 
             The sampling is done in batches, with each batch having a fixed
@@ -411,6 +397,10 @@ class CoreFuncs(metaclass=ABCMeta):
             # Auxiliary configuration.
             aux_next_state_confs = np.zeros_like(ini_state_confs)
             aux_next_state_props = np.zeros_like(ini_state_props)
+
+            # Seed the numba RNG.
+            if rng_seed:
+                random.seed(rng_seed)
 
             # Table to control the branching process.
             branching_spec = \
@@ -459,8 +449,8 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Update reference energy to avoid the explosion of the
                 # number of walkers.
                 # TODO: Pass the control factor (0.5) as an argument.
-                ref_energy = total_energy / total_weight
-                ref_energy -= 0.5 * log(
+                accum_energy = total_energy / total_weight
+                ref_energy = accum_energy - 0.5 * log(
                         state_weight / target_num_walkers) / time_step
 
                 yield State(confs=actual_state_confs,
@@ -469,6 +459,7 @@ class CoreFuncs(metaclass=ABCMeta):
                             weight=state_weight,
                             num_walkers=actual_num_walkers,
                             ref_energy=ref_energy,
+                            accum_energy=accum_energy,
                             max_num_walkers=max_num_walkers,
                             branching_spec=branching_spec)
 
@@ -553,7 +544,7 @@ class CoreFuncs(metaclass=ABCMeta):
         return _prepare_ini_iter_data
 
     @cached_property
-    def generator(self):
+    def batches(self):
         """
 
         :return:
@@ -562,20 +553,19 @@ class CoreFuncs(metaclass=ABCMeta):
         iter_weight_field = IterProp.WEIGHT.value
         iter_num_walkers_field = IterProp.NUM_WALKERS.value
         ref_energy_field = IterProp.REF_ENERGY.value
+        accum_energy_field = IterProp.ACCUM_ENERGY.value
 
         states_generator = self.states_generator
 
         @nb.jit(nopython=True, nogil=True)
-        def _generator(time_step: float,
-                       num_batches: int,
-                       num_time_steps_batch: int,
-                       ini_state: State,
-                       target_num_walkers: int,
-                       rng_seed: int):
+        def _batches(time_step: float,
+                     ini_state: State,
+                     num_time_steps_batch: int,
+                     target_num_walkers: int,
+                     rng_seed: int = None):
             """The DMC sampling generator.
 
             :param time_step:
-            :param num_batches:
             :param num_time_steps_batch:
             :param ini_state:
             :param target_num_walkers:
@@ -609,21 +599,18 @@ class CoreFuncs(metaclass=ABCMeta):
             # Array to store the configuration data of a batch of states.
             iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
 
-            # Seed the numba RNG.
-            random.seed(rng_seed)
-
             iter_energies = iter_props_array[iter_energy_field]
             iter_weights = iter_props_array[iter_weight_field]
             iter_num_walkers = iter_props_array[iter_num_walkers_field]
             iter_ref_energies = iter_props_array[ref_energy_field]
+            iter_accum_energies = iter_props_array[accum_energy_field]
 
             # Create a new sampling generator.
-            generator = \
-                states_generator(time_step, ini_state, target_num_walkers)
+            generator = states_generator(time_step, ini_state,
+                                         target_num_walkers, rng_seed)
 
-            # Limits of the sampling.
-            nbj_ini, nbj_end = 0, num_batches
-            for bj_ in range(nbj_ini, nbj_end):
+            # Yield batches indefinitely.
+            while True:
 
                 for sj_, state in enumerate(generator):
 
@@ -636,6 +623,7 @@ class CoreFuncs(metaclass=ABCMeta):
                     iter_weights[sj_] = state.weight
                     iter_num_walkers[sj_] = state.num_walkers
                     iter_ref_energies[sj_] = state.ref_energy
+                    iter_accum_energies[sj_] = state.accum_energy
 
                     # Stop/pause the iteration.
                     if sj_ + 1 >= nts_batch:
@@ -646,4 +634,4 @@ class CoreFuncs(metaclass=ABCMeta):
                                              iter_props_array)
                 yield iter_data
 
-        return _generator
+        return _batches

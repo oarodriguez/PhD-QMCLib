@@ -1,8 +1,12 @@
+from itertools import islice
+from typing import Iterator, Tuple
+
 import attr
 import numpy as np
 import pytest
 from matplotlib import pyplot
 
+import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
 
 LATTICE_DEPTH = 100
@@ -100,30 +104,84 @@ def test_vmc():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
     ar = 0
-    for data in vmc_sampling:
+    for cj_, data in enumerate(vmc_sampling):
         sys_conf, wfv, stat = data
         ar += stat
+        if cj_ + 1 >= num_steps:
+            break
     ar /= num_steps
 
-    chain_data = vmc_sampling.as_chain()
-    sys_conf_chain, wf_abs_log_chain, ar_ = chain_data
+    states_data = vmc_sampling.as_chain(num_steps)
+    sys_confs_set, sys_props_set, ar_ = states_data
+
+    move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
+    accepted = np.count_nonzero(sys_props_set[move_stat_field])
+    assert (accepted / num_steps) == ar_
 
     num_slots = len(model_spec.sys_conf_slots)
-    assert sys_conf_chain.shape == (num_steps, num_slots, boson_number)
+    assert sys_confs_set.shape == (num_steps, num_slots, boson_number)
     assert ar == ar_
 
     print(f"Sampling acceptance rate: {ar:.5g}")
     pos_slot = model_spec.sys_conf_slots.pos
 
     ax = pyplot.gca()
-    pos = sys_conf_chain[:, pos_slot]
+    pos = sys_confs_set[:, pos_slot]
     ax.hist(pos.flatten(), bins=20 * supercell_size)
     pyplot.show()
-    print(sys_conf_chain)
+    print(sys_confs_set)
+
+
+def test_vmc_batches():
+    """Testing the generator of batches.
+
+    :return:
+    """
+    boson_number = 10
+    supercell_size = 10
+    tbf_contact_cutoff = 0.25 * supercell_size
+
+    # TODO: Improve this test.
+    model_spec = bloch_phonon.Spec(lattice_depth=LATTICE_DEPTH,
+                                   lattice_ratio=LATTICE_RATIO,
+                                   interaction_strength=INTERACTION_STRENGTH,
+                                   boson_number=boson_number,
+                                   supercell_size=supercell_size,
+                                   tbf_contact_cutoff=tbf_contact_cutoff)
+    move_spread = 0.25 * model_spec.well_width
+    num_batches = 128 + 1
+    num_steps_batch = 4096
+    ini_sys_conf = model_spec.init_get_sys_conf()
+    vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
+                                             move_spread=move_spread,
+                                             ini_sys_conf=ini_sys_conf,
+                                             rng_seed=1)
+
+    # Both samplings (in batches and as_chain) have a total number
+    # of steps of ``num_batches * num_steps_batch``, but the first
+    # batch will be discarded, so the effective number is
+    # ``(num_batches - 1) * num_steps_batch``.
+    num_steps = num_batches * num_steps_batch
+    eff_num_steps = (num_batches - 1) * num_steps_batch
+
+    sampling_batches = vmc_sampling.batches(num_steps_batch)
+    accepted = 0.
+    for states_batch in islice(sampling_batches, 1, num_batches):
+        accept_rate = states_batch.accept_rate
+        accepted += accept_rate * num_steps_batch
+    batches_accept_rate = accepted / eff_num_steps
+
+    move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
+    states_data = vmc_sampling.as_chain(num_steps)
+    sys_props_set = states_data.props[num_steps_batch:]
+    accepted = np.count_nonzero(sys_props_set[move_stat_field])
+    chain_accept_rate = accepted / eff_num_steps
+
+    # Both acceptance ratios should be equal.
+    assert batches_accept_rate == chain_accept_rate
 
 
 def test_wf_optimize():
@@ -148,13 +206,13 @@ def test_wf_optimize():
                                                 offset=offset)
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain = vmc_sampling.as_chain()
-    sys_conf_set = vmc_chain.sys_conf_chain[:1000]
-    wf_abs_log_set = vmc_chain.wf_abs_log_chain[:1000]
+    wf_abs_log_field = bloch_phonon.vmc.StateProp.WF_ABS_LOG
+    vmc_chain = vmc_sampling.as_chain(num_steps)
+    sys_conf_set = vmc_chain.confs[:1000]
+    wf_abs_log_set = vmc_chain.props[wf_abs_log_field][:1000]
 
     cswf_optimizer = bloch_phonon.CSWFOptimizer(model_spec, sys_conf_set,
                                                 wf_abs_log_set, num_workers=2,
@@ -187,35 +245,94 @@ def test_dmc():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain_data = vmc_sampling.as_chain()
-    sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
+    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
     print(f"Acceptance ratio: {ar_:.5g}")
 
     time_step = 1e-3
-    num_blocks = 8
-    num_time_steps_block = 128
-    ini_sys_conf_set = sys_conf_chain[-100:]
-    target_num_walkers = 512
-    max_num_walkers = 576
+    num_batches = 8
+    num_time_steps_batch = 128
+    ini_sys_conf_set = sys_conf_set[-100:]
+    target_num_walkers = 480
+    max_num_walkers = 512
     ini_ref_energy = None
     rng_seed = None
-    dmc_sampling = bloch_phonon.dmc.Sampling(model_spec,
-                                             time_step,
-                                             num_blocks,
-                                             num_time_steps_block,
-                                             ini_sys_conf_set,
-                                             ini_ref_energy,
-                                             max_num_walkers,
-                                             target_num_walkers,
-                                             rng_seed=rng_seed)
+    dmc_sampling = \
+        bloch_phonon.dmc.Sampling(model_spec,
+                                  time_step,
+                                  ini_sys_conf_set,
+                                  ini_ref_energy=ini_ref_energy,
+                                  max_num_walkers=max_num_walkers,
+                                  target_num_walkers=target_num_walkers,
+                                  rng_seed=rng_seed)
 
-    for iter_data in dmc_sampling:
-        iter_props = iter_data.iter_props
-        print(iter_props)
+    t_enum_dmc_sampling = Iterator[Tuple[int, dmc_base.State]]
+
+    num_time_steps = num_batches * num_time_steps_batch
+    dmc_sampling_slice = islice(dmc_sampling, num_time_steps)
+    iter_enum: t_enum_dmc_sampling = enumerate(dmc_sampling_slice)
+    for i_, state in iter_enum:
+        state_data = \
+            (state.energy, state.weight, state.num_walkers,
+             state.ref_energy, state.accum_energy)
+        state_props = np.array(state_data, dtype=dmc_base.iter_props_dtype)
+        print(i_, state_props)
+
+
+def test_dmc_batches():
+    """Testing the DMC sampling."""
+    lattice_depth = 0
+    lattice_ratio = 1
+    interaction_strength = 40
+    boson_number = 50
+    supercell_size = 50
+    tbf_contact_cutoff = 0.25 * supercell_size
+
+    # TODO: Improve this test.
+    model_spec = bloch_phonon.Spec(lattice_depth=lattice_depth,
+                                   lattice_ratio=lattice_ratio,
+                                   interaction_strength=interaction_strength,
+                                   boson_number=boson_number,
+                                   supercell_size=supercell_size,
+                                   tbf_contact_cutoff=tbf_contact_cutoff)
+
+    move_spread = 0.25 * model_spec.well_width
+    num_steps = 4096 * 2
+    ini_sys_conf = model_spec.init_get_sys_conf()
+    vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
+                                             move_spread=move_spread,
+                                             ini_sys_conf=ini_sys_conf,
+                                             rng_seed=1)
+
+    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    print(f"Acceptance ratio: {ar_:.5g}")
+
+    time_step = 1e-3
+    num_batches = 64
+    num_time_steps_batch = 128
+    ini_sys_conf_set = sys_conf_set[-100:]
+    target_num_walkers = 480
+    max_num_walkers = 512
+    ini_ref_energy = None
+    rng_seed = None
+    dmc_sampling = \
+        bloch_phonon.dmc.Sampling(model_spec,
+                                  time_step,
+                                  ini_sys_conf_set,
+                                  ini_ref_energy=ini_ref_energy,
+                                  max_num_walkers=max_num_walkers,
+                                  target_num_walkers=target_num_walkers,
+                                  rng_seed=rng_seed)
+
+    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
+        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+    for batch in dmc_sampling_batches:
+        state_props = batch.iter_props
+        print(state_props)
 
 
 def test_dmc_energy():
@@ -237,35 +354,35 @@ def test_dmc_energy():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
-    vmc_chain_data = vmc_sampling.as_chain()
-    sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
+    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
 
     time_step = 1e-2
-    num_blocks = 4
-    num_time_steps_block = 128
-    ini_sys_conf_set = sys_conf_chain[-768:]
-    target_num_walkers = 512
-    max_num_walkers = 512 + 128
+    num_batches = 4
+    num_time_steps_batch = 128
+    ini_sys_conf_set = sys_conf_set[-768:]
+    target_num_walkers = 480
+    max_num_walkers = 512
     ini_ref_energy = None
     rng_seed = None
-    dmc_sampling = bloch_phonon.dmc.Sampling(model_spec,
-                                             time_step,
-                                             num_blocks,
-                                             num_time_steps_block,
-                                             ini_sys_conf_set,
-                                             ini_ref_energy,
-                                             max_num_walkers,
-                                             target_num_walkers,
-                                             rng_seed=rng_seed)
+    dmc_sampling = \
+        bloch_phonon.dmc.Sampling(model_spec,
+                                  time_step,
+                                  ini_sys_conf_set,
+                                  ini_ref_energy=ini_ref_energy,
+                                  max_num_walkers=max_num_walkers,
+                                  target_num_walkers=target_num_walkers,
+                                  rng_seed=rng_seed)
 
     # Alias.
     energy_batch = dmc_sampling.energy_batch
     energy_field = bloch_phonon.dmc.IterProp.ENERGY
 
-    for iter_data in dmc_sampling:
+    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
+        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+    for iter_data in dmc_sampling_batches:
         #
         energy_result = energy_batch(iter_data)
         egy = energy_result.func
@@ -294,29 +411,27 @@ def test_dmc_batch_func():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             num_steps=num_steps,
                                              ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
-    vmc_chain_data = vmc_sampling.as_chain()
-    sys_conf_chain, wf_abs_log_chain, ar_ = vmc_chain_data
+    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
 
     time_step = 1e-2
-    num_blocks = 8
-    num_time_steps_block = 256
-    ini_sys_conf_set = sys_conf_chain[-128:]
-    target_num_walkers = 512
-    max_num_walkers = 512 + 128
+    num_batches = 8
+    num_time_steps_batch = 256
+    ini_sys_conf_set = sys_conf_set[-128:]
+    target_num_walkers = 480
+    max_num_walkers = 512
     ini_ref_energy = None
     rng_seed = None
-    dmc_sampling = bloch_phonon.dmc.Sampling(model_spec,
-                                             time_step,
-                                             num_blocks,
-                                             num_time_steps_block,
-                                             ini_sys_conf_set,
-                                             ini_ref_energy,
-                                             max_num_walkers,
-                                             target_num_walkers,
-                                             rng_seed=rng_seed)
+    dmc_sampling = \
+        bloch_phonon.dmc.Sampling(model_spec,
+                                  time_step,
+                                  ini_sys_conf_set,
+                                  ini_ref_energy=ini_ref_energy,
+                                  max_num_walkers=max_num_walkers,
+                                  target_num_walkers=target_num_walkers,
+                                  rng_seed=rng_seed)
 
     # The momentum range for the structure factor.
     nop = model_spec.boson_number
@@ -327,7 +442,9 @@ def test_dmc_batch_func():
     structure_factor_batch = dmc_sampling.structure_factor_batch
     weight_field = bloch_phonon.dmc.IterProp.WEIGHT.value
 
-    for iter_data in dmc_sampling:
+    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
+        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+    for iter_data in dmc_sampling_batches:
         #
         sk_result = structure_factor_batch(kz, iter_data)
         sk = sk_result.func

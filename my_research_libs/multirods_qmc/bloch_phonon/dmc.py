@@ -32,6 +32,7 @@ class State(qmc_base.dmc.State, t.NamedTuple):
     weight: float
     num_walkers: int
     ref_energy: float
+    accum_energy: float
     max_num_walkers: int
     branching_spec: t.Optional[np.ndarray] = None
 
@@ -66,12 +67,10 @@ class Sampling(qmc_base.dmc.Sampling):
     model_spec: model.Spec
 
     time_step: float
-    num_batches: int
-    num_time_steps_batch: int
     ini_sys_conf_set: np.ndarray
     ini_ref_energy: t.Optional[float] = None
-    max_num_walkers: int = 1000
-    target_num_walkers: int = 500
+    max_num_walkers: int = 544
+    target_num_walkers: int = 512
     num_walkers_control_factor: t.Optional[float] = 0.5
     rng_seed: t.Optional[int] = None
 
@@ -128,11 +127,12 @@ class Sampling(qmc_base.dmc.Sampling):
 
         state_energy = (state_energies * state_weights).sum()
         state_weight = state_weights.sum()
+        energy = state_energy / state_weight
 
         if ref_energy is None:
             # Calculate the initial energy of reference as the
             # average of the energy of the initial state.
-            ref_energy = state_energy / state_weight
+            ref_energy = energy
 
         # NOTE: The branching spec for the initial state is None.
         return State(confs=state_confs,
@@ -141,6 +141,7 @@ class Sampling(qmc_base.dmc.Sampling):
                      weight=state_weight,
                      num_walkers=num_walkers,
                      ref_energy=ref_energy,
+                     accum_energy=energy,
                      max_num_walkers=max_num_walkers)
 
     def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
