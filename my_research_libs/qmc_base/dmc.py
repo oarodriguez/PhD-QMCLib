@@ -22,6 +22,10 @@ ENERGY_INDEX = 1
 __all__ = [
     'BranchingSpecField',
     'CoreFuncs',
+    'EstAuxData',
+    'EstSampling',
+    'EstSamplingBatch',
+    'EstSamplingCoreFuncs',
     'EvoStateResult',
     'EvoStatesBatchResult',
     'IterProp',
@@ -29,8 +33,10 @@ __all__ = [
     'SamplingIterData',
     'State',
     'StateProp',
+    'StructureFactorEst',
     'branching_spec_dtype',
-    'iter_props_dtype'
+    'iter_props_dtype',
+    'dummy_pure_est_core_func'
 ]
 
 
@@ -96,12 +102,14 @@ class SamplingIterData(t.NamedTuple):
 
 
 T_BatchesGenerator = t.Generator[SamplingIterData, t.Any, None]
+T_StateIter = t.Iterator[State]
+T_E_StateIter = t.Iterator[t.Tuple[int, State]]
 
 
 class Sampling(Iterable, metaclass=ABCMeta):
-    """Realizes a VMC sampling using an iterable interface.
+    """Realizes a DMC sampling using an iterable interface.
 
-    Defines the parameters and related properties of a Variational Monte
+    Defines the parameters and related properties of a Diffusion Monte
     Carlo calculation.
     """
     __slots__ = ()
@@ -612,7 +620,9 @@ class CoreFuncs(metaclass=ABCMeta):
             # Yield batches indefinitely.
             while True:
 
-                for sj_, state in enumerate(generator):
+                enum_generator: T_E_StateIter = enumerate(generator)
+
+                for sj_, state in enum_generator:
 
                     # Copy the data to the batch.
                     states_confs_array[sj_] = state.confs[:]
@@ -635,3 +645,274 @@ class CoreFuncs(metaclass=ABCMeta):
                 yield iter_data
 
         return _batches
+
+
+class EstSamplingBatch(t.NamedTuple):
+    """"""
+    #: Properties data.
+    iter_props: np.ndarray
+    iter_structure_factor: np.ndarray = None
+
+
+class EstAuxData(t.NamedTuple):
+    """"""
+    #: Properties data.
+    structure_factor: np.ndarray = None
+
+
+# Variables for type-hints.
+T_ESBatchIter = t.Iterator[EstSamplingBatch]
+T_E_ESBatchIter = t.Iterator[t.Tuple[int, EstSamplingBatch]]
+
+
+class StructureFactorEst:
+    """Structure factor estimator."""
+
+    #: Number of modes to evaluate the structure factor S(k).
+    num_modes: int
+
+    #: Number of time steps to accumulate the pure estimator of S(k).
+    init_num_time_steps: int = 512
+
+    @property
+    @abstractmethod
+    def get_momenta(self, *args, **kwargs):
+        """"""
+        pass
+
+    @property
+    @abstractmethod
+    def build_core_func(self, *args, **kwargs):
+        """"""
+        pass
+
+
+class EstSampling(Sampling):
+    """Evaluates expected values (estimators) using a DMC sampling."""
+
+    # Inherited fields...
+    time_step: float
+    ini_sys_conf_set: np.ndarray
+    ini_ref_energy: t.Optional[float] = None
+    max_num_walkers: int = 544
+    target_num_walkers: int = 512
+    num_walkers_control_factor: t.Optional[float] = 0.5
+    rng_seed: t.Optional[int] = None
+
+    # *** *** Configuration of the estimators. *** ***
+
+    #: Structure factor estimator.
+    structure_factor: t.Optional[StructureFactorEst] = None
+
+    @property
+    @abstractmethod
+    def core_funcs(self) -> 'CoreFuncs':
+        """"""
+        pass
+
+
+# noinspection PyUnusedLocal
+@nb.jit(nopython=True)
+def dummy_pure_est_core_func(step_idx: int,
+                             sys_idx: int,
+                             clone_ref_idx: int,
+                             state_confs: np.ndarray,
+                             iter_sf_array: np.ndarray,
+                             aux_states_sf_array: np.ndarray):
+    """Dummy pure estimator core function."""
+    return
+
+
+class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
+    """The DMC core functions for the Bloch-Phonon model."""
+
+    #: Number of modes to evaluate the structure factor S(k).
+    sf_num_modes: int
+
+    #: Number of time steps to accumulate the pure estimator of S(k).
+    sf_init_num_time_steps: int
+
+    #: Core function (JIT) to calculate S(k).
+    sf_core_func: t.Callable
+
+    @property
+    def should_eval_sf_est(self):
+        """"""
+        return self.sf_core_func is not dummy_pure_est_core_func
+
+    @cached_property
+    def batches(self):
+        """
+
+        :return:
+        """
+        sf_num_modes = self.sf_num_modes
+
+        iter_energy_field = IterProp.ENERGY.value
+        iter_weight_field = IterProp.WEIGHT.value
+        iter_num_walkers_field = IterProp.NUM_WALKERS.value
+        ref_energy_field = IterProp.REF_ENERGY.value
+        accum_energy_field = IterProp.ACCUM_ENERGY.value
+
+        # JIT routines.
+        eval_estimators = self.eval_estimators
+        states_generator = self.states_generator
+
+        @nb.jit(nopython=True, nogil=True)
+        def _batches(time_step: float,
+                     ini_state: State,
+                     num_time_steps_batch: int,
+                     target_num_walkers: int,
+                     rng_seed: int = None):
+            """
+
+            :param time_step:
+            :param ini_state:
+            :param num_time_steps_batch:
+            :param target_num_walkers:
+            :param rng_seed:
+            :return:
+            """
+            max_num_walkers = ini_state.max_num_walkers
+
+            # Alias :)...
+            nts_batch = num_time_steps_batch
+
+            # The shape of the batches.
+            ipb_shape = nts_batch,
+
+            # The shape of the structure factor array.
+            isf_shape = nts_batch, sf_num_modes  # S(k) batch.
+
+            # The shape of the auxiliary arrays to store the structure
+            # for a whole DMC state.
+            aux_sfb_shape = 2, max_num_walkers, sf_num_modes
+
+            # Array to store the configuration data of a batch of states.
+            iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
+            iter_sf_array = np.zeros(isf_shape, dtype=np.float64)
+            aux_sf_array = np.zeros(aux_sfb_shape, dtype=np.float64)
+
+            # Extract fields.
+            iter_energies = iter_props_array[iter_energy_field]
+            iter_weights = iter_props_array[iter_weight_field]
+            iter_num_walkers = iter_props_array[iter_num_walkers_field]
+            iter_ref_energies = iter_props_array[ref_energy_field]
+            iter_accum_energies = iter_props_array[accum_energy_field]
+
+            # Create a new sampling generator.
+            generator = states_generator(time_step, ini_state,
+                                         target_num_walkers, rng_seed)
+
+            # Yield indefinitely 🤔.
+            while True:
+
+                # NOTE: Enumerate here, inside the while.
+                enum_generator: T_E_StateIter = enumerate(generator)
+
+                # Reset to zero the auxiliary states after the end of
+                # each batch.
+                aux_sf_array[:] = 0.
+
+                for step_idx, state in enum_generator:
+
+                    state_confs = state.confs
+                    num_walkers = state.num_walkers
+                    branching_spec = state.branching_spec
+
+                    # Copy other data to keep track of the evolution.
+                    iter_energies[step_idx] = state.energy
+                    iter_weights[step_idx] = state.weight
+                    iter_num_walkers[step_idx] = num_walkers
+                    iter_ref_energies[step_idx] = state.ref_energy
+                    iter_accum_energies[step_idx] = state.accum_energy
+
+                    # Evaluate the estimators.
+                    eval_estimators(step_idx,
+                                    state_confs,
+                                    num_walkers,
+                                    max_num_walkers,
+                                    branching_spec,
+                                    iter_props_array,
+                                    iter_sf_array,
+                                    aux_sf_array)
+
+                    # Stop/pause the iteration.
+                    if step_idx + 1 >= nts_batch:
+                        break
+
+                batch_data = EstSamplingBatch(iter_props_array,
+                                              iter_sf_array)
+                yield batch_data
+
+        return _batches
+
+    @cached_property
+    def eval_estimators(self):
+        """
+
+        :return:
+        """
+        branch_ref_field = BranchingSpecField.CLONING_REF.value
+
+        # Structure factor
+        # Flag to evaluate structure factor.
+        sf_init_nts = self.sf_init_num_time_steps
+        sf_est_core_func = self.sf_core_func
+        should_eval_sf_est = self.should_eval_sf_est
+
+        # noinspection PyUnusedLocal
+        @nb.jit(nopython=True, parallel=True)
+        def _eval_estimators(step_idx: int,
+                             state_confs: np.ndarray,
+                             num_walkers: int,
+                             max_num_walkers: int,
+                             branching_spec: np.ndarray,
+                             iter_props_array: np.ndarray,
+                             iter_sf_array: np.ndarray,
+                             aux_states_sf_array: np.ndarray):
+            """
+
+            :param step_idx:
+            :param state_confs:
+            :param num_walkers:
+            :param max_num_walkers:
+            :param branching_spec:
+            :param iter_props_array:
+            :param iter_sf_array:
+            :param aux_states_sf_array:
+            :return:
+            """
+            # Cloning table. Needed for evaluate pure estimators.
+            cloning_refs = branching_spec[branch_ref_field]
+
+            # Branching process (parallel for).
+            for sys_idx in nb.prange(max_num_walkers):
+
+                # Beyond the actual number of walkers just pass to
+                # the next iteration.
+                if sys_idx >= num_walkers:
+                    continue
+
+                # Lookup which configuration should be cloned.
+                clone_ref_idx = cloning_refs[sys_idx]
+
+                if should_eval_sf_est:
+                    # Evaluate structure factor.
+                    sf_est_core_func(step_idx,
+                                     sys_idx,
+                                     clone_ref_idx,
+                                     state_confs,
+                                     iter_sf_array,
+                                     aux_states_sf_array)
+
+            # Calculate structure factor pure estimator after the
+            # initialization stage.
+            if should_eval_sf_est:
+                #
+                if step_idx < sf_init_nts:
+                    iter_sf_array[step_idx] /= step_idx + 1
+                else:
+                    iter_sf_array[step_idx] /= sf_init_nts
+
+        return _eval_estimators
