@@ -9,7 +9,7 @@ from cached_property import cached_property
 from numpy import random
 
 from my_research_libs import qmc_base, utils
-from my_research_libs.qmc_base.dmc import SamplingIterData
+from my_research_libs.qmc_base.dmc import SamplingBatch
 from my_research_libs.qmc_base.utils import recast_to_supercell
 from . import model
 
@@ -18,7 +18,7 @@ __all__ = [
     'CoreFuncs',
     'IterProp',
     'Sampling',
-    'SamplingIterData',
+    'SamplingBatch',
     'State',
     'StateProp'
 ]
@@ -142,7 +142,7 @@ class Sampling(qmc_base.dmc.Sampling):
                      max_num_walkers=max_num_walkers)
 
     def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
-                                  iter_batch: SamplingIterData) -> t.Tuple:
+                                  iter_batch: SamplingBatch) -> t.Tuple:
         """
 
         :param iter_batch:
@@ -182,12 +182,12 @@ class Sampling(qmc_base.dmc.Sampling):
         states_props_array, *_ext_arrays_ = \
             np.broadcast_arrays(states_props_array, *ext_arrays)
 
-        return _ext_arrays_, SamplingIterData(states_confs_array,
-                                              states_props_array,
-                                              iter_props_array)
+        return _ext_arrays_, SamplingBatch(states_confs_array,
+                                           states_props_array,
+                                           iter_props_array)
 
     @staticmethod
-    def energy_batch(iter_data: SamplingIterData):
+    def energy_batch(iter_data: SamplingBatch):
         """
 
         :param iter_data:
@@ -221,7 +221,7 @@ class Sampling(qmc_base.dmc.Sampling):
         return BatchFuncResult(total_energy_array, iter_data.iter_props)
 
     def one_body_density_batch(self, rel_dist: T_RelDist,
-                               iter_data: SamplingIterData,
+                               iter_data: SamplingBatch,
                                result: np.ndarray = None):
         """Calculates the one-body density for a sampling batch.
 
@@ -261,7 +261,7 @@ class Sampling(qmc_base.dmc.Sampling):
         return BatchFuncResult(total_obd_array, iter_data.iter_props)
 
     def structure_factor_batch(self, momentum: T_Momentum,
-                               batch_data: SamplingIterData,
+                               batch_data: SamplingBatch,
                                result: np.ndarray = None) -> BatchFuncResult:
         """Evaluates the static structure factor for a sampling batch.
 

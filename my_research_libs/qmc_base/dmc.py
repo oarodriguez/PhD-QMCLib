@@ -27,10 +27,9 @@ __all__ = [
     'EstSamplingBatch',
     'EstSamplingCoreFuncs',
     'EvoStateResult',
-    'EvoStatesBatchResult',
     'IterProp',
     'Sampling',
-    'SamplingIterData',
+    'SamplingBatch',
     'State',
     'StateProp',
     'StructureFactorEst',
@@ -86,24 +85,17 @@ class EvoStateResult(t.NamedTuple):
     num_walkers: int
 
 
-class EvoStatesBatchResult(t.NamedTuple):
-    """"""
-    last_confs: np.ndarray
-    last_props: np.ndarray
-    last_num_walkers: int
-    last_ref_energy: float
-
-
-class SamplingIterData(t.NamedTuple):
+class SamplingBatch(t.NamedTuple):
     """"""
     states_confs: np.ndarray
     states_props: np.ndarray
     iter_props: np.ndarray
 
 
-T_BatchesGenerator = t.Generator[SamplingIterData, t.Any, None]
-T_StateIter = t.Iterator[State]
-T_E_StateIter = t.Iterator[t.Tuple[int, State]]
+T_SIter = t.Iterator[State]
+T_E_SIter = t.Iterator[t.Tuple[int, State]]
+T_SBatchesIter = t.Iterator[SamplingBatch]
+T_E_SBatchesIter = t.Iterator[t.Tuple[int, SamplingBatch]]
 
 
 class Sampling(Iterable, metaclass=ABCMeta):
@@ -166,7 +158,7 @@ class Sampling(Iterable, metaclass=ABCMeta):
         """The sampling core functions."""
         pass
 
-    def batches(self, num_time_steps_batch: int) -> T_BatchesGenerator:
+    def batches(self, num_time_steps_batch: int) -> T_SBatchesIter:
         """Generator object that yields batches of states."""
         ini_state = self.init_get_ini_state()
         time_step = self.time_step
@@ -545,9 +537,9 @@ class CoreFuncs(metaclass=ABCMeta):
             ini_states_props_array = \
                 ini_states_props_array.reshape(ini_spb_shape)
 
-            return SamplingIterData(ini_states_confs_array,
-                                    ini_states_props_array,
-                                    ini_iter_props_array)
+            return SamplingBatch(ini_states_confs_array,
+                                 ini_states_props_array,
+                                 ini_iter_props_array)
 
         return _prepare_ini_iter_data
 
@@ -620,7 +612,7 @@ class CoreFuncs(metaclass=ABCMeta):
             # Yield batches indefinitely.
             while True:
 
-                enum_generator: T_E_StateIter = enumerate(generator)
+                enum_generator: T_E_SIter = enumerate(generator)
 
                 for sj_, state in enum_generator:
 
@@ -639,9 +631,9 @@ class CoreFuncs(metaclass=ABCMeta):
                     if sj_ + 1 >= nts_batch:
                         break
 
-                iter_data = SamplingIterData(states_confs_array,
-                                             states_props_array,
-                                             iter_props_array)
+                iter_data = SamplingBatch(states_confs_array,
+                                          states_props_array,
+                                          iter_props_array)
                 yield iter_data
 
         return _batches
@@ -661,8 +653,8 @@ class EstAuxData(t.NamedTuple):
 
 
 # Variables for type-hints.
-T_ESBatchIter = t.Iterator[EstSamplingBatch]
-T_E_ESBatchIter = t.Iterator[t.Tuple[int, EstSamplingBatch]]
+T_ESBatchesIter = t.Iterator[EstSamplingBatch]
+T_E_ESBatchesIter = t.Iterator[t.Tuple[int, EstSamplingBatch]]
 
 
 class StructureFactorEst:
@@ -808,7 +800,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             while True:
 
                 # NOTE: Enumerate here, inside the while.
-                enum_generator: T_E_StateIter = enumerate(generator)
+                enum_generator: T_E_SIter = enumerate(generator)
 
                 # Reset to zero the auxiliary states after the end of
                 # each batch.

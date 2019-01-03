@@ -328,7 +328,7 @@ def test_dmc_batches():
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
 
-    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
+    dmc_sampling_batches: dmc_base.T_SBatchesIter = \
         islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
     for batch in dmc_sampling_batches:
         state_props = batch.iter_props
@@ -380,7 +380,7 @@ def test_dmc_energy():
     energy_batch = dmc_sampling.energy_batch
     energy_field = bloch_phonon.dmc.IterProp.ENERGY
 
-    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
+    dmc_sampling_batches: dmc_base.T_SBatchesIter = \
         islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
     for iter_data in dmc_sampling_batches:
         #
@@ -442,7 +442,7 @@ def test_dmc_batch_func():
     structure_factor_batch = dmc_sampling.structure_factor_batch
     weight_field = bloch_phonon.dmc.IterProp.WEIGHT.value
 
-    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
+    dmc_sampling_batches: dmc_base.T_SBatchesIter = \
         islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
     for iter_data in dmc_sampling_batches:
         #
