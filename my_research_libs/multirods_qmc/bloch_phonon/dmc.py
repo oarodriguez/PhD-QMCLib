@@ -59,8 +59,7 @@ T_RelDist = t.Union[t.SupportsFloat, np.ndarray]
 T_Momentum = t.Union[t.SupportsFloat, np.ndarray]
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class Sampling(qmc_base.dmc.Sampling):
+class _Sampling(qmc_base.dmc.Sampling):
     """A class to realize a DMC sampling."""
 
     #: The model instance.
@@ -73,17 +72,6 @@ class Sampling(qmc_base.dmc.Sampling):
     target_num_walkers: int = 512
     num_walkers_control_factor: t.Optional[float] = 0.5
     rng_seed: t.Optional[int] = None
-
-    def __attrs_post_init__(self):
-        """Post-initialization stage."""
-        if self.rng_seed is None:
-            rng_seed = utils.get_random_rng_seed()
-            super().__setattr__('rng_seed', rng_seed)
-
-        # Only take as much sys_conf items as max_num_walkers.
-        # NOTE: Take the configurations counting from the last one.
-        ini_sys_conf_set = self.ini_sys_conf_set[-self.max_num_walkers:]
-        super().__setattr__('ini_sys_conf_set', ini_sys_conf_set)
 
     @property
     def state_confs_shape(self):
@@ -307,8 +295,7 @@ class Sampling(qmc_base.dmc.Sampling):
         return CoreFuncs.from_model_spec(self.model_spec)
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class CoreFuncs(qmc_base.dmc.CoreFuncs):
+class _CoreFuncs(qmc_base.dmc.CoreFuncs):
     """The DMC core functions for the Bloch-Phonon model."""
 
     #: The boundaries of the QMC supercell.
@@ -319,17 +306,6 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
     #: The common (fixed) spec to pass to the core functions of the model.
     cfc_spec_nt: model.CFCSpecNT
-
-    @classmethod
-    def from_model_spec(cls, model_spec: model.Spec):
-        """Initializes the core functions from a model spec.
-
-        :param model_spec: The model spec.
-        :return: An instance of the core functions.
-        """
-        return cls(model_spec.boundaries,
-                   model_spec.sys_conf_slots,
-                   model_spec.cfc_spec_nt)
 
     @cached_property
     def recast(self):
@@ -605,3 +581,55 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                 result[0] = 0.
 
         return _structure_factor
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class Sampling(_Sampling):
+    """A class to realize a DMC sampling."""
+
+    #: The model instance.
+    model_spec: model.Spec
+
+    time_step: float
+    ini_sys_conf_set: np.ndarray
+    ini_ref_energy: t.Optional[float] = None
+    max_num_walkers: int = 544
+    target_num_walkers: int = 512
+    num_walkers_control_factor: t.Optional[float] = 0.5
+    rng_seed: t.Optional[int] = None
+
+    def __attrs_post_init__(self):
+        """Post-initialization stage."""
+        if self.rng_seed is None:
+            rng_seed = utils.get_random_rng_seed()
+            super().__setattr__('rng_seed', rng_seed)
+
+        # Only take as much sys_conf items as max_num_walkers.
+        # NOTE: Take the configurations counting from the last one.
+        ini_sys_conf_set = self.ini_sys_conf_set[-self.max_num_walkers:]
+        super().__setattr__('ini_sys_conf_set', ini_sys_conf_set)
+
+    @cached_property
+    def core_funcs(self) -> 'CoreFuncs':
+        """The sampling core functions."""
+        return CoreFuncs.from_model_spec(self.model_spec)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class CoreFuncs(_CoreFuncs):
+    """The DMC core functions for the Bloch-Phonon model."""
+
+    boundaries: t.Tuple[float, float]
+    sys_conf_slots: model.Spec.sys_conf_slots
+    cfc_spec_nt: model.CFCSpecNT
+
+    @classmethod
+    def from_model_spec(cls, model_spec: model.Spec):
+        """Initializes the core functions from a model spec.
+
+        :param model_spec: The model spec.
+        :return: An instance of the core functions.
+        """
+        return cls(model_spec.boundaries,
+                   model_spec.sys_conf_slots,
+                   model_spec.cfc_spec_nt)
