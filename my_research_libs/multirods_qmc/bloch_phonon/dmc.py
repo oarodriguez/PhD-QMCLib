@@ -61,6 +61,7 @@ T_Momentum = t.Union[t.SupportsFloat, np.ndarray]
 
 class _Sampling(qmc_base.dmc.Sampling):
     """A class to realize a DMC sampling."""
+    __slots__ = ()
 
     #: The model instance.
     model_spec: model.Spec
@@ -298,6 +299,7 @@ class _Sampling(qmc_base.dmc.Sampling):
 
 class _CoreFuncs(qmc_base.dmc.CoreFuncs):
     """The DMC core functions for the Bloch-Phonon model."""
+    __slots__ = ()
 
     #: The boundaries of the QMC supercell.
     boundaries: t.Tuple[float, float]

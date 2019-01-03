@@ -159,7 +159,7 @@ class Sampling(metaclass=ABCMeta):
     def batches(self, num_time_steps_batch: int,
                 ini_sys_conf_set: np.ndarray,
                 ini_ref_energy: float = None) -> T_SBatchesIter:
-        """Generator object that yields batches of states.
+        """Generator of batches of states.
 
         :param num_time_steps_batch:
         :param ini_sys_conf_set: The initial configuration set of the
@@ -181,7 +181,7 @@ class Sampling(metaclass=ABCMeta):
 
     def states(self, ini_sys_conf_set: np.ndarray,
                ini_ref_energy: float = None) -> T_SIter:
-        """Generator object that returns DMC states..
+        """Generator object that yields DMC states.
 
         :param ini_sys_conf_set: The initial configuration set of the
             sampling.
