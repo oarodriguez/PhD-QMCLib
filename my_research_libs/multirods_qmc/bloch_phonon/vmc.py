@@ -55,7 +55,6 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
 
     model_spec: model.Spec
     move_spread: float
-    ini_sys_conf: np.ndarray = attr.ib(cmp=False)
     rng_seed: Optional[int] = attr.ib(default=None)
 
     def __attrs_post_init__(self):
@@ -150,8 +149,6 @@ class NormalSampling(qmc_base.jastrow.vmc.NormalSampling):
 
     model_spec: model.Spec
     time_step: float
-    num_steps: int
-    ini_sys_conf: np.ndarray = attr.ib(cmp=False)
     rng_seed: Optional[int] = attr.ib(default=None)
 
     def __attrs_post_init__(self):

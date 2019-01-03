@@ -103,17 +103,17 @@ def test_vmc():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
     ar = 0
-    for cj_, data in enumerate(vmc_sampling):
+    sampling_states = vmc_sampling.states(ini_sys_conf)
+    for cj_, data in enumerate(sampling_states):
         sys_conf, wfv, stat = data
         ar += stat
         if cj_ + 1 >= num_steps:
             break
     ar /= num_steps
 
-    states_data = vmc_sampling.as_chain(num_steps)
+    states_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_confs_set, sys_props_set, ar_ = states_data
 
     move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
@@ -156,7 +156,6 @@ def test_vmc_batches():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
     # Both samplings (in batches and as_chain) have a total number
@@ -166,7 +165,7 @@ def test_vmc_batches():
     num_steps = num_batches * num_steps_batch
     eff_num_steps = (num_batches - 1) * num_steps_batch
 
-    sampling_batches = vmc_sampling.batches(num_steps_batch)
+    sampling_batches = vmc_sampling.batches(num_steps_batch, ini_sys_conf)
     accepted = 0.
     for states_batch in islice(sampling_batches, 1, num_batches):
         accept_rate = states_batch.accept_rate
@@ -174,7 +173,7 @@ def test_vmc_batches():
     batches_accept_rate = accepted / eff_num_steps
 
     move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
-    states_data = vmc_sampling.as_chain(num_steps)
+    states_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_props_set = states_data.props[num_steps_batch:]
     accepted = np.count_nonzero(sys_props_set[move_stat_field])
     chain_accept_rate = accepted / eff_num_steps
@@ -205,11 +204,10 @@ def test_wf_optimize():
                                                 offset=offset)
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
     wf_abs_log_field = bloch_phonon.vmc.StateProp.WF_ABS_LOG
-    vmc_chain = vmc_sampling.as_chain(num_steps)
+    vmc_chain = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_conf_set = vmc_chain.confs[:1000]
     wf_abs_log_set = vmc_chain.props[wf_abs_log_field][:1000]
 
@@ -244,10 +242,9 @@ def test_dmc():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_conf_set, sys_props_set, ar_ = vmc_chain_data
     print(f"Acceptance ratio: {ar_:.5g}")
 
@@ -301,10 +298,9 @@ def test_dmc_batches():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_conf_set, sys_props_set, ar_ = vmc_chain_data
     print(f"Acceptance ratio: {ar_:.5g}")
 
@@ -353,9 +349,8 @@ def test_dmc_energy():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_conf_set, sys_props_set, ar_ = vmc_chain_data
 
     time_step = 1e-2
@@ -412,13 +407,12 @@ def test_dmc_batch_func():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_conf_set, sys_props_set, ar_ = vmc_chain_data
 
     time_step = 1e-2
-    num_batches = 8
+    num_batches = 2
     num_time_steps_batch = 256
     ini_sys_conf_set = sys_conf_set[-128:]
     target_num_walkers = 480
@@ -481,10 +475,9 @@ def test_dmc_est_sampling():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_conf_set, sys_props_set, ar_ = vmc_chain_data
     print(f"Acceptance ratio: {ar_:.5g}")
 

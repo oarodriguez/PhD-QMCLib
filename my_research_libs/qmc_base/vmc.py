@@ -9,7 +9,6 @@
 import enum
 import math
 from abc import ABCMeta, abstractmethod
-from collections import Iterable
 from enum import Enum, IntEnum
 from typing import Iterator, NamedTuple, Optional, Union
 
@@ -115,7 +114,7 @@ class StatesBatchNT(NamedTuple):
     accept_rate: float
 
 
-class _SamplingBase(Iterable, metaclass=ABCMeta):
+class _SamplingBase(metaclass=ABCMeta):
     """Realizes a VMC sampling.
 
     Defines the common parameters and methods to realize of a Variational
@@ -123,31 +122,20 @@ class _SamplingBase(Iterable, metaclass=ABCMeta):
     """
     __slots__ = ()
 
-    #: The initial configuration of the sampling.
-    ini_sys_conf: np.ndarray
-
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: Optional[int]
 
     @property
     @abstractmethod
-    def wf_spec_nt(self):
+    def wf_spec_nt(self) -> WFSpecNT:
         """The parameters of the trial wave function."""
         pass
 
     @property
     @abstractmethod
-    def tpf_spec_nt(self):
+    def tpf_spec_nt(self) -> Union[UTPFSpecNT, NTPFSpecNT]:
         """The parameters of the transition probability function."""
         pass
-
-    @property
-    def spec_nt(self):
-        """The spec of the VMC sampling functions as a named tuple."""
-        return SpecNT(self.wf_spec_nt,
-                      self.tpf_spec_nt,
-                      self.ini_sys_conf,
-                      self.rng_seed)
 
     @property
     @abstractmethod
@@ -155,38 +143,42 @@ class _SamplingBase(Iterable, metaclass=ABCMeta):
         """The core functions of the sampling."""
         pass
 
-    def as_chain(self, num_steps: int):
+    def as_chain(self, num_steps: int,
+                 ini_sys_conf: np.ndarray):
         """Returns the VMC sampling as an array object.
 
         :param num_steps: The number of states to generate.
+        :param ini_sys_conf: The initial configuration of the sampling.
         """
-        spec_nt = self.spec_nt
-        return self.core_funcs.as_chain(spec_nt.wf_spec,
-                                        spec_nt.tpf_spec,
+        return self.core_funcs.as_chain(self.wf_spec_nt,
+                                        self.tpf_spec_nt,
                                         num_steps,
-                                        spec_nt.ini_sys_conf,
-                                        spec_nt.rng_seed)
+                                        ini_sys_conf,
+                                        self.rng_seed)
 
-    def batches(self, num_steps_batch: int):
+    def batches(self, num_steps_batch: int,
+                ini_sys_conf: np.ndarray):
         """
 
         :param num_steps_batch: The number of steps per batch to generate.
+        :param ini_sys_conf: The initial configuration of the sampling.
         :return:
         """
-        spec_nt = self.spec_nt
-        return self.core_funcs.batches(spec_nt.wf_spec,
-                                       spec_nt.tpf_spec,
+        return self.core_funcs.batches(self.wf_spec_nt,
+                                       self.tpf_spec_nt,
                                        num_steps_batch,
-                                       spec_nt.ini_sys_conf,
-                                       spec_nt.rng_seed)
+                                       ini_sys_conf,
+                                       self.rng_seed)
 
-    def __iter__(self) -> Iterator[StateNT]:
-        """Iterable interface."""
-        spec_nt = self.spec_nt
-        return self.core_funcs.generator(spec_nt.wf_spec,
-                                         spec_nt.tpf_spec,
-                                         spec_nt.ini_sys_conf,
-                                         spec_nt.rng_seed)
+    def states(self, ini_sys_conf: np.ndarray) -> Iterator[StateNT]:
+        """Generator of VMC States.
+
+        :param ini_sys_conf: The initial configuration of the sampling.
+        """
+        return self.core_funcs.generator(self.wf_spec_nt,
+                                         self.tpf_spec_nt,
+                                         ini_sys_conf,
+                                         self.rng_seed)
 
 
 class Sampling(_SamplingBase, metaclass=ABCMeta):
@@ -200,9 +192,6 @@ class Sampling(_SamplingBase, metaclass=ABCMeta):
 
     #: The spread magnitude of the random moves for the sampling.
     move_spread: float
-
-    #: The initial configuration of the sampling.
-    ini_sys_conf: np.ndarray
 
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: Optional[int]
@@ -226,9 +215,6 @@ class NormalSampling(_SamplingBase):
 
     #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
-
-    #: The initial configuration of the sampling.
-    ini_sys_conf: np.ndarray
 
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: Optional[int]
