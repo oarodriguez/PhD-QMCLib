@@ -1,5 +1,5 @@
 import typing as t
-from math import exp, sqrt
+from math import exp, pi, sqrt
 
 import attr
 import numba as nb
@@ -633,3 +633,148 @@ class CoreFuncs(_CoreFuncs):
         return cls(model_spec.boundaries,
                    model_spec.sys_conf_slots,
                    model_spec.cfc_spec_nt)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
+    """Structure factor estimator."""
+
+    num_modes: int
+    init_num_time_steps: int = 512
+
+    def get_momenta(self, model_spec: model.Spec):
+        """"""
+        num_modes = self.num_modes
+        supercell_size = model_spec.supercell_size
+        return np.arange(1, num_modes + 1) * 2 * pi / supercell_size
+
+    def build_core_func(self, model_spec: model.Spec):
+        """
+
+        :return:
+        """
+        num_modes = self.num_modes
+        momenta = self.get_momenta(model_spec)
+        pure_init_num_steps = self.init_num_time_steps
+
+        cfc_spec_nt = model_spec.cfc_spec_nt
+        structure_factor = model.core_funcs.structure_factor
+
+        @nb.jit(nopython=True)
+        def _core_func(step_idx: int,
+                       sys_idx: int,
+                       clone_ref_idx: int,
+                       state_confs: np.ndarray,
+                       iter_sf_array: np.ndarray,
+                       aux_states_sf_array: np.ndarray):
+            """
+
+            :param step_idx:
+            :param sys_idx:
+            :param clone_ref_idx:
+            :param state_confs:
+            :param iter_sf_array:
+            :param aux_states_sf_array:
+            :return:
+            """
+            prev_step_idx = step_idx % 2 - 1
+            actual_step_idx = step_idx % 2
+
+            prev_state_sf = aux_states_sf_array[prev_step_idx]
+            actual_state_sf = aux_states_sf_array[actual_step_idx]
+
+            sys_conf = state_confs[sys_idx]
+
+            if step_idx >= pure_init_num_steps:
+                # Just "transport" the structure factor of the previous
+                # configuration to the new one.
+                actual_state_sf[sys_idx] = prev_state_sf[clone_ref_idx]
+
+            else:
+                # Evaluate the structure factor for the actual
+                # system configuration.
+                for kz_idx in range(num_modes):
+                    momentum = momenta[kz_idx]
+                    sys_sk_idx = \
+                        structure_factor(momentum, sys_conf, cfc_spec_nt)
+                    actual_state_sf[sys_idx, kz_idx] = sys_sk_idx
+
+                    # Update with the previous state ("transport").
+                    actual_state_sf[sys_idx, kz_idx] += \
+                        prev_state_sf[clone_ref_idx, kz_idx]
+
+            # Accumulate the total in the current state S(k).
+            iter_sf_array[step_idx] += actual_state_sf[sys_idx]
+
+        return _core_func
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class EstSampling(_Sampling, qmc_base.dmc.EstSampling):
+    """Class to evaluate estimators using a DMC sampling."""
+
+    model_spec: model.Spec
+    time_step: float
+    ini_sys_conf_set: np.ndarray
+    ini_ref_energy: t.Optional[float] = None
+    max_num_walkers: int = 512
+    target_num_walkers: int = 480
+    num_walkers_control_factor: t.Optional[float] = 0.5
+    rng_seed: t.Optional[int] = None
+
+    # *** Estimators configuration ***
+    structure_factor: t.Optional[StructureFactorEst] = None
+
+    def __attrs_post_init__(self):
+        """Post-initialization stage."""
+        if self.rng_seed is None:
+            rng_seed = utils.get_random_rng_seed()
+            super().__setattr__('rng_seed', rng_seed)
+
+        # Only take as much sys_conf items as max_num_walkers.
+        # NOTE: Take the configurations counting from the last one.
+        ini_sys_conf_set = self.ini_sys_conf_set[-self.max_num_walkers:]
+        super().__setattr__('ini_sys_conf_set', ini_sys_conf_set)
+
+    @cached_property
+    def core_funcs(self) -> 'EstSamplingCoreFuncs':
+        """"""
+        model_spec = self.model_spec
+        boundaries = model_spec.boundaries
+        sys_conf_slots = model_spec.sys_conf_slots
+        cfc_spec_nt = model_spec.cfc_spec_nt
+
+        sf_config = self.structure_factor
+        if sf_config is not None:
+            sf_num_modes = sf_config.num_modes
+            sf_init_nts = sf_config.init_num_time_steps
+            sf_core_func = sf_config.build_core_func(model_spec)
+        else:
+            sf_num_modes = 1
+            sf_init_nts = 512
+            sf_core_func = None
+
+        return EstSamplingCoreFuncs(boundaries,
+                                    sys_conf_slots,
+                                    cfc_spec_nt,
+                                    sf_num_modes,
+                                    sf_init_nts,
+                                    sf_core_func)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class EstSamplingCoreFuncs(_CoreFuncs, qmc_base.dmc.EstSamplingCoreFuncs):
+    """Core functions to evaluate estimators using a DMC sampling."""
+
+    boundaries: t.Tuple[float, float]
+    sys_conf_slots: model.Spec.sys_conf_slots
+    cfc_spec_nt: model.CFCSpecNT
+    sf_num_modes: t.Optional[int] = None
+    sf_init_num_time_steps: t.Optional[int] = None
+    sf_core_func: t.Optional[t.Callable] = None
+
+    def __attrs_post_init__(self):
+        """"""
+        if self.sf_core_func is None:
+            sf_core_func = qmc_base.dmc.dummy_pure_est_core_func
+            super().__setattr__('sf_core_func', sf_core_func)

@@ -454,5 +454,70 @@ def test_dmc_batch_func():
         print(np.stack((kz, sk_average), axis=-1))
 
 
+def test_dmc_est_sampling():
+    """Testing the DMC sampling to evaluate several estimators."""
+
+    lattice_depth = 0
+    lattice_ratio = 1
+    interaction_strength = 4
+    boson_number = 30
+    supercell_size = 30
+    tbf_contact_cutoff = 0.25 * supercell_size
+
+    # TODO: Improve this test.
+    model_spec = bloch_phonon.Spec(lattice_depth=lattice_depth,
+                                   lattice_ratio=lattice_ratio,
+                                   interaction_strength=interaction_strength,
+                                   boson_number=boson_number,
+                                   supercell_size=supercell_size,
+                                   tbf_contact_cutoff=tbf_contact_cutoff)
+
+    move_spread = 0.25 * model_spec.well_width
+    num_steps = 1024 * 1
+    ini_sys_conf = model_spec.init_get_sys_conf()
+    vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
+                                             move_spread=move_spread,
+                                             ini_sys_conf=ini_sys_conf,
+                                             rng_seed=1)
+
+    vmc_chain_data = vmc_sampling.as_chain(num_steps)
+    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    print(f"Acceptance ratio: {ar_:.5g}")
+
+    time_step = 1e-3
+    num_batches = 16
+    num_time_steps_batch = 32
+    ini_sys_conf_set = sys_conf_set[-100:]
+    target_num_walkers = 480
+    max_num_walkers = 512
+    ini_ref_energy = None
+    rng_seed = None
+
+    sf_config = bloch_phonon.dmc.StructureFactorEst(num_modes=100)
+    dmc_sampling = \
+        bloch_phonon.dmc.EstSampling(model_spec,
+                                     time_step,
+                                     ini_sys_conf_set,
+                                     ini_ref_energy=ini_ref_energy,
+                                     max_num_walkers=max_num_walkers,
+                                     target_num_walkers=target_num_walkers,
+                                     rng_seed=rng_seed,
+                                     structure_factor=sf_config)
+
+    dmc_es_batches = dmc_sampling.batches(num_time_steps_batch)
+    es_batches: dmc_base.T_ESBatchesIter = \
+        islice(dmc_es_batches, num_batches)
+
+    for batch in es_batches:
+        state_props = batch.iter_props
+        nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
+        sf_iter = batch.iter_structure_factor
+        # print(state_props)
+        sf_batch_data = sf_iter / nw_iter[:, np.newaxis]
+        print(sf_batch_data)
+        print(nw_iter)
+        print('---')
+
+
 if __name__ == '__main__':
     test_dmc()
