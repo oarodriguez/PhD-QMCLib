@@ -8,7 +8,6 @@
 import enum
 import typing as t
 from abc import ABCMeta, abstractmethod
-from collections import Iterable
 from math import log
 
 import numba as nb
@@ -98,8 +97,8 @@ T_SBatchesIter = t.Iterator[SamplingBatch]
 T_E_SBatchesIter = t.Iterator[t.Tuple[int, SamplingBatch]]
 
 
-class Sampling(Iterable, metaclass=ABCMeta):
-    """Realizes a DMC sampling using an iterable interface.
+class Sampling(metaclass=ABCMeta):
+    """Realizes a DMC sampling.
 
     Defines the parameters and related properties of a Diffusion Monte
     Carlo calculation.
@@ -108,12 +107,6 @@ class Sampling(Iterable, metaclass=ABCMeta):
 
     #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
-
-    #: The initial configuration set of the sampling.
-    ini_sys_conf_set: np.ndarray
-
-    #: The initial energy of reference.
-    ini_ref_energy: t.Optional[float] = None
 
     #: The maximum wight of the population of walkers.
     max_num_walkers: int
@@ -144,11 +137,16 @@ class Sampling(Iterable, metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def init_get_ini_state(self) -> State:
+    def init_get_ini_state(self, ini_sys_conf_set: np.ndarray,
+                           ini_ref_energy: float) -> State:
         """The initial state for the sampling.
 
         The state includes the drift, the energies wne the weights of
         each one of the initial system configurations.
+
+        :param ini_sys_conf_set: The initial configuration set of the
+            sampling.
+        :param ini_ref_energy: The initial energy of reference.
         """
         pass
 
@@ -158,9 +156,19 @@ class Sampling(Iterable, metaclass=ABCMeta):
         """The sampling core functions."""
         pass
 
-    def batches(self, num_time_steps_batch: int) -> T_SBatchesIter:
-        """Generator object that yields batches of states."""
-        ini_state = self.init_get_ini_state()
+    def batches(self, num_time_steps_batch: int,
+                ini_sys_conf_set: np.ndarray,
+                ini_ref_energy: float = None) -> T_SBatchesIter:
+        """Generator object that yields batches of states.
+
+        :param num_time_steps_batch:
+        :param ini_sys_conf_set: The initial configuration set of the
+            sampling.
+        :param ini_ref_energy: The initial energy of reference.
+        :return:
+        """
+        ini_state = self.init_get_ini_state(ini_sys_conf_set,
+                                            ini_ref_energy)
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
         rng_seed = self.rng_seed
@@ -171,12 +179,18 @@ class Sampling(Iterable, metaclass=ABCMeta):
                                        target_num_walkers,
                                        rng_seed)
 
-    def __iter__(self) -> t.Generator[State, t.Any, None]:
-        """Iterable interface."""
+    def states(self, ini_sys_conf_set: np.ndarray,
+               ini_ref_energy: float = None) -> T_SIter:
+        """Generator object that returns DMC states..
 
+        :param ini_sys_conf_set: The initial configuration set of the
+            sampling.
+        :param ini_ref_energy: The initial energy of reference.
+        :return:
+        """
         time_step = self.time_step
         rng_seed = self.rng_seed
-        ini_state = self.init_get_ini_state()
+        ini_state = self.init_get_ini_state(ini_sys_conf_set, ini_ref_energy)
         target_num_walkers = self.target_num_walkers
 
         return self.core_funcs.states_generator(time_step,
@@ -684,11 +698,9 @@ class EstSampling(Sampling):
 
     # Inherited fields...
     time_step: float
-    ini_sys_conf_set: np.ndarray
-    ini_ref_energy: t.Optional[float] = None
-    max_num_walkers: int = 544
-    target_num_walkers: int = 512
-    num_walkers_control_factor: t.Optional[float] = 0.5
+    max_num_walkers: int
+    target_num_walkers: int
+    num_walkers_control_factor: t.Optional[float]
     rng_seed: t.Optional[int] = None
 
     # *** *** Configuration of the estimators. *** ***

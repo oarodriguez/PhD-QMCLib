@@ -1,5 +1,4 @@
 from itertools import islice
-from typing import Iterator, Tuple
 
 import attr
 import numpy as np
@@ -263,17 +262,15 @@ def test_dmc():
     dmc_sampling = \
         bloch_phonon.dmc.Sampling(model_spec,
                                   time_step,
-                                  ini_sys_conf_set,
-                                  ini_ref_energy=ini_ref_energy,
                                   max_num_walkers=max_num_walkers,
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
 
-    t_enum_dmc_sampling = Iterator[Tuple[int, dmc_base.State]]
-
     num_time_steps = num_batches * num_time_steps_batch
-    dmc_sampling_slice = islice(dmc_sampling, num_time_steps)
-    iter_enum: t_enum_dmc_sampling = enumerate(dmc_sampling_slice)
+    states = dmc_sampling.states(ini_sys_conf_set, ini_ref_energy)
+    dmc_sampling_slice = islice(states, num_time_steps)
+    iter_enum: dmc_base.T_E_SIter = enumerate(dmc_sampling_slice)
+
     for i_, state in iter_enum:
         state_data = \
             (state.energy, state.weight, state.num_walkers,
@@ -312,7 +309,7 @@ def test_dmc_batches():
     print(f"Acceptance ratio: {ar_:.5g}")
 
     time_step = 1e-3
-    num_batches = 64
+    num_batches = 8
     num_time_steps_batch = 128
     ini_sys_conf_set = sys_conf_set[-100:]
     target_num_walkers = 480
@@ -322,14 +319,16 @@ def test_dmc_batches():
     dmc_sampling = \
         bloch_phonon.dmc.Sampling(model_spec,
                                   time_step,
-                                  ini_sys_conf_set,
-                                  ini_ref_energy=ini_ref_energy,
                                   max_num_walkers=max_num_walkers,
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
 
+    sampling_batches = dmc_sampling.batches(num_time_steps_batch,
+                                            ini_sys_conf_set,
+                                            ini_ref_energy)
     dmc_sampling_batches: dmc_base.T_SBatchesIter = \
-        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+        islice(sampling_batches, num_batches)
+
     for batch in dmc_sampling_batches:
         state_props = batch.iter_props
         print(state_props)
@@ -362,7 +361,7 @@ def test_dmc_energy():
     time_step = 1e-2
     num_batches = 4
     num_time_steps_batch = 128
-    ini_sys_conf_set = sys_conf_set[-768:]
+    ini_sys_conf_set = sys_conf_set[-128:]
     target_num_walkers = 480
     max_num_walkers = 512
     ini_ref_energy = None
@@ -370,8 +369,6 @@ def test_dmc_energy():
     dmc_sampling = \
         bloch_phonon.dmc.Sampling(model_spec,
                                   time_step,
-                                  ini_sys_conf_set,
-                                  ini_ref_energy=ini_ref_energy,
                                   max_num_walkers=max_num_walkers,
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
@@ -380,8 +377,12 @@ def test_dmc_energy():
     energy_batch = dmc_sampling.energy_batch
     energy_field = bloch_phonon.dmc.IterProp.ENERGY
 
+    sampling_batches = dmc_sampling.batches(num_time_steps_batch,
+                                            ini_sys_conf_set,
+                                            ini_ref_energy)
     dmc_sampling_batches: dmc_base.T_SBatchesIter = \
-        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+        islice(sampling_batches, num_batches)
+
     for iter_data in dmc_sampling_batches:
         #
         energy_result = energy_batch(iter_data)
@@ -427,8 +428,6 @@ def test_dmc_batch_func():
     dmc_sampling = \
         bloch_phonon.dmc.Sampling(model_spec,
                                   time_step,
-                                  ini_sys_conf_set,
-                                  ini_ref_energy=ini_ref_energy,
                                   max_num_walkers=max_num_walkers,
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
@@ -442,8 +441,13 @@ def test_dmc_batch_func():
     structure_factor_batch = dmc_sampling.structure_factor_batch
     weight_field = bloch_phonon.dmc.IterProp.WEIGHT.value
 
+    sampling_batches = dmc_sampling.batches(num_time_steps_batch,
+                                            ini_sys_conf_set,
+                                            ini_ref_energy)
+
     dmc_sampling_batches: dmc_base.T_SBatchesIter = \
-        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+        islice(sampling_batches, num_batches)
+
     for iter_data in dmc_sampling_batches:
         #
         sk_result = structure_factor_batch(kz, iter_data)
@@ -487,7 +491,7 @@ def test_dmc_est_sampling():
     time_step = 1e-3
     num_batches = 16
     num_time_steps_batch = 32
-    ini_sys_conf_set = sys_conf_set[-100:]
+    ini_sys_conf_set = sys_conf_set[-128:]
     target_num_walkers = 480
     max_num_walkers = 512
     ini_ref_energy = None
@@ -497,14 +501,15 @@ def test_dmc_est_sampling():
     dmc_sampling = \
         bloch_phonon.dmc.EstSampling(model_spec,
                                      time_step,
-                                     ini_sys_conf_set,
-                                     ini_ref_energy=ini_ref_energy,
                                      max_num_walkers=max_num_walkers,
                                      target_num_walkers=target_num_walkers,
                                      rng_seed=rng_seed,
                                      structure_factor=sf_config)
 
-    dmc_es_batches = dmc_sampling.batches(num_time_steps_batch)
+    dmc_es_batches = dmc_sampling.batches(num_time_steps_batch,
+                                          ini_sys_conf_set,
+                                          ini_ref_energy)
+
     es_batches: dmc_base.T_ESBatchesIter = \
         islice(dmc_es_batches, num_batches)
 

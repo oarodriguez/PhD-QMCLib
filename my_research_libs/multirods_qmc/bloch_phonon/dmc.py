@@ -66,11 +66,9 @@ class _Sampling(qmc_base.dmc.Sampling):
     model_spec: model.Spec
 
     time_step: float
-    ini_sys_conf_set: np.ndarray
-    ini_ref_energy: t.Optional[float] = None
-    max_num_walkers: int = 544
-    target_num_walkers: int = 512
-    num_walkers_control_factor: t.Optional[float] = 0.5
+    max_num_walkers: int
+    target_num_walkers: int
+    num_walkers_control_factor: t.Optional[float]
     rng_seed: t.Optional[int] = None
 
     @property
@@ -86,17 +84,20 @@ class _Sampling(qmc_base.dmc.Sampling):
         max_num_walkers = self.max_num_walkers
         return max_num_walkers,
 
-    def init_get_ini_state(self) -> State:
+    def init_get_ini_state(self, ini_sys_conf_set: np.ndarray,
+                           ini_ref_energy: float = None) -> State:
         """The initial state for the sampling.
 
         The state includes the drift, the energies wne the weights of
         each one of the initial system configurations.
+
+        :param ini_sys_conf_set:
+        :param ini_ref_energy:
+        :return:
         """
         confs_shape = self.state_confs_shape
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
-        ini_sys_conf_set = self.ini_sys_conf_set
-        ref_energy = self.ini_ref_energy
         num_walkers = len(ini_sys_conf_set)
 
         # Initial state arrays.
@@ -114,10 +115,10 @@ class _Sampling(qmc_base.dmc.Sampling):
         state_weight = state_weights.sum()
         energy = state_energy / state_weight
 
-        if ref_energy is None:
+        if ini_ref_energy is None:
             # Calculate the initial energy of reference as the
             # average of the energy of the initial state.
-            ref_energy = energy
+            ini_ref_energy = energy
 
         # NOTE: The branching spec for the initial state is None.
         return State(confs=state_confs,
@@ -125,7 +126,7 @@ class _Sampling(qmc_base.dmc.Sampling):
                      energy=state_energy,
                      weight=state_weight,
                      num_walkers=num_walkers,
-                     ref_energy=ref_energy,
+                     ref_energy=ini_ref_energy,
                      accum_energy=energy,
                      max_num_walkers=max_num_walkers)
 
@@ -591,10 +592,8 @@ class Sampling(_Sampling):
     model_spec: model.Spec
 
     time_step: float
-    ini_sys_conf_set: np.ndarray
-    ini_ref_energy: t.Optional[float] = None
-    max_num_walkers: int = 544
-    target_num_walkers: int = 512
+    max_num_walkers: int = 512
+    target_num_walkers: int = 480
     num_walkers_control_factor: t.Optional[float] = 0.5
     rng_seed: t.Optional[int] = None
 
@@ -603,11 +602,6 @@ class Sampling(_Sampling):
         if self.rng_seed is None:
             rng_seed = utils.get_random_rng_seed()
             super().__setattr__('rng_seed', rng_seed)
-
-        # Only take as much sys_conf items as max_num_walkers.
-        # NOTE: Take the configurations counting from the last one.
-        ini_sys_conf_set = self.ini_sys_conf_set[-self.max_num_walkers:]
-        super().__setattr__('ini_sys_conf_set', ini_sys_conf_set)
 
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':
@@ -715,8 +709,6 @@ class EstSampling(_Sampling, qmc_base.dmc.EstSampling):
 
     model_spec: model.Spec
     time_step: float
-    ini_sys_conf_set: np.ndarray
-    ini_ref_energy: t.Optional[float] = None
     max_num_walkers: int = 512
     target_num_walkers: int = 480
     num_walkers_control_factor: t.Optional[float] = 0.5
@@ -728,13 +720,8 @@ class EstSampling(_Sampling, qmc_base.dmc.EstSampling):
     def __attrs_post_init__(self):
         """Post-initialization stage."""
         if self.rng_seed is None:
-            rng_seed = utils.get_random_rng_seed()
+            rng_seed = int(utils.get_random_rng_seed())
             super().__setattr__('rng_seed', rng_seed)
-
-        # Only take as much sys_conf items as max_num_walkers.
-        # NOTE: Take the configurations counting from the last one.
-        ini_sys_conf_set = self.ini_sys_conf_set[-self.max_num_walkers:]
-        super().__setattr__('ini_sys_conf_set', ini_sys_conf_set)
 
     @cached_property
     def core_funcs(self) -> 'EstSamplingCoreFuncs':
