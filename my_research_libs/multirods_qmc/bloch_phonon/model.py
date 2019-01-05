@@ -562,14 +562,11 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
     #: Display log messages or not.
     verbose: bool = attr.ib(default=False, cmp=False)
 
-    #: The system configurations as a dak bag.
-    sys_conf_set_db: db.Bag = attr.ib(init=False, cmp=False, repr=False)
-
-    def __attrs_post_init__(self):
-        """Por-initialization process."""
+    @cached_property
+    def sys_conf_set_db(self):
+        """"""
         sys_conf_set = [sys_conf for sys_conf in self.sys_conf_set]
-        sys_conf_set_db = db.from_sequence(sys_conf_set)
-        super().__setattr__('sys_conf_set_db', sys_conf_set_db)
+        return db.from_sequence(sys_conf_set)
 
     def update_spec(self, tbf_contact_cutoff: float):
         """Updates the model spec.

@@ -710,7 +710,7 @@ class EstSampling(Sampling):
 
     @property
     @abstractmethod
-    def core_funcs(self) -> 'CoreFuncs':
+    def core_funcs(self) -> 'EstSamplingCoreFuncs':
         """"""
         pass
 
