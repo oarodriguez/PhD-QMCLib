@@ -25,7 +25,7 @@ def test_on_the_fly_reblocking():
     data_size = 2 ** size_max_order
     data_sample = np.random.random_sample(data_size)
 
-    otf_data = reblock.on_the_fly_proc_exec(data_sample)
+    otf_data = reblock.on_the_fly_exec(data_sample)
     dyn_reblocking = reblock.OnTheFlyReblocking(otf_data[0], min_num_blocks=32)
     dyn_reblocking_vars = dyn_reblocking.vars
     print(dyn_reblocking_vars)
@@ -37,31 +37,34 @@ def test_on_the_fly_reblocking():
     assert np.allclose(dyn_reblocking_vars, reblocking_vars)
 
 
-def test_update_reblocking_accum():
+def test_on_the_fly_data_update():
     """"""
     size_max_order = 20
     data_size = 2 ** size_max_order
 
     data_sample = np.random.random_sample(data_size)
     max_order = reblock.on_the_fly_proc_order(data_sample)
-    reblocking_total = reblock.init_on_the_fly_proc_data(max_order)
+    reblocking_total = reblock.on_the_fly_init_data(max_order)
 
     num_accum = 2 ** 6
     for idx in range(num_accum):
         data_sample = np.random.random_sample(data_size)
         reblocking_data = \
-            reblock.on_the_fly_proc_exec(data_sample)
-        reblock.update_on_the_fly_data(reblocking_total, reblocking_data)
+            reblock.on_the_fly_exec(data_sample)
+        reblock.on_the_fly_table_update(reblocking_total, reblocking_data)
         print(f'Completed reblock #{idx}')
 
     otf_reblocking = reblock.OnTheFlyReblocking(reblocking_total[0])
     print(otf_reblocking.iac_times)
-    print(otf_reblocking.iac_time_fit.params)
     print(otf_reblocking.opt_iac_time)
     print(otf_reblocking.iac_time_fit.params)
 
+    iac_time_fit = reblock.IACTimeFit(otf_reblocking.block_sizes[0],
+                                      otf_reblocking.iac_times[0])
+    print(iac_time_fit.params)
 
-def test_extend_on_the_fly_dataset():
+
+def test_on_the_fly_extend_table_set():
     """"""
     size_max_order = 10
     data_size = 2 ** size_max_order
@@ -71,10 +74,10 @@ def test_extend_on_the_fly_dataset():
     for _ in range(num_accum):
         data_sample = np.random.random_sample(data_size)
         reblock_data = \
-            reblock.on_the_fly_proc_exec(data_sample)
+            reblock.on_the_fly_exec(data_sample)
         reblock_dataset.append(reblock_data)
 
-    reblock_total = reblock.extend_on_the_fly_dataset(reblock_dataset)
+    reblock_total = reblock.on_the_fly_extend_table_set(reblock_dataset)
     print(reblock_total, reblock_total.shape)
 
     otf_reblocking = reblock.OnTheFlyReblocking(reblock_total[0])
@@ -82,7 +85,7 @@ def test_extend_on_the_fly_dataset():
     print(otf_reblocking.iac_times)
 
 
-def test_extend_on_the_fly_dataset_table():
+def test_on_the_fly_extend_table_set_from_tables():
     """"""
     size_max_order = 10
     data_size = 2 ** size_max_order
@@ -92,10 +95,10 @@ def test_extend_on_the_fly_dataset_table():
     for _ in range(num_accum):
         data_sample = np.random.random_sample((data_size, 256))
         reblock_data = \
-            reblock.on_the_fly_proc_exec(data_sample)
+            reblock.on_the_fly_exec(data_sample)
         reblock_dataset.append(reblock_data)
 
-    reblock_total = reblock.extend_on_the_fly_dataset(reblock_dataset)
+    reblock_total = reblock.on_the_fly_extend_table_set(reblock_dataset)
     print(reblock_total, reblock_total.shape)
 
     otf_reblocking = reblock.OnTheFlyReblocking(reblock_total[0])
