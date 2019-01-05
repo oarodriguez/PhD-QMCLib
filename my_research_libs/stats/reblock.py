@@ -14,9 +14,9 @@ __all__ = [
     'IACTimeFit',
     'OnTheFlyDataField',
     'Reblocking',
+    'on_the_fly_data_init',
     'on_the_fly_exec',
     'on_the_fly_extend_table_set',
-    'on_the_fly_init_data',
     'on_the_fly_proc_order'
 ]
 
@@ -342,15 +342,23 @@ def on_the_fly_proc_order(source_data: np.ndarray):
     return int(floor(log(data_length) / log(2)))
 
 
-def on_the_fly_init_data(order: int, num_cols: int = None) -> np.ndarray:
+def on_the_fly_data_init(order: int, num_cols: int = None) -> np.ndarray:
     """Initializes the reblocking array.
+
+    If ``num_cols`` is an integer, the data will be a 2d structured array
+    with as as many rows as ``num_cols`` and as many columns as ``order + 1``.
+    If it is ``None``, a single array for a unique reblocking will be
+    returned.
 
     :param order:
     :param num_cols:
     :return:
     """
-    num_cols = num_cols or 1
-    return _init_on_the_fly_proc_data(order, num_cols=num_cols)
+    if num_cols is None:
+        # Return a single array to save the data of a reblocking.
+        return _on_the_fly_data_init(order, num_cols=1)[0]
+
+    return _on_the_fly_data_init(order, num_cols)
 
 
 def on_the_fly_exec(source_data: np.ndarray):
@@ -373,11 +381,16 @@ def on_the_fly_exec(source_data: np.ndarray):
     if is_1d_array:
         source_data = source_data[:, np.newaxis]
 
-    return _on_the_fly_proc_table_exec(source_data)
+    otf_data_array = _on_the_fly_proc_table_exec(source_data)
+    if is_1d_array:
+        # Return a single reblocking array.
+        return otf_data_array[0]
+
+    return otf_data_array
 
 
 @nb.njit
-def _init_on_the_fly_proc_data(order: int, num_cols: int) -> np.ndarray:
+def _on_the_fly_data_init(order: int, num_cols: int) -> np.ndarray:
     """Initializes the reblocking array.
 
     :param order:
@@ -409,7 +422,7 @@ def _on_the_fly_proc_table_exec(source_data: np.ndarray):
     data_length, num_cols = source_data.shape
 
     # Initialize arrays.
-    otf_data_array = _init_on_the_fly_proc_data(max_order, num_cols)
+    otf_data_array = _on_the_fly_data_init(max_order, num_cols)
     means_array = np.zeros((num_cols, max_order + 1, 2), dtype=np.float64)
 
     # TODO: We only need one block_size_array and num_blocks_array for
@@ -436,7 +449,6 @@ def _on_the_fly_proc_table_exec(source_data: np.ndarray):
             means_sum_array[nc, order] += data_mean
             means_sqr_sum_array[nc, order] += data_mean ** 2
             means_array[nc, order, mean_index] = data_mean
-            # NOTE: Redundant...
             num_blocks_array[nc, order] += 1
 
         while True:
@@ -458,7 +470,6 @@ def _on_the_fly_proc_table_exec(source_data: np.ndarray):
                     means_sum_array[nc, order] += data_mean
                     means_sqr_sum_array[nc, order] += data_mean ** 2
                     means_array[nc, order, mean_index] = data_mean
-                    # NOTE: Redundant...
                     num_blocks_array[nc, order] += 1
 
                 # Doubles the current block size for the next order.
@@ -537,12 +548,14 @@ class OnTheFlyReblocking(ReblockingBase):
 
     def __attrs_post_init__(self):
         """"""
-        # NOTE: Allow only 1d arrays by now.
-        self_source_data = self.source_data
-        assert len(self_source_data.shape) == 1
-
         # Only allow reblocking accumulated values.
-        assert self_source_data.dtype == otf_data_dtype
+        self_source_data = self.source_data
+        if not self_source_data.dtype == otf_data_dtype:
+            raise TypeError("source_data is not a reblocking table.")
+
+        # NOTE: Allow only 1d arrays by now.
+        if not len(self_source_data.shape) == 1:
+            raise ValueError("source_data must be a 1d array")
 
         # NOTE: Set var_ddof attribute to one always.
         # TODO: Maybe we should remove the attribute from init.
@@ -671,10 +684,17 @@ def on_the_fly_extend_table_set(table_set: T_DataSet):
     table_set: np.ndarray = np.asarray(table_set)
 
     assert table_set.dtype == otf_data_dtype
-    assert len(table_set.shape) == 3
 
-    num_data, num_cols, max_order = table_set.shape
-    data_total = on_the_fly_init_data(max_order - 1, num_cols)
+    try:
+        is_2d_array = False
+        num_data, num_cols, max_order = table_set.shape
+    except ValueError:
+        num_cols = 1
+        is_2d_array = True
+        num_data, max_order = table_set.shape
+        table_set = table_set[:, np.newaxis, :]
+
+    data_total = on_the_fly_data_init(max_order - 1, num_cols)
 
     dataset_last_order_data = []
 
@@ -687,4 +707,9 @@ def on_the_fly_extend_table_set(table_set: T_DataSet):
         dataset_last_order_data.append(last_order_data)
 
     data_ext = _on_the_fly_from_table_set(dataset_last_order_data)
-    return np.hstack((data_total, data_ext))
+    ext_table_set = np.hstack((data_total, data_ext))
+
+    if is_2d_array:
+        return ext_table_set[0]
+
+    return ext_table_set

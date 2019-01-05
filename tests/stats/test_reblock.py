@@ -26,7 +26,7 @@ def test_on_the_fly_reblocking():
     data_sample = np.random.random_sample(data_size)
 
     otf_data = reblock.on_the_fly_exec(data_sample)
-    dyn_reblocking = reblock.OnTheFlyReblocking(otf_data[0], min_num_blocks=32)
+    dyn_reblocking = reblock.OnTheFlyReblocking(otf_data, min_num_blocks=32)
     dyn_reblocking_vars = dyn_reblocking.vars
     print(dyn_reblocking_vars)
 
@@ -44,7 +44,7 @@ def test_on_the_fly_data_update():
 
     data_sample = np.random.random_sample(data_size)
     max_order = reblock.on_the_fly_proc_order(data_sample)
-    reblocking_total = reblock.on_the_fly_init_data(max_order)
+    reblocking_total = reblock.on_the_fly_data_init(max_order)
 
     num_accum = 2 ** 6
     for idx in range(num_accum):
@@ -54,14 +54,10 @@ def test_on_the_fly_data_update():
         reblock.on_the_fly_table_update(reblocking_total, reblocking_data)
         print(f'Completed reblock #{idx}')
 
-    otf_reblocking = reblock.OnTheFlyReblocking(reblocking_total[0])
+    otf_reblocking = reblock.OnTheFlyReblocking(reblocking_total)
     print(otf_reblocking.iac_times)
     print(otf_reblocking.opt_iac_time)
     print(otf_reblocking.iac_time_fit.params)
-
-    iac_time_fit = reblock.IACTimeFit(otf_reblocking.block_sizes[0],
-                                      otf_reblocking.iac_times[0])
-    print(iac_time_fit.params)
 
 
 def test_on_the_fly_extend_table_set():
@@ -80,7 +76,7 @@ def test_on_the_fly_extend_table_set():
     reblock_total = reblock.on_the_fly_extend_table_set(reblock_dataset)
     print(reblock_total, reblock_total.shape)
 
-    otf_reblocking = reblock.OnTheFlyReblocking(reblock_total[0])
+    otf_reblocking = reblock.OnTheFlyReblocking(reblock_total)
     print(otf_reblocking.means)
     print(otf_reblocking.iac_times)
 
@@ -99,9 +95,8 @@ def test_on_the_fly_extend_table_set_from_tables():
         reblock_dataset.append(reblock_data)
 
     reblock_total = reblock.on_the_fly_extend_table_set(reblock_dataset)
-    print(reblock_total, reblock_total.shape)
+    print(reblock_total.shape)
 
-    otf_reblocking = reblock.OnTheFlyReblocking(reblock_total[0])
-    print(otf_reblocking.means)
-    print(otf_reblocking.iac_times)
-    print(otf_reblocking.iac_time_fit.params)
+    for reblock_data in reblock_total:
+        otf_reblocking = reblock.OnTheFlyReblocking(reblock_data)
+        print(otf_reblocking.iac_time_fit.params)
