@@ -114,6 +114,7 @@ class SamplingBatch(NamedTuple):
     confs: np.ndarray
     props: np.ndarray
     accept_rate: float
+    last_state: Optional[State] = None
 
 
 T_SIter = Iterator[State]
@@ -508,6 +509,9 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
                 move_stat_set[cj_] = bool(move_stat)
                 accepted += move_stat
 
+                # Keep a reference to the last state.
+                tmp_state = state
+
                 # Yield the batch just before generating a new state 🤔.
                 if cj_ + 1 >= num_steps_batch:
                     # Get the acceptance rate.
@@ -516,8 +520,12 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
                     # NOTE: We yield references to the internal buffer.
                     #  Delegate to the caller the choice to make any
                     #  copies of it.
-                    yield StatesBatchNT(states_confs, states_props,
-                                        accept_rate)
+                    last_state = State(tmp_state.sys_conf,
+                                       tmp_state.wf_abs_log,
+                                       tmp_state.move_stat)
+
+                    yield SamplingBatch(states_confs, states_props,
+                                        accept_rate, last_state)
 
                     # Reset accepted counter.
                     accepted = 0

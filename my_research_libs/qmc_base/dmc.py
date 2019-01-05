@@ -658,6 +658,7 @@ class EstSamplingBatch(t.NamedTuple):
     #: Properties data.
     iter_props: np.ndarray
     iter_structure_factor: np.ndarray = None
+    last_state: t.Optional[State] = None
 
 
 class EstAuxData(t.NamedTuple):
@@ -814,6 +815,9 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                 # NOTE: Enumerate here, inside the while.
                 enum_generator: T_E_SIter = enumerate(generator)
 
+                # Future reference to the last DMC state.
+                tmp_state = None
+
                 # Reset to zero the auxiliary states after the end of
                 # each batch.
                 aux_sf_array[:] = 0.
@@ -841,12 +845,26 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                     iter_sf_array,
                                     aux_sf_array)
 
+                    tmp_state = state
+
                     # Stop/pause the iteration.
                     if step_idx + 1 >= nts_batch:
                         break
 
+                # TODO: Fixme... This is ugly 😠.
+                last_state = State(tmp_state.confs.copy(),
+                                   tmp_state.props.copy(),
+                                   tmp_state.energy,
+                                   tmp_state.weight,
+                                   tmp_state.num_walkers,
+                                   tmp_state.ref_energy,
+                                   tmp_state.accum_energy,
+                                   tmp_state.max_num_walkers,
+                                   tmp_state.branching_spec.copy())
+
                 batch_data = EstSamplingBatch(iter_props_array,
-                                              iter_sf_array)
+                                              iter_sf_array,
+                                              last_state)
                 yield batch_data
 
         return _batches

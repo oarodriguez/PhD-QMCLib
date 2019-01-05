@@ -245,12 +245,13 @@ def test_dmc():
                                              rng_seed=1)
 
     vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
-    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    sys_conf_set = vmc_chain_data.confs
+    ar_ = vmc_chain_data.accept_rate
     print(f"Acceptance ratio: {ar_:.5g}")
 
     time_step = 1e-3
     num_batches = 8
-    num_time_steps_batch = 128
+    num_time_steps_batch = 32
     ini_sys_conf_set = sys_conf_set[-100:]
     target_num_walkers = 480
     max_num_walkers = 512
@@ -301,7 +302,8 @@ def test_dmc_batches():
                                              rng_seed=1)
 
     vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
-    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    sys_conf_set = vmc_chain_data.confs
+    ar_ = vmc_chain_data.accept_rate
     print(f"Acceptance ratio: {ar_:.5g}")
 
     time_step = 1e-3
@@ -351,7 +353,7 @@ def test_dmc_energy():
                                              move_spread=move_spread,
                                              rng_seed=1)
     vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
-    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    sys_conf_set = vmc_chain_data.confs
 
     time_step = 1e-2
     num_batches = 4
@@ -409,7 +411,7 @@ def test_dmc_batch_func():
                                              move_spread=move_spread,
                                              rng_seed=1)
     vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
-    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    sys_conf_set = vmc_chain_data.confs
 
     time_step = 1e-2
     num_batches = 2
