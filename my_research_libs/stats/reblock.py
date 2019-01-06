@@ -14,10 +14,9 @@ __all__ = [
     'IACTimeFit',
     'OnTheFlyDataField',
     'Reblocking',
-    'extend_on_the_fly_dataset',
-    'init_on_the_fly_proc_data',
-    'on_the_fly_proc_exec',
-    'on_the_fly_proc_from_dataset',
+    'on_the_fly_data_init',
+    'on_the_fly_exec',
+    'on_the_fly_extend_table_set',
     'on_the_fly_proc_order'
 ]
 
@@ -343,24 +342,72 @@ def on_the_fly_proc_order(source_data: np.ndarray):
     return int(floor(log(data_length) / log(2)))
 
 
-@nb.njit
-def init_on_the_fly_proc_data(order: int) -> np.ndarray:
+def on_the_fly_data_init(order: int, num_cols: int = None) -> np.ndarray:
     """Initializes the reblocking array.
 
+    If ``num_cols`` is an integer, the data will be a 2d structured array
+    with as as many rows as ``num_cols`` and as many columns as ``order + 1``.
+    If it is ``None``, a single array for a unique reblocking will be
+    returned.
+
     :param order:
+    :param num_cols:
     :return:
     """
-    otf_data_array = np.zeros(order + 1, dtype=otf_data_dtype)
-    block_size_array = otf_data_array[BLOCK_SIZE_FIELD]
-    for order in range(order + 1):
-        block_size = 1 << order
-        block_size_array[order] = block_size
+    if num_cols is None:
+        # Return a single array to save the data of a reblocking.
+        return _on_the_fly_data_init(order, num_cols=1)[0]
+
+    return _on_the_fly_data_init(order, num_cols)
+
+
+def on_the_fly_exec(source_data: np.ndarray):
+    """Realizes a reblocking analysis at increasing levels.
+
+    This function calculates a reblocking analysis at increasing levels.
+    Each subsequent level takes twice the number of elements of
+    source_data than the previous to construct a block and to calculate
+    the averages.
+
+    :param source_data:
+    :return:
+    """
+    # Convert the source data to a 2d array always.
+    source_data = np.asarray(source_data)
+
+    assert len(source_data.shape) >= 1
+
+    is_1d_array = len(source_data.shape) == 1
+    if is_1d_array:
+        source_data = source_data[:, np.newaxis]
+
+    otf_data_array = _on_the_fly_proc_table_exec(source_data)
+    if is_1d_array:
+        # Return a single reblocking array.
+        return otf_data_array[0]
 
     return otf_data_array
 
 
 @nb.njit
-def on_the_fly_proc_exec(source_data: np.ndarray):
+def _on_the_fly_data_init(order: int, num_cols: int) -> np.ndarray:
+    """Initializes the reblocking array.
+
+    :param order:
+    :param num_cols:
+    :return:
+    """
+    otf_data_array = np.zeros((num_cols, order + 1), dtype=otf_data_dtype)
+    block_size_array = otf_data_array[BLOCK_SIZE_FIELD]
+    for order in range(order + 1):
+        block_size = 1 << order
+        block_size_array[:, order] = block_size
+
+    return otf_data_array
+
+
+@nb.njit
+def _on_the_fly_proc_table_exec(source_data: np.ndarray):
     """Realizes a reblocking analysis at increasing levels.
 
     This function calculates a reblocking analysis at increasing levels.
@@ -372,11 +419,14 @@ def on_the_fly_proc_exec(source_data: np.ndarray):
     :return:
     """
     max_order = on_the_fly_proc_order(source_data)
+    data_length, num_cols = source_data.shape
 
     # Initialize arrays.
-    otf_data_array = init_on_the_fly_proc_data(max_order)
-    means_array = np.zeros((max_order + 1, 2), dtype=np.float64)
+    otf_data_array = _on_the_fly_data_init(max_order, num_cols)
+    means_array = np.zeros((num_cols, max_order + 1, 2), dtype=np.float64)
 
+    # TODO: We only need one block_size_array and num_blocks_array for
+    #  the whole reblocking.
     block_size_array = otf_data_array[BLOCK_SIZE_FIELD]
     means_sum_array = otf_data_array[MEANS_FIELD]
     means_sqr_sum_array = otf_data_array[MEANS_SQR_FIELD]
@@ -384,20 +434,22 @@ def on_the_fly_proc_exec(source_data: np.ndarray):
 
     # The size of the next block is twice the previous.
     ini_order = order = 0
-    ini_block_size = block_size = block_size_array[order]
+    ini_block_size = block_size = block_size_array[0, order]
     ini_next_block_size = next_block_size = block_size << 1
 
     data_length = source_data.shape[0]
     for index in range(data_length):
         #
-        data_mean = source_data[index]
-        means_sum_array[order] += data_mean
-        means_sqr_sum_array[order] += data_mean ** 2
-        num_blocks_array[order] += 1
-
         block_index = index
         mean_index = block_index % 2
-        means_array[order, mean_index] = data_mean
+
+        for nc in range(num_cols):
+            #
+            data_mean = source_data[index, nc]
+            means_sum_array[nc, order] += data_mean
+            means_sqr_sum_array[nc, order] += data_mean ** 2
+            means_array[nc, order, mean_index] = data_mean
+            num_blocks_array[nc, order] += 1
 
         while True:
             #
@@ -409,15 +461,16 @@ def on_the_fly_proc_exec(source_data: np.ndarray):
                 #
                 order += 1
                 block_size = block_size << 1
-
-                data_mean = means_array[order - 1].mean()
-                means_sum_array[order] += data_mean
-                means_sqr_sum_array[order] += data_mean ** 2
-                num_blocks_array[order] += 1
-
                 block_index = (index + 1) // block_size - 1
                 mean_index = block_index % 2
-                means_array[order, mean_index] = data_mean
+
+                for nc in range(num_cols):
+                    #
+                    data_mean = means_array[nc, order - 1].mean()
+                    means_sum_array[nc, order] += data_mean
+                    means_sqr_sum_array[nc, order] += data_mean ** 2
+                    means_array[nc, order, mean_index] = data_mean
+                    num_blocks_array[nc, order] += 1
 
                 # Doubles the current block size for the next order.
                 next_block_size = block_size << 1
@@ -495,11 +548,14 @@ class OnTheFlyReblocking(ReblockingBase):
 
     def __attrs_post_init__(self):
         """"""
-        # NOTE: Allow only 1d arrays by now.
-        assert len(self.source_data.shape) == 1
-
         # Only allow reblocking accumulated values.
-        assert self.source_data.dtype == otf_data_dtype
+        self_source_data = self.source_data
+        if not self_source_data.dtype == otf_data_dtype:
+            raise TypeError("source_data is not a reblocking table.")
+
+        # NOTE: Allow only 1d arrays by now.
+        if not len(self_source_data.shape) == 1:
+            raise ValueError("source_data must be a 1d array")
 
         # NOTE: Set var_ddof attribute to one always.
         # TODO: Maybe we should remove the attribute from init.
@@ -510,13 +566,13 @@ class OnTheFlyReblocking(ReblockingBase):
             raise ValueError('the minimum number of blocks of the reblocking '
                              'is two')
 
-        data_num_blocks = self.source_data[NUM_BLOCKS_FIELD]
+        data_num_blocks = self_source_data[NUM_BLOCKS_FIELD]
         criterion = data_num_blocks >= self.min_num_blocks
         if not np.count_nonzero(criterion):
             raise ValueError('the source data is empty for the requested '
                              'minimum number of blocks.')
 
-        source_data = self.source_data[criterion]
+        source_data = self_source_data[criterion]
         super().__setattr__('source_data', source_data)
 
     @cached_property
@@ -532,6 +588,7 @@ class OnTheFlyReblocking(ReblockingBase):
     @cached_property
     def source_data_var(self):
         """The variance of the source data."""
+        # The variance at first order, as an array of one element.
         return self.vars[0]
 
     @property
@@ -559,79 +616,100 @@ class OnTheFlyReblocking(ReblockingBase):
         return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
 
 
-def update_on_the_fly_data(data_array: np.ndarray,
-                           extra_array: np.ndarray):
+def on_the_fly_table_update(table_array: np.ndarray,
+                            extra_array: np.ndarray):
     """Updates the accumulated data of a reblocking with other accumulated.
 
     This function serves to update the accumulated data of a given
     reblocking with the accumulated data of a new, compatible reblocking.
 
-    :param data_array:
+    :param table_array:
     :param extra_array:
     :return:
     """
-    accum_block_size = data_array[BLOCK_SIZE_FIELD]
+    # Shapes must be equal.
+    assert table_array.shape == extra_array.shape
+
+    accum_block_size = table_array[BLOCK_SIZE_FIELD]
     extra_block_size = extra_array[BLOCK_SIZE_FIELD]
 
     assert np.all(accum_block_size == extra_block_size)
 
-    data_array[MEANS_FIELD] += extra_array[MEANS_FIELD]
-    data_array[MEANS_SQR_FIELD] += extra_array[MEANS_SQR_FIELD]
-    data_array[NUM_BLOCKS_FIELD] += extra_array[NUM_BLOCKS_FIELD]
+    table_array[MEANS_FIELD] += extra_array[MEANS_FIELD]
+    table_array[MEANS_SQR_FIELD] += extra_array[MEANS_SQR_FIELD]
+    table_array[NUM_BLOCKS_FIELD] += extra_array[NUM_BLOCKS_FIELD]
 
 
 T_DataSet = t.Union[np.ndarray, t.Sequence[np.ndarray]]
 
 
-def on_the_fly_proc_from_dataset(data_set: T_DataSet):
+def _on_the_fly_from_table_set(table_set: T_DataSet):
     """Does a reblocking from a collection of reblocking data.
 
-    :param data_set:
+    :param table_set:
     :return:
     """
     # Checks that the data has a valid dtype.
-    data_set: np.ndarray = np.asarray(data_set)
-    assert data_set.dtype == otf_data_dtype
+    table_set: np.ndarray = np.asarray(table_set)
+    assert table_set.dtype == otf_data_dtype
 
     # Check that the data has a consistent format.
-    block_size_set = data_set[BLOCK_SIZE_FIELD]
+    block_size_set = table_set[BLOCK_SIZE_FIELD]
     assert np.all(np.diff(block_size_set, axis=0) == 0)
 
     # Calculate the accumulated extension. We need the accumulated data
     # corresponding to the greatest order of each one of the accumulated
     # data in the set.
-    last_means_set = data_set[MEANS_FIELD]
-    accum_extension = on_the_fly_proc_exec(last_means_set)
+    last_means_set = table_set[MEANS_FIELD]
+    accum_extension = _on_the_fly_proc_table_exec(last_means_set)
 
     # Fix up the block sizes of the extension.
-    last_block_size = data_set[BLOCK_SIZE_FIELD][-1]
+    last_block_size = table_set[BLOCK_SIZE_FIELD][0]
     block_size_ext = accum_extension[BLOCK_SIZE_FIELD]
-    block_size_ext *= last_block_size
+
+    # Fix up the shape of last_block_size...
+    block_size_ext *= last_block_size[:, np.newaxis]
 
     # NOTE: The number of blocks of the extension array are not fixed up.
-    return accum_extension[1:]
+    return accum_extension[:, 1:]
 
 
-def extend_on_the_fly_dataset(data_set: T_DataSet):
+def on_the_fly_extend_table_set(table_set: T_DataSet):
     """
 
-    :param data_set:
+    :param table_set:
     :return:
     """
     # Checks that the data has a valid dtype.
-    data_set: np.ndarray = np.asarray(data_set)
-    assert data_set.dtype == otf_data_dtype
+    table_set: np.ndarray = np.asarray(table_set)
 
-    num_data, max_order = data_set.shape
+    assert table_set.dtype == otf_data_dtype
+
+    try:
+        is_2d_array = False
+        num_data, num_cols, max_order = table_set.shape
+    except ValueError:
+        num_cols = 1
+        is_2d_array = True
+        num_data, max_order = table_set.shape
+        table_set = table_set[:, np.newaxis, :]
+
+    data_total = on_the_fly_data_init(max_order - 1, num_cols)
 
     dataset_last_order_data = []
-    data_total = init_on_the_fly_proc_data(max_order - 1)
 
     for data_index in range(num_data):
-        ext_data: np.ndarray = data_set[data_index]
-        update_on_the_fly_data(data_total, ext_data)
-        last_order_data: np.ndarray = ext_data[-1]
+        ext_data: np.ndarray = table_set[data_index]
+        on_the_fly_table_update(data_total, ext_data)
+        # Take the data of the highest order for all the columns in
+        # the current reblock.
+        last_order_data: np.ndarray = ext_data[:, max_order - 1]
         dataset_last_order_data.append(last_order_data)
 
-    data_ext = on_the_fly_proc_from_dataset(dataset_last_order_data)
-    return np.hstack((data_total, data_ext))
+    data_ext = _on_the_fly_from_table_set(dataset_last_order_data)
+    ext_table_set = np.hstack((data_total, data_ext))
+
+    if is_2d_array:
+        return ext_table_set[0]
+
+    return ext_table_set
