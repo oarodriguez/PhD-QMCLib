@@ -1,7 +1,9 @@
 import typing as t
 from abc import ABCMeta, abstractmethod
+from collections import Mapping
 from enum import Enum, unique
 from math import ceil, floor, log, log2, sqrt
+from typing import Iterator
 
 import attr
 import numba as nb
@@ -12,12 +14,16 @@ from scipy.optimize import curve_fit
 __all__ = [
     'IACFitParams',
     'IACTimeFit',
-    'OnTheFlyDataField',
-    'Reblocking',
-    'on_the_fly_data_init',
-    'on_the_fly_exec',
-    'on_the_fly_extend_table_set',
-    'on_the_fly_proc_order'
+    'Object',
+    'ObjectBase',
+    'OTFObject',
+    'OTFObjectDataField',
+    'OTFSet',
+    'SetBase',
+    'on_the_fly_obj_data_init',
+    'on_the_fly_obj_create',
+    'on_the_fly_extend_obj_data_set',
+    'on_the_fly_obj_data_order'
 ]
 
 
@@ -103,8 +109,9 @@ class BlockedData:
     data: np.ndarray
 
 
-class ReblockingBase(metaclass=ABCMeta):
-    """"""
+class ObjectBase(metaclass=ABCMeta):
+    """Base class for the reblocking of a series of data."""
+
     #: The data to analyze.
     source_data: np.ndarray
 
@@ -113,17 +120,17 @@ class ReblockingBase(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def source_data_size(self) -> int:
+    def size(self) -> int:
         """The size of the source data."""
         pass
 
     @cached_property
-    def source_data_mean(self):
+    def mean(self):
         """The mean of the source data."""
         return self.source_data.mean(axis=0)
 
     @cached_property
-    def source_data_var(self):
+    def var(self):
         """The variance of the source data."""
         return self.source_data.var(axis=0, ddof=self.var_ddof)
 
@@ -158,7 +165,7 @@ class ReblockingBase(metaclass=ABCMeta):
         """Integrated autocorrelation times for each of the block sizes."""
         self_vars = self.vars
         block_sizes = self.block_sizes
-        data_var = self.source_data_var
+        data_var = self.var
 
         # Correlation times.
         return 0.5 * block_sizes * self_vars / data_var
@@ -167,7 +174,7 @@ class ReblockingBase(metaclass=ABCMeta):
     def opt_block_size(self):
         """The optimal block size."""
         block_sizes = self.block_sizes
-        data_size = self.source_data_size
+        data_size = self.size
         int_corr_times = self.iac_times
         # B^3 > 2N * (2 \tau)^2
         criterion = block_sizes ** 3 > 8 * data_size * int_corr_times ** 2
@@ -182,27 +189,27 @@ class ReblockingBase(metaclass=ABCMeta):
         return opt_corr_time[0]
 
     @property
-    def source_data_eff_size(self):
+    def eff_size(self):
         """Returns the effective size of the source data.
 
         The calculation takes into account the temporal correlations
         between the data to get the effective size of the statistical
         sample.
         """
-        data_size = self.source_data_size
+        data_size = self.size
         # NOTE: Should we return an int or a float?
         return data_size / (2 * self.opt_iac_time)
 
     @property
-    def source_data_mean_eff_error(self):
+    def mean_eff_error(self):
         """The effective error of the mean of the data.
 
         This value takes into account the temporal correlations between
         the data to get the effective error of the mean of the statistical
         sample.
         """
-        eff_data_size = self.source_data_eff_size
-        return sqrt(self.source_data_var / eff_data_size)
+        eff_size = self.eff_size
+        return sqrt(self.var / eff_size)
 
     @property
     def iac_time_fit(self):
@@ -210,8 +217,105 @@ class ReblockingBase(metaclass=ABCMeta):
         return IACTimeFit(self.block_sizes, self.iac_times)
 
 
+class SetBase(Mapping):
+    """Base class for the reblocking of a set of tabular data."""
+
+    #: The data to analyze.
+    source_data: np.ndarray
+
+    #: Variance delta degrees of freedom.
+    var_ddof: int
+
+    @property
+    @abstractmethod
+    def size(self) -> np.ndarray:
+        """The size of the source data."""
+        pass
+
+    @cached_property
+    def mean(self):
+        """The mean of the source data."""
+        return self.source_data.mean(axis=0)
+
+    @cached_property
+    def var(self):
+        """The variance of the source data."""
+        return self.source_data.var(axis=0, ddof=self.var_ddof)
+
+    @property
+    @abstractmethod
+    def block_sizes(self) -> np.ndarray:
+        """The sizes of the blocks used in the reblocking."""
+        pass
+
+    @property
+    @abstractmethod
+    def num_blocks(self) -> np.ndarray:
+        pass
+
+    @property
+    @abstractmethod
+    def means(self) -> np.ndarray:
+        pass
+
+    @property
+    @abstractmethod
+    def vars(self) -> np.ndarray:
+        pass
+
+    @property
+    def errors(self):
+        """Errors of the mean for each of the block sizes."""
+        return np.sqrt(self.vars / self.num_blocks)
+
+    @cached_property
+    def iac_times(self):
+        """Integrated autocorrelation times for each of the block sizes."""
+        self_vars = self.vars
+        block_sizes = self.block_sizes
+        data_var = self.var[:, np.newaxis]
+
+        # Correlation times.
+        return 0.5 * block_sizes * self_vars / data_var
+
+    @property
+    @abstractmethod
+    def opt_block_size(self):
+        """The optimal block size."""
+        pass
+
+    @property
+    @abstractmethod
+    def opt_iac_time(self):
+        """The optimal integrated autocorrelation time."""
+        pass
+
+    @property
+    def eff_size(self):
+        """Returns the effective size of the source data.
+
+        The calculation takes into account the temporal correlations
+        between the data to get the effective size of the statistical
+        sample.
+        """
+        data_size = self.size
+        # NOTE: Should we return an int or a float?
+        return data_size / (2 * self.opt_iac_time)
+
+    @property
+    def mean_eff_error(self):
+        """The effective error of the mean of the data.
+
+        This value takes into account the temporal correlations between
+        the data to get the effective error of the mean of the statistical
+        sample.
+        """
+        eff_size = self.eff_size
+        return np.sqrt(self.var / eff_size)
+
+
 @attr.s(auto_attribs=True, frozen=True)
-class Reblocking(ReblockingBase):
+class Object(ObjectBase):
     """Realizes a blocking/binning analysis of serially correlated data."""
 
     #: The data to analyze.
@@ -238,7 +342,7 @@ class Reblocking(ReblockingBase):
                              'is two')
 
     @property
-    def source_data_size(self):
+    def size(self):
         """The size of the source data."""
         return len(self.source_data)
 
@@ -261,16 +365,16 @@ class Reblocking(ReblockingBase):
     @cached_property
     def num_blocks(self):
         """The number of blocks for each block size."""
-        data_size = self.source_data_size
+        data_size = self.size
         num_blocks = data_size // np.array(self.block_sizes, dtype=np.int64)
         return num_blocks.astype(np.int64)
 
     @cached_property
-    def data(self) -> t.List[BlockedData]:
+    def blocked_data(self) -> t.List[BlockedData]:
         """The source data reshaped in blocks."""
         self_data = self.source_data
         block_sizes = self.block_sizes
-        data_size = self.source_data_size
+        data_size = self.size
 
         blocked_data = []
         for size in block_sizes:
@@ -285,7 +389,7 @@ class Reblocking(ReblockingBase):
     @cached_property
     def means(self):
         """Means of each of the blocks."""
-        blocked_data = self.data
+        blocked_data = self.blocked_data
         data_means = []
         for block in blocked_data:
             shaped_data = block.data
@@ -297,7 +401,7 @@ class Reblocking(ReblockingBase):
     def vars(self):
         """Variances of each of the blocks."""
         var_ddof = self.var_ddof
-        blocked_data = self.data
+        blocked_data = self.blocked_data
         data_vars = []
         for block in blocked_data:
             shaped_data = block.data
@@ -307,7 +411,7 @@ class Reblocking(ReblockingBase):
 
 
 @unique
-class OnTheFlyDataField(str, Enum):
+class OTFObjectDataField(str, Enum):
     """Fields of the reblocking accumulated array."""
     BLOCK_SIZE = 'BLOCK_SIZE'
     MEANS = 'MEANS'
@@ -315,10 +419,10 @@ class OnTheFlyDataField(str, Enum):
     NUM_BLOCKS = 'NUM_BLOCKS'
 
 
-BLOCK_SIZE_FIELD = OnTheFlyDataField.BLOCK_SIZE.value
-NUM_BLOCKS_FIELD = OnTheFlyDataField.NUM_BLOCKS.value
-MEANS_SQR_FIELD = OnTheFlyDataField.MEANS_SQR.value
-MEANS_FIELD = OnTheFlyDataField.MEANS.value
+BLOCK_SIZE_FIELD = OTFObjectDataField.BLOCK_SIZE.value
+NUM_BLOCKS_FIELD = OTFObjectDataField.NUM_BLOCKS.value
+MEANS_SQR_FIELD = OTFObjectDataField.MEANS_SQR.value
+MEANS_FIELD = OTFObjectDataField.MEANS.value
 
 otf_data_dtype = np.dtype([
     (BLOCK_SIZE_FIELD, np.int64),
@@ -327,9 +431,11 @@ otf_data_dtype = np.dtype([
     (NUM_BLOCKS_FIELD, np.int64)
 ])
 
+T_ObjectDataSet = t.Union[np.ndarray, t.Sequence[np.ndarray]]
+
 
 @nb.njit
-def on_the_fly_proc_order(source_data: np.ndarray):
+def on_the_fly_obj_data_order(source_data: np.ndarray):
     """Estimates the maximum order of an on-the-fly reblocking.
 
     The maximum order determines the size of the output array of the
@@ -342,7 +448,7 @@ def on_the_fly_proc_order(source_data: np.ndarray):
     return int(floor(log(data_length) / log(2)))
 
 
-def on_the_fly_data_init(order: int, num_cols: int = None) -> np.ndarray:
+def on_the_fly_obj_data_init(order: int, num_cols: int = None) -> np.ndarray:
     """Initializes the reblocking array.
 
     If ``num_cols`` is an integer, the data will be a 2d structured array
@@ -356,12 +462,12 @@ def on_the_fly_data_init(order: int, num_cols: int = None) -> np.ndarray:
     """
     if num_cols is None:
         # Return a single array to save the data of a reblocking.
-        return _on_the_fly_data_init(order, num_cols=1)[0]
+        return _on_the_fly_obj_data_init(order, num_cols=1)[0]
 
-    return _on_the_fly_data_init(order, num_cols)
+    return _on_the_fly_obj_data_init(order, num_cols)
 
 
-def on_the_fly_exec(source_data: np.ndarray):
+def on_the_fly_obj_create(source_data: np.ndarray):
     """Realizes a reblocking analysis at increasing levels.
 
     This function calculates a reblocking analysis at increasing levels.
@@ -381,7 +487,7 @@ def on_the_fly_exec(source_data: np.ndarray):
     if is_1d_array:
         source_data = source_data[:, np.newaxis]
 
-    otf_data_array = _on_the_fly_proc_table_exec(source_data)
+    otf_data_array = _on_the_fly_obj_create(source_data)
     if is_1d_array:
         # Return a single reblocking array.
         return otf_data_array[0]
@@ -390,7 +496,7 @@ def on_the_fly_exec(source_data: np.ndarray):
 
 
 @nb.njit
-def _on_the_fly_data_init(order: int, num_cols: int) -> np.ndarray:
+def _on_the_fly_obj_data_init(order: int, num_cols: int) -> np.ndarray:
     """Initializes the reblocking array.
 
     :param order:
@@ -407,7 +513,7 @@ def _on_the_fly_data_init(order: int, num_cols: int) -> np.ndarray:
 
 
 @nb.njit
-def _on_the_fly_proc_table_exec(source_data: np.ndarray):
+def _on_the_fly_obj_create(source_data: np.ndarray):
     """Realizes a reblocking analysis at increasing levels.
 
     This function calculates a reblocking analysis at increasing levels.
@@ -418,11 +524,11 @@ def _on_the_fly_proc_table_exec(source_data: np.ndarray):
     :param source_data:
     :return:
     """
-    max_order = on_the_fly_proc_order(source_data)
+    max_order = on_the_fly_obj_data_order(source_data)
     data_length, num_cols = source_data.shape
 
     # Initialize arrays.
-    otf_data_array = _on_the_fly_data_init(max_order, num_cols)
+    otf_data_array = _on_the_fly_obj_data_init(max_order, num_cols)
     means_array = np.zeros((num_cols, max_order + 1, 2), dtype=np.float64)
 
     # TODO: We only need one block_size_array and num_blocks_array for
@@ -534,14 +640,14 @@ def recursive_reblocking(means_array: np.ndarray,
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class OnTheFlyReblocking(ReblockingBase):
+class OTFObject(ObjectBase):
     """Realizes a reblocking analysis at increasing levels."""
 
     #: The data to analyze.
     source_data: np.ndarray
 
     #: Minimum number of blocks.
-    min_num_blocks: int = 2
+    min_num_blocks: t.Optional[int] = 2
 
     #: Variance delta degrees of freedom.
     var_ddof: int = 1
@@ -553,7 +659,6 @@ class OnTheFlyReblocking(ReblockingBase):
         if not self_source_data.dtype == otf_data_dtype:
             raise TypeError("source_data is not a reblocking table.")
 
-        # NOTE: Allow only 1d arrays by now.
         if not len(self_source_data.shape) == 1:
             raise ValueError("source_data must be a 1d array")
 
@@ -562,12 +667,14 @@ class OnTheFlyReblocking(ReblockingBase):
         var_ddof = 1
         super().__setattr__('var_ddof', var_ddof)
 
-        if self.min_num_blocks < 2:
+        min_num_blocks = self.min_num_blocks or 2
+        if min_num_blocks < 2:
             raise ValueError('the minimum number of blocks of the reblocking '
                              'is two')
+        object.__setattr__(self, 'min_num_blocks', min_num_blocks)
 
         data_num_blocks = self_source_data[NUM_BLOCKS_FIELD]
-        criterion = data_num_blocks >= self.min_num_blocks
+        criterion = data_num_blocks >= min_num_blocks
         if not np.count_nonzero(criterion):
             raise ValueError('the source data is empty for the requested '
                              'minimum number of blocks.')
@@ -575,18 +682,42 @@ class OnTheFlyReblocking(ReblockingBase):
         source_data = self_source_data[criterion]
         super().__setattr__('source_data', source_data)
 
+    @classmethod
+    def from_non_obj_data(cls, seq: t.Union[t.Sequence, np.ndarray],
+                          min_num_blocks: int = None):
+        """
+
+        :param seq:
+        :param min_num_blocks:
+        :return:
+        """
+        obj_data = on_the_fly_obj_create(seq)
+        return cls(obj_data, min_num_blocks=min_num_blocks)
+
+    @classmethod
+    def from_obj_data_set(cls, obj_data_set: T_ObjectDataSet,
+                          min_num_blocks: int = None):
+        """
+
+        :param obj_data_set:
+        :param min_num_blocks:
+        :return:
+        """
+        obj_data = on_the_fly_extend_obj_data_set(obj_data_set)
+        return cls(obj_data, min_num_blocks=min_num_blocks)
+
     @cached_property
-    def source_data_size(self):
+    def size(self):
         """"""
         return self.num_blocks[0]
 
     @cached_property
-    def source_data_mean(self):
+    def mean(self):
         """The mean of the source data."""
         return self.means[0]
 
     @cached_property
-    def source_data_var(self):
+    def var(self):
         """The variance of the source data."""
         # The variance at first order, as an array of one element.
         return self.vars[0]
@@ -616,55 +747,210 @@ class OnTheFlyReblocking(ReblockingBase):
         return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
 
 
-def on_the_fly_table_update(table_array: np.ndarray,
-                            extra_array: np.ndarray):
+@attr.s(auto_attribs=True, frozen=True)
+class OTFSet(SetBase):
+    """Realizes a reblocking analysis at increasing levels."""
+
+    #: The data to analyze.
+    source_data: np.ndarray
+
+    #: Minimum number of blocks.
+    min_num_blocks: t.Optional[int] = 2
+
+    #: Variance delta degrees of freedom.
+    var_ddof: int = 1
+
+    def __attrs_post_init__(self):
+        """"""
+        # Only allow reblocking accumulated values.
+        self_source_data = self.source_data
+        if not self_source_data.dtype == otf_data_dtype:
+            raise TypeError("source_data is not a reblocking table.")
+
+        if not len(self_source_data.shape) == 2:
+            # Re-raise with a nice message 🙂.
+            raise ValueError("source_data must be a 2d array")
+
+        # Start with a 2d array.
+        block_size_set = self_source_data[BLOCK_SIZE_FIELD]
+
+        # Check that the data has a consistent format.
+        assert np.all(np.diff(block_size_set, axis=0) == 0)
+
+        # Pick only one element as they are all equal.
+        data_num_blocks = self_source_data[NUM_BLOCKS_FIELD][0, :]
+
+        # NOTE: Set var_ddof attribute to one always.
+        # TODO: Maybe we should remove the attribute from init.
+        var_ddof = 1
+        super().__setattr__('var_ddof', var_ddof)
+
+        min_num_blocks = self.min_num_blocks or 2
+        if min_num_blocks < 2:
+            raise ValueError('the minimum number of blocks of the reblocking '
+                             'is two')
+        object.__setattr__(self, 'min_num_blocks', min_num_blocks)
+
+        criterion = data_num_blocks >= min_num_blocks
+        if not np.count_nonzero(criterion):
+            raise ValueError('the source data is empty for the requested '
+                             'minimum number of blocks.')
+
+        source_data = self_source_data[:, criterion]
+        super().__setattr__('source_data', source_data)
+
+    @classmethod
+    def from_non_obj_data(cls, seq: t.Union[t.Sequence, np.ndarray],
+                          min_num_blocks: int = None):
+        """
+
+        :param seq:
+        :param min_num_blocks:
+        :return:
+        """
+        obj_data = on_the_fly_obj_create(seq)
+        return cls(obj_data, min_num_blocks=min_num_blocks)
+
+    @classmethod
+    def from_obj_data_set(cls, obj_data_set: T_ObjectDataSet,
+                          min_num_blocks: int = None):
+        """
+
+        :param obj_data_set:
+        :param min_num_blocks:
+        :return:
+        """
+        obj_data = on_the_fly_extend_obj_data_set(obj_data_set)
+        return cls(obj_data, min_num_blocks=min_num_blocks)
+
+    @cached_property
+    def size(self) -> np.ndarray:
+        """"""
+        return self.num_blocks[:, 0]
+
+    @cached_property
+    def mean(self):
+        """The mean of the source data."""
+        return self.means[:, 0]
+
+    @cached_property
+    def var(self):
+        """The variance of the source data."""
+        # The variance at first order, as an array of one element.
+        return self.vars[:, 0]
+
+    @property
+    def block_sizes(self):
+        """"""
+        return self.source_data[BLOCK_SIZE_FIELD]
+
+    @property
+    def num_blocks(self):
+        return self.source_data[NUM_BLOCKS_FIELD]
+
+    @cached_property
+    def means(self):
+        """The means of the means of the reblocking."""
+        means_sum = self.source_data[MEANS_FIELD]
+        return means_sum / self.num_blocks
+
+    @cached_property
+    def vars(self):
+        """The variances of the means of the reblocking."""
+        num_blocks = self.num_blocks
+        means_sqr_sum = self.source_data[MEANS_SQR_FIELD]
+        means_sqr = means_sqr_sum / num_blocks
+        ddof_num_blocks = num_blocks - self.var_ddof
+        return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
+
+    @cached_property
+    def opt_block_size(self):
+        """The optimal block size."""
+        block_sizes = self.block_sizes
+        data_size = self.size[:, np.newaxis]
+        int_corr_times = self.iac_times
+
+        # B^3 > 2N * (2 \tau)^2
+        criterion = block_sizes ** 3 > 8 * data_size * int_corr_times ** 2
+
+        opt_block_sizes = []
+        for row_idx, row_positions in enumerate(criterion):
+            row_opt_block_size = block_sizes[row_idx, row_positions].min()
+            opt_block_sizes.append(row_opt_block_size)
+        return np.array(opt_block_sizes)
+
+    @property
+    def opt_iac_time(self):
+        """The optimal integrated autocorrelation time."""
+        criterion = self.block_sizes == self.opt_block_size[:, np.newaxis]
+        opt_corr_times = []
+        for row_idx, row_positions in enumerate(criterion):
+            opt_corr_time = self.iac_times[row_idx, row_positions]
+            opt_corr_times.append(opt_corr_time[0])
+
+        return np.array(opt_corr_times)
+
+    def __getitem__(self, index) -> OTFObject:
+        """Collection interface"""
+        return OTFObject(self.source_data[index],
+                         min_num_blocks=self.min_num_blocks)
+
+    def __len__(self) -> int:
+        """Sized interface."""
+        return self.source_data.shape[0]
+
+    def __iter__(self) -> Iterator[OTFObject]:
+        """Iterable interface."""
+        for index in range(len(self)):
+            yield self[index]
+
+
+def on_the_fly_obj_data_update(obj_data: np.ndarray,
+                               ext_obj_data: np.ndarray):
     """Updates the accumulated data of a reblocking with other accumulated.
 
     This function serves to update the accumulated data of a given
     reblocking with the accumulated data of a new, compatible reblocking.
 
-    :param table_array:
-    :param extra_array:
+    :param obj_data:
+    :param ext_obj_data:
     :return:
     """
     # Shapes must be equal.
-    assert table_array.shape == extra_array.shape
+    assert obj_data.shape == ext_obj_data.shape
 
-    accum_block_size = table_array[BLOCK_SIZE_FIELD]
-    extra_block_size = extra_array[BLOCK_SIZE_FIELD]
+    accum_block_size = obj_data[BLOCK_SIZE_FIELD]
+    extra_block_size = ext_obj_data[BLOCK_SIZE_FIELD]
 
     assert np.all(accum_block_size == extra_block_size)
 
-    table_array[MEANS_FIELD] += extra_array[MEANS_FIELD]
-    table_array[MEANS_SQR_FIELD] += extra_array[MEANS_SQR_FIELD]
-    table_array[NUM_BLOCKS_FIELD] += extra_array[NUM_BLOCKS_FIELD]
+    obj_data[MEANS_FIELD] += ext_obj_data[MEANS_FIELD]
+    obj_data[MEANS_SQR_FIELD] += ext_obj_data[MEANS_SQR_FIELD]
+    obj_data[NUM_BLOCKS_FIELD] += ext_obj_data[NUM_BLOCKS_FIELD]
 
 
-T_DataSet = t.Union[np.ndarray, t.Sequence[np.ndarray]]
-
-
-def _on_the_fly_from_table_set(table_set: T_DataSet):
+def _on_the_fly_obj_data_from_obj_data_set(obj_data_set: T_ObjectDataSet):
     """Does a reblocking from a collection of reblocking data.
 
-    :param table_set:
+    :param obj_data_set:
     :return:
     """
     # Checks that the data has a valid dtype.
-    table_set: np.ndarray = np.asarray(table_set)
-    assert table_set.dtype == otf_data_dtype
+    obj_data_set: np.ndarray = np.asarray(obj_data_set)
+    assert obj_data_set.dtype == otf_data_dtype
 
     # Check that the data has a consistent format.
-    block_size_set = table_set[BLOCK_SIZE_FIELD]
+    block_size_set = obj_data_set[BLOCK_SIZE_FIELD]
     assert np.all(np.diff(block_size_set, axis=0) == 0)
 
     # Calculate the accumulated extension. We need the accumulated data
     # corresponding to the greatest order of each one of the accumulated
     # data in the set.
-    last_means_set = table_set[MEANS_FIELD]
-    accum_extension = _on_the_fly_proc_table_exec(last_means_set)
+    last_means_set = obj_data_set[MEANS_FIELD]
+    accum_extension = _on_the_fly_obj_create(last_means_set)
 
     # Fix up the block sizes of the extension.
-    last_block_size = table_set[BLOCK_SIZE_FIELD][0]
+    last_block_size = obj_data_set[BLOCK_SIZE_FIELD][0]
     block_size_ext = accum_extension[BLOCK_SIZE_FIELD]
 
     # Fix up the shape of last_block_size...
@@ -674,42 +960,43 @@ def _on_the_fly_from_table_set(table_set: T_DataSet):
     return accum_extension[:, 1:]
 
 
-def on_the_fly_extend_table_set(table_set: T_DataSet):
+def on_the_fly_extend_obj_data_set(obj_data_set: T_ObjectDataSet):
     """
 
-    :param table_set:
+    :param obj_data_set:
     :return:
     """
     # Checks that the data has a valid dtype.
-    table_set: np.ndarray = np.asarray(table_set)
+    obj_data_set: np.ndarray = np.asarray(obj_data_set)
 
-    assert table_set.dtype == otf_data_dtype
+    assert obj_data_set.dtype == otf_data_dtype
 
     try:
         is_2d_array = False
-        num_data, num_cols, max_order = table_set.shape
+        num_data, num_cols, max_order = obj_data_set.shape
     except ValueError:
         num_cols = 1
         is_2d_array = True
-        num_data, max_order = table_set.shape
-        table_set = table_set[:, np.newaxis, :]
+        num_data, max_order = obj_data_set.shape
+        obj_data_set = obj_data_set[:, np.newaxis, :]
 
-    data_total = on_the_fly_data_init(max_order - 1, num_cols)
+    data_total = on_the_fly_obj_data_init(max_order - 1, num_cols)
 
     dataset_last_order_data = []
 
     for data_index in range(num_data):
-        ext_data: np.ndarray = table_set[data_index]
-        on_the_fly_table_update(data_total, ext_data)
+        ext_data: np.ndarray = obj_data_set[data_index]
+        on_the_fly_obj_data_update(data_total, ext_data)
         # Take the data of the highest order for all the columns in
         # the current reblock.
         last_order_data: np.ndarray = ext_data[:, max_order - 1]
         dataset_last_order_data.append(last_order_data)
 
-    data_ext = _on_the_fly_from_table_set(dataset_last_order_data)
-    ext_table_set = np.hstack((data_total, data_ext))
+    data_ext = _on_the_fly_obj_data_from_obj_data_set(dataset_last_order_data)
+    ext_data_set = np.hstack((data_total, data_ext))
+    # NOTE: We could choose whether to extend the initial table set.
 
     if is_2d_array:
-        return ext_table_set[0]
+        return ext_data_set[0]
 
-    return ext_table_set
+    return ext_data_set
