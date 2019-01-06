@@ -730,6 +730,7 @@ def dummy_pure_est_core_func(step_idx: int,
 
 class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
     """The DMC core functions for the Bloch-Phonon model."""
+    __slots__ = ()
 
     #: Number of modes to evaluate the structure factor S(k).
     sf_num_modes: int

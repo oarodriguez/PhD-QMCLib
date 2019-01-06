@@ -894,7 +894,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
     """Functions to calculate the main physical properties of a model."""
 
     #: The model spec these functions correspond to.
-    spec: Spec
+    cfc_spec_nt: CFCSpecNT
 
     @property
     @abstractmethod
@@ -911,7 +911,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
         # the functions depend only on the configuration of the particles of
         # the system, and possibly on other quantities with physical
         # significance but otherwise independent to the model.
-        cfc_spec_nt = self.spec.cfc_spec_nt
+        cfc_spec_nt = self.cfc_spec_nt
         __wf_abs_log = self.core_funcs.wf_abs_log
         signatures = ['(f8[:,:],f8[:])']
         layout = '(ns,nop)->()'
@@ -934,7 +934,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
     def energy(self):
         """Local energy."""
 
-        cfc_spec_nt = self.spec.cfc_spec_nt
+        cfc_spec_nt = self.cfc_spec_nt
         __energy = self.core_funcs.energy
         types = ['(f8[:,:],f8[:])']
         signature = '(ns,nop) -> ()'
@@ -956,7 +956,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
     def one_body_density(self):
         """One-body density matrix."""
 
-        cfc_spec_nt = self.spec.cfc_spec_nt
+        cfc_spec_nt = self.cfc_spec_nt
         __one_body_density = self.core_funcs.one_body_density
         types = ['(f8,f8[:,:],f8[:])']
         signature = '(),(ns,nop) -> ()'
@@ -980,7 +980,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
     def structure_factor(self):
         """Static structure factor."""
 
-        cfc_spec_nt = self.spec.cfc_spec_nt
+        cfc_spec_nt = self.cfc_spec_nt
         __structure_factor = self.core_funcs.structure_factor
         types = ['(f8,f8[:,:],f8[:])']
         signature = '(),(ns,nop) -> ()'

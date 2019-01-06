@@ -305,7 +305,7 @@ class Spec(qmc_base.jastrow.Spec):
     def phys_funcs(self):
         """Functions to calculate the main physical properties of a model."""
         # NOTE: Should we use a new PhysicalFuncs instance?
-        return PhysicalFuncs(self)
+        return PhysicalFuncs.from_model_spec(self)
 
 
 @jit(nopython=True)
@@ -525,7 +525,12 @@ core_funcs = CoreFuncs()
 class PhysicalFuncs(qmc_base.jastrow.PhysicalFuncs):
     """Functions to calculate the main physical properties of the model."""
 
-    spec: Spec
+    cfc_spec_nt: CFCSpecNT
+
+    @classmethod
+    def from_model_spec(cls, model_spec: Spec):
+        """Builds the core functions for the given model Spec."""
+        return cls(model_spec.cfc_spec_nt)
 
     @cached_property
     def core_funcs(self):

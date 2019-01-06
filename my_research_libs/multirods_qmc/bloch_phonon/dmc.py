@@ -10,6 +10,7 @@ from numpy import random
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base.dmc import SamplingBatch
+from my_research_libs.qmc_base.jastrow import SysConfSlot
 from my_research_libs.qmc_base.utils import recast_to_supercell
 from . import model
 
@@ -304,11 +305,11 @@ class _CoreFuncs(qmc_base.dmc.CoreFuncs):
     #: The boundaries of the QMC supercell.
     boundaries: t.Tuple[float, float]
 
-    #: The slots of a system configuration array.
-    sys_conf_slots: model.Spec.sys_conf_slots
-
     #: The common (fixed) spec to pass to the core functions of the model.
     cfc_spec_nt: model.CFCSpecNT
+
+    #: The slots of a system configuration array.
+    sys_conf_slots: t.ClassVar = SysConfSlot
 
     @cached_property
     def recast(self):
@@ -602,7 +603,7 @@ class Sampling(_Sampling):
     def __attrs_post_init__(self):
         """Post-initialization stage."""
         if self.rng_seed is None:
-            rng_seed = utils.get_random_rng_seed()
+            rng_seed = int(utils.get_random_rng_seed())
             super().__setattr__('rng_seed', rng_seed)
 
     @cached_property
@@ -616,7 +617,6 @@ class CoreFuncs(_CoreFuncs):
     """The DMC core functions for the Bloch-Phonon model."""
 
     boundaries: t.Tuple[float, float]
-    sys_conf_slots: model.Spec.sys_conf_slots
     cfc_spec_nt: model.CFCSpecNT
 
     @classmethod
@@ -627,7 +627,6 @@ class CoreFuncs(_CoreFuncs):
         :return: An instance of the core functions.
         """
         return cls(model_spec.boundaries,
-                   model_spec.sys_conf_slots,
                    model_spec.cfc_spec_nt)
 
 
@@ -723,14 +722,13 @@ class EstSampling(_Sampling, qmc_base.dmc.EstSampling):
         """Post-initialization stage."""
         if self.rng_seed is None:
             rng_seed = int(utils.get_random_rng_seed())
-            super().__setattr__('rng_seed', rng_seed)
+            object.__setattr__(self, 'rng_seed', rng_seed)
 
     @cached_property
     def core_funcs(self) -> 'EstSamplingCoreFuncs':
         """"""
         model_spec = self.model_spec
         boundaries = model_spec.boundaries
-        sys_conf_slots = model_spec.sys_conf_slots
         cfc_spec_nt = model_spec.cfc_spec_nt
 
         sf_config = self.structure_factor
@@ -744,7 +742,6 @@ class EstSampling(_Sampling, qmc_base.dmc.EstSampling):
             sf_core_func = None
 
         return EstSamplingCoreFuncs(boundaries,
-                                    sys_conf_slots,
                                     cfc_spec_nt,
                                     sf_num_modes,
                                     sf_init_nts,
@@ -756,7 +753,6 @@ class EstSamplingCoreFuncs(_CoreFuncs, qmc_base.dmc.EstSamplingCoreFuncs):
     """Core functions to evaluate estimators using a DMC sampling."""
 
     boundaries: t.Tuple[float, float]
-    sys_conf_slots: model.Spec.sys_conf_slots
     cfc_spec_nt: model.CFCSpecNT
     sf_num_modes: t.Optional[int] = None
     sf_init_num_time_steps: t.Optional[int] = None
@@ -766,4 +762,4 @@ class EstSamplingCoreFuncs(_CoreFuncs, qmc_base.dmc.EstSamplingCoreFuncs):
         """"""
         if self.sf_core_func is None:
             sf_core_func = qmc_base.dmc.dummy_pure_est_core_func
-            super().__setattr__('sf_core_func', sf_core_func)
+            object.__setattr__(self, 'sf_core_func', sf_core_func)
