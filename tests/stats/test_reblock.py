@@ -94,9 +94,15 @@ def test_on_the_fly_extend_table_set_from_tables():
             reblock.on_the_fly_exec(data_sample)
         reblock_dataset.append(reblock_data)
 
-    reblock_total = reblock.on_the_fly_extend_table_set(reblock_dataset)
-    print(reblock_total.shape)
+    reblock_set = reblock.on_the_fly_extend_table_set(reblock_dataset)
+    print(reblock_set.shape)
 
-    for reblock_data in reblock_total:
-        otf_reblocking = reblock.OnTheFlyReblocking(reblock_data)
-        print(otf_reblocking.iac_time_fit.params)
+    reblock_total = reblock.OnTheFlyTable(reblock_set)
+    print(reblock_total.block_sizes)
+    print(reblock_total.source_data_size)
+    print(reblock_total.source_data_mean)
+    print(reblock_total.source_data_var)
+    print(reblock_total.means)
+    print(reblock_total.vars)
+    print(reblock_total.iac_times)
+    print(reblock_total.opt_block_size)

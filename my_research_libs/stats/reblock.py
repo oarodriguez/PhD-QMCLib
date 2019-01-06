@@ -541,7 +541,7 @@ class OnTheFlyReblocking(ReblockingBase):
     source_data: np.ndarray
 
     #: Minimum number of blocks.
-    min_num_blocks: int = 2
+    min_num_blocks: t.Optional[int] = 2
 
     #: Variance delta degrees of freedom.
     var_ddof: int = 1
@@ -614,6 +614,153 @@ class OnTheFlyReblocking(ReblockingBase):
         means_sqr = means_sqr_sum / num_blocks
         ddof_num_blocks = num_blocks - self.var_ddof
         return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class OnTheFlyTable(ReblockingBase):
+    """Realizes a reblocking analysis at increasing levels."""
+
+    #: The data to analyze.
+    source_data: np.ndarray
+
+    #: Minimum number of blocks.
+    min_num_blocks: t.Optional[int] = 2
+
+    #: Variance delta degrees of freedom.
+    var_ddof: int = 1
+
+    def __attrs_post_init__(self):
+        """"""
+        # Only allow reblocking accumulated values.
+        self_source_data = self.source_data
+        if not self_source_data.dtype == otf_data_dtype:
+            raise TypeError("source_data is not a reblocking table.")
+
+        if not len(self_source_data.shape) == 2:
+            # Re-raise with a nice message 🙂.
+            raise ValueError("source_data must be a 2d array")
+
+        # Start with a 2d array.
+        block_size_set = self_source_data[BLOCK_SIZE_FIELD]
+
+        # Check that the data has a consistent format.
+        assert np.all(np.diff(block_size_set, axis=0) == 0)
+
+        # Pick only one element as they are all equal.
+        data_num_blocks = self_source_data[NUM_BLOCKS_FIELD][0, :]
+
+        # NOTE: Set var_ddof attribute to one always.
+        # TODO: Maybe we should remove the attribute from init.
+        var_ddof = 1
+        super().__setattr__('var_ddof', var_ddof)
+
+        min_num_blocks = self.min_num_blocks or 2
+        if min_num_blocks < 2:
+            raise ValueError('the minimum number of blocks of the reblocking '
+                             'is two')
+
+        criterion = data_num_blocks >= min_num_blocks
+        if not np.count_nonzero(criterion):
+            raise ValueError('the source data is empty for the requested '
+                             'minimum number of blocks.')
+
+        source_data = self_source_data[..., criterion]
+        super().__setattr__('source_data', source_data)
+
+    @classmethod
+    def from_reblock_set(cls, reblock_set: T_ReblockSet,
+                         extend: bool = True,
+                         min_num_blocks: int = None):
+        """
+
+        :param extend:
+        :param reblock_set:
+        :param min_num_blocks:
+        :return:
+        """
+        final_reblock = on_the_fly_extend_table_set(reblock_set, extend)
+        return cls(final_reblock, min_num_blocks=min_num_blocks)
+
+    @cached_property
+    def source_data_size(self) -> np.ndarray:
+        """"""
+        return self.num_blocks[:, 0]
+
+    @cached_property
+    def source_data_mean(self):
+        """The mean of the source data."""
+        return self.means[:, 0]
+
+    @cached_property
+    def source_data_var(self):
+        """The variance of the source data."""
+        # The variance at first order, as an array of one element.
+        return self.vars[:, 0]
+
+    @property
+    def block_sizes(self):
+        """"""
+        return self.source_data[BLOCK_SIZE_FIELD]
+
+    @property
+    def num_blocks(self):
+        return self.source_data[NUM_BLOCKS_FIELD]
+
+    @cached_property
+    def means(self):
+        """"""
+        means_sum = self.source_data[MEANS_FIELD]
+        return means_sum / self.num_blocks
+
+    @cached_property
+    def vars(self):
+        """"""
+        num_blocks = self.num_blocks
+        means_sqr_sum = self.source_data[MEANS_SQR_FIELD]
+        means_sqr = means_sqr_sum / num_blocks
+        ddof_num_blocks = num_blocks - self.var_ddof
+        return num_blocks * (means_sqr - self.means ** 2) / ddof_num_blocks
+
+    @cached_property
+    def iac_times(self):
+        """Integrated autocorrelation times for each of the block sizes."""
+        self_vars = self.vars
+        block_sizes = self.block_sizes
+        data_var = self.source_data_var[:, np.newaxis]
+
+        # Correlation times.
+        return 0.5 * block_sizes * self_vars / data_var
+
+    @cached_property
+    def opt_block_size(self):
+        """The optimal block size."""
+        block_sizes = self.block_sizes
+        data_size = self.source_data_size[:, np.newaxis]
+        int_corr_times = self.iac_times
+
+        # B^3 > 2N * (2 \tau)^2
+        criterion = block_sizes ** 3 > 8 * data_size * int_corr_times ** 2
+
+        opt_block_sizes = []
+        for row_criterion in criterion:
+            row_opt_block_size = block_sizes[:, row_criterion].min()
+            opt_block_sizes.append(row_opt_block_size)
+        return np.array(opt_block_sizes)
+
+    @property
+    def opt_iac_time(self):
+        """The optimal integrated autocorrelation time."""
+        criterion = self.block_sizes == self.opt_block_size[:, np.newaxis]
+        opt_corr_times = []
+        for row_criterion in criterion:
+            opt_corr_time = self.iac_times[row_criterion]
+            opt_corr_times.append([opt_corr_time[0]])
+        return np.array(opt_corr_times)
+
+    @property
+    def iac_time_fit(self):
+        """"""
+        raise NotImplementedError
 
 
 def on_the_fly_table_update(table_array: np.ndarray,
