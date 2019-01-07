@@ -635,7 +635,15 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
     """Structure factor estimator."""
 
     num_modes: int
-    init_num_time_steps: int = 512
+    init_num_time_steps: t.Optional[int] = None
+
+    def __attrs_post_init__(self):
+        """Post-initialization stage."""
+
+        if self.init_num_time_steps is None:
+            # A very large integer 🤔.
+            ini_nts = 99999999
+            object.__setattr__(self, 'init_num_time_steps', ini_nts)
 
     def get_momenta(self, model_spec: model.Spec):
         """"""
