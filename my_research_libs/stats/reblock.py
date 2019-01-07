@@ -4,6 +4,7 @@ from collections import Mapping
 from enum import Enum, unique
 from math import ceil, floor, log, log2, sqrt
 from typing import Iterator
+from warnings import warn
 
 import attr
 import numba as nb
@@ -868,14 +869,24 @@ class OTFSet(SetBase):
         """The optimal block size."""
         block_sizes = self.block_sizes
         data_size = self.size[:, np.newaxis]
-        int_corr_times = self.iac_times
+        iac_times = self.iac_times
 
         # B^3 > 2N * (2 \tau)^2
-        criterion = block_sizes ** 3 > 8 * data_size * int_corr_times ** 2
+        criterion = block_sizes ** 3 > 8 * data_size * iac_times ** 2
 
         opt_block_sizes = []
         for row_idx, row_positions in enumerate(criterion):
-            row_opt_block_size = block_sizes[row_idx, row_positions].min()
+            valid_sizes = block_sizes[row_idx, row_positions]
+            if not np.count_nonzero(valid_sizes):
+                row_opt_block_size = block_sizes.max()
+                warn("the optimum block size criterion is not satisfied by "
+                     "any of the autocorrelation times. The maximum block "
+                     "size will be treated as the optimal one. You may try "
+                     "to gather more data to suppress this warning.",
+                     RuntimeWarning)
+
+            else:
+                row_opt_block_size = valid_sizes.min()
             opt_block_sizes.append(row_opt_block_size)
         return np.array(opt_block_sizes)
 
