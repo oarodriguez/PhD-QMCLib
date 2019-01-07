@@ -520,5 +520,61 @@ def test_dmc_est_sampling():
         print('---')
 
 
+def test_dmc_task():
+    """Testing the main task to realize a DMC calculation."""
+
+    lattice_depth = 0
+    lattice_ratio = 1
+    interaction_strength = 4
+    boson_number = 30
+    supercell_size = 30
+    tbf_contact_cutoff = 0.25 * supercell_size
+
+    # TODO: Improve this test.
+    model_spec = bloch_phonon.Spec(lattice_depth=lattice_depth,
+                                   lattice_ratio=lattice_ratio,
+                                   interaction_strength=interaction_strength,
+                                   boson_number=boson_number,
+                                   supercell_size=supercell_size,
+                                   tbf_contact_cutoff=tbf_contact_cutoff)
+    move_spread = 0.25 * model_spec.well_width
+    ini_sys_conf = model_spec.init_get_sys_conf()
+    rng_seed = None
+    num_batches = 8
+    num_steps_batch = 4096
+    # num_steps = num_batches * num_steps_batch
+    vmc_sampling = \
+        bloch_phonon.task.VMCSampling(model_spec, move_spread,
+                                      rng_seed, ini_sys_conf,
+                                      num_batches=num_batches,
+                                      num_steps_batch=num_steps_batch)
+
+    time_step = 1e-3
+    num_batches = 4
+    num_time_steps_batch = 512
+    ini_sys_conf_set = None
+    target_num_walkers = 480
+    max_num_walkers = 512
+    ini_ref_energy = None
+    rng_seed = None
+
+    num_modes = 2 * boson_number
+    sf_config = bloch_phonon.dmc.StructureFactorEst(num_modes=num_modes)
+    dmc_sampling = bloch_phonon.task.DMCEstSampling(
+            model_spec, time_step,
+            max_num_walkers,
+            target_num_walkers,
+            rng_seed=rng_seed,
+            structure_factor=sf_config,
+            ini_sys_conf_set=ini_sys_conf_set,
+            ini_ref_energy=ini_ref_energy,
+            num_batches=num_batches,
+            num_time_steps_batch=num_time_steps_batch
+    )
+
+    dmc_task = bloch_phonon.task.DMC(dmc_sampling, vmc_sampling)
+    task_result = dmc_task.run()
+
+
 if __name__ == '__main__':
     test_dmc()
