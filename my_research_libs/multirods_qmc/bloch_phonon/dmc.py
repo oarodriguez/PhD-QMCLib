@@ -630,20 +630,28 @@ class CoreFuncs(_CoreFuncs):
                    model_spec.cfc_spec_nt)
 
 
+class SFEstSpecNT(qmc_base.dmc.SFEstSpecNT):
+    """"""
+    num_modes: int
+    as_pure_est: bool = True
+    pfw_num_time_steps: int = None
+    core_func: t.Callable = qmc_base.dmc.dummy_pure_est_core_func
+
+
 @attr.s(auto_attribs=True, frozen=True)
 class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
     """Structure factor estimator."""
 
     num_modes: int
-    init_num_time_steps: t.Optional[int] = None
+    pfw_num_time_steps: t.Optional[int] = None
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
 
-        if self.init_num_time_steps is None:
+        if self.pfw_num_time_steps is None:
             # A very large integer 🤔.
-            ini_nts = 99999999
-            object.__setattr__(self, 'init_num_time_steps', ini_nts)
+            pfs_nts = 99999999
+            object.__setattr__(self, 'pfw_num_time_steps', pfs_nts)
 
     def get_momenta(self, model_spec: model.Spec):
         """"""
@@ -657,8 +665,9 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
         :return:
         """
         num_modes = self.num_modes
+        as_pure_est = self.as_pure_est
+        pfs_nts = self.pfw_num_time_steps
         momenta = self.get_momenta(model_spec)
-        pure_init_num_steps = self.init_num_time_steps
 
         cfc_spec_nt = model_spec.cfc_spec_nt
         structure_factor = model.core_funcs.structure_factor
@@ -688,7 +697,20 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
 
             sys_conf = state_confs[sys_idx]
 
-            if step_idx >= pure_init_num_steps:
+            if not as_pure_est:
+                # Mixed estimator.
+
+                for kz_idx in range(num_modes):
+                    momentum = momenta[kz_idx]
+                    sys_sk_idx = \
+                        structure_factor(momentum, sys_conf, cfc_spec_nt)
+                    iter_sf_array[sys_idx, kz_idx] += sys_sk_idx
+
+                # Finish.
+                return
+
+            # Pure estimator.
+            if step_idx >= pfs_nts:
                 # Just "transport" the structure factor of the previous
                 # configuration to the new one.
                 actual_state_sf[sys_idx] = prev_state_sf[clone_ref_idx]
@@ -742,18 +764,23 @@ class EstSampling(_Sampling, qmc_base.dmc.EstSampling):
         sf_config = self.structure_factor
         if sf_config is not None:
             sf_num_modes = sf_config.num_modes
-            sf_init_nts = sf_config.init_num_time_steps
+            sf_as_pure_est = sf_config.as_pure_est
+            sf_pfw_nts = sf_config.pfw_num_time_steps
             sf_core_func = sf_config.build_core_func(model_spec)
         else:
             sf_num_modes = 1
-            sf_init_nts = 512
+            sf_as_pure_est = False
+            sf_pfw_nts = 512
             sf_core_func = None
+
+        sf_spec_nt = qmc_base.dmc.SFEstSpecNT(sf_num_modes,
+                                              sf_as_pure_est,
+                                              sf_pfw_nts,
+                                              sf_core_func)
 
         return EstSamplingCoreFuncs(boundaries,
                                     cfc_spec_nt,
-                                    sf_num_modes,
-                                    sf_init_nts,
-                                    sf_core_func)
+                                    sf_spec_nt)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -762,12 +789,8 @@ class EstSamplingCoreFuncs(_CoreFuncs, qmc_base.dmc.EstSamplingCoreFuncs):
 
     boundaries: t.Tuple[float, float]
     cfc_spec_nt: model.CFCSpecNT
-    sf_num_modes: t.Optional[int] = None
-    sf_init_num_time_steps: t.Optional[int] = None
-    sf_core_func: t.Optional[t.Callable] = None
+    sf_spec_nt: SFEstSpecNT = None
 
     def __attrs_post_init__(self):
         """"""
-        if self.sf_core_func is None:
-            sf_core_func = qmc_base.dmc.dummy_pure_est_core_func
-            object.__setattr__(self, 'sf_core_func', sf_core_func)
+        pass

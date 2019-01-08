@@ -672,14 +672,39 @@ T_ESBatchesIter = t.Iterator[EstSamplingBatch]
 T_E_ESBatchesIter = t.Iterator[t.Tuple[int, EstSamplingBatch]]
 
 
-class StructureFactorEst:
+# noinspection PyUnusedLocal
+@nb.jit(nopython=True)
+def dummy_pure_est_core_func(step_idx: int,
+                             sys_idx: int,
+                             clone_ref_idx: int,
+                             state_confs: np.ndarray,
+                             iter_sf_array: np.ndarray,
+                             aux_states_sf_array: np.ndarray):
+    """Dummy pure estimator core function."""
+    return
+
+
+class SFEstSpecNT(t.NamedTuple):
+    """"""
+    #: Number of modes to evaluate the structure factor S(k).
+    num_modes: int
+    as_pure_est: bool = True
+    pfw_num_time_steps: int = None
+    core_func: t.Callable = dummy_pure_est_core_func
+
+
+class StructureFactorEst(metaclass=ABCMeta):
     """Structure factor estimator."""
 
     #: Number of modes to evaluate the structure factor S(k).
     num_modes: int
 
-    #: Number of time steps to accumulate the pure estimator of S(k).
-    init_num_time_steps: int = 512
+    #: Number of steps for the forward sampling of the pure estimator.
+    as_pure_est: bool = False
+
+    #: Number of time steps of the forward walking to accumulate the pure
+    # estimator of S(k).
+    pfw_num_time_steps: int = 512
 
     @property
     @abstractmethod
@@ -716,35 +741,17 @@ class EstSampling(Sampling):
         pass
 
 
-# noinspection PyUnusedLocal
-@nb.jit(nopython=True)
-def dummy_pure_est_core_func(step_idx: int,
-                             sys_idx: int,
-                             clone_ref_idx: int,
-                             state_confs: np.ndarray,
-                             iter_sf_array: np.ndarray,
-                             aux_states_sf_array: np.ndarray):
-    """Dummy pure estimator core function."""
-    return
-
-
 class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
     """The DMC core functions for the Bloch-Phonon model."""
     __slots__ = ()
 
-    #: Number of modes to evaluate the structure factor S(k).
-    sf_num_modes: int
-
-    #: Number of time steps to accumulate the pure estimator of S(k).
-    sf_init_num_time_steps: int
-
-    #: Core function (JIT) to calculate S(k).
-    sf_core_func: t.Callable
+    #:
+    sf_spec_nt: t.Optional[SFEstSpecNT]
 
     @property
     def should_eval_sf_est(self):
         """"""
-        return self.sf_core_func is not dummy_pure_est_core_func
+        return self.sf_spec_nt is not dummy_pure_est_core_func
 
     @cached_property
     def batches(self):
@@ -752,7 +759,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
 
         :return:
         """
-        sf_num_modes = self.sf_num_modes
+        sf_num_modes = self.sf_spec_nt.num_modes
 
         iter_energy_field = IterProp.ENERGY.value
         iter_weight_field = IterProp.WEIGHT.value
@@ -791,13 +798,13 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             isf_shape = nts_batch, sf_num_modes  # S(k) batch.
 
             # The shape of the auxiliary arrays to store the structure
-            # for a whole DMC state.
-            aux_sfb_shape = 2, max_num_walkers, sf_num_modes
+            # factor of a single state during the forward walking process.
+            pfw_aux_sfb_shape = 2, max_num_walkers, sf_num_modes
 
             # Array to store the configuration data of a batch of states.
             iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
             iter_sf_array = np.zeros(isf_shape, dtype=np.float64)
-            aux_sf_array = np.zeros(aux_sfb_shape, dtype=np.float64)
+            pfw_aux_sf_array = np.zeros(pfw_aux_sfb_shape, dtype=np.float64)
 
             # Extract fields.
             iter_energies = iter_props_array[iter_energy_field]
@@ -828,7 +835,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                 # each batch to accumulate new values during the forward
                 # walking to sampling pure estimator. This has to be done
                 # in order to gather new data in the next batch/block.
-                aux_sf_array[:] = 0.
+                pfw_aux_sf_array[:] = 0.
 
                 for step_idx, state in enum_generator:
 
@@ -851,7 +858,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                     branching_spec,
                                     iter_props_array,
                                     iter_sf_array,
-                                    aux_sf_array)
+                                    pfw_aux_sf_array)
 
                     tmp_state = state
 
@@ -887,8 +894,9 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
 
         # Structure factor
         # Flag to evaluate structure factor.
-        sf_init_nts = self.sf_init_num_time_steps
-        sf_est_core_func = self.sf_core_func
+        sf_as_pure_est = self.sf_spec_nt.as_pure_est
+        sf_pfw_nts = self.sf_spec_nt.pfw_num_time_steps
+        sf_est_core_func = self.sf_spec_nt.core_func
         should_eval_sf_est = self.should_eval_sf_est
 
         # noinspection PyUnusedLocal
@@ -936,13 +944,13 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                      iter_sf_array,
                                      aux_states_sf_array)
 
-            # Calculate structure factor pure estimator after the
-            # initialization stage.
             if should_eval_sf_est:
-                # Pure estimator
-                if step_idx < sf_init_nts:
-                    iter_sf_array[step_idx] /= step_idx + 1
-                else:
-                    iter_sf_array[step_idx] /= sf_init_nts
+                # Calculate structure factor pure estimator after the
+                # forward sampling stage.
+                if sf_as_pure_est:
+                    if step_idx < sf_pfw_nts:
+                        iter_sf_array[step_idx] /= step_idx + 1
+                    else:
+                        iter_sf_array[step_idx] /= sf_pfw_nts
 
         return _eval_estimators
