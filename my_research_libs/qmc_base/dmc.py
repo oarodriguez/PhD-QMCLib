@@ -819,8 +819,15 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                 # Future reference to the last DMC state.
                 tmp_state = None
 
+                # Reset the zero the accumulated S(k) of all the states.
+                # This is very important, as the elements of this array are
+                # modified in place during the sampling of the estimator.
+                iter_sf_array[:] = 0
+
                 # Reset to zero the auxiliary states after the end of
-                # each batch.
+                # each batch to accumulate new values during the forward
+                # walking to sampling pure estimator. This has to be done
+                # in order to gather new data in the next batch/block.
                 aux_sf_array[:] = 0.
 
                 for step_idx, state in enum_generator:
@@ -932,7 +939,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             # Calculate structure factor pure estimator after the
             # initialization stage.
             if should_eval_sf_est:
-                #
+                # Pure estimator
                 if step_idx < sf_init_nts:
                     iter_sf_array[step_idx] /= step_idx + 1
                 else:

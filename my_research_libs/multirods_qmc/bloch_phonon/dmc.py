@@ -707,7 +707,7 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
                         prev_state_sf[clone_ref_idx, kz_idx]
 
             # Accumulate the total in the current state S(k).
-            iter_sf_array[step_idx] += actual_state_sf[sys_idx]
+            iter_sf_array[step_idx, :] += actual_state_sf[sys_idx, :]
 
         return _core_func
 
