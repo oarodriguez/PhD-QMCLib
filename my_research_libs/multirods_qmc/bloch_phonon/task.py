@@ -159,6 +159,12 @@ class WFOptimization:
         return opt_result
 
 
+class DMCEstDataSeries(t.NamedTuple):
+    """"""
+    props: t.List[np.ndarray]
+    structure_factor: t.List[np.ndarray]
+
+
 T_OptSeqNDArray = t.Optional[t.Sequence[np.ndarray]]
 
 
@@ -170,71 +176,42 @@ class DMCESResult:
     state: dmc_base.State
 
     #:
-    props_set: t.Sequence[np.ndarray]
-
-    #:
-    energy_reblock_set: t.Sequence[np.ndarray]
-
-    #:
-    weight_reblock_set: t.Sequence[np.ndarray]
-
-    #:
-    ew_reblock_set: t.Sequence[np.ndarray]
-
-    #:
-    sf_batches_set: T_OptSeqNDArray = None
-
-    #
-    sf_reblock_set: T_OptSeqNDArray = None
+    data_series: DMCEstDataSeries
 
     @property
     def props(self):
         """"""
-        if not self.props_set:
-            return None
-        return np.hstack(self.props_set)
+        return np.hstack(self.data_series.props)
 
     @property
     def energy(self):
         """"""
-        if self.props is None:
-            return None
         return self.props[dmc_base.IterProp.ENERGY]
 
     @property
     def weight(self):
         """"""
-        if self.props is None:
-            return None
         return self.props[dmc_base.IterProp.WEIGHT]
 
     @property
     def num_walkers(self):
         """"""
-        if self.props is None:
-            return None
         return self.props[dmc_base.IterProp.NUM_WALKERS]
 
     @property
     def ref_energy(self):
         """"""
-        if self.props is None:
-            return None
         return self.props[dmc_base.IterProp.REF_ENERGY]
 
     @property
     def accum_energy(self):
         """"""
-        if self.props is None:
-            return None
         return self.props[dmc_base.IterProp.ACCUM_ENERGY]
 
     @property
     def structure_factor(self):
         """"""
-        if not self.sf_batches_set:
-            return None
-        return np.vstack(self.sf_batches_set)
+        return np.vstack(self.data_series.structure_factor)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -346,15 +323,14 @@ class DMCEstSampling(dmc.EstSampling):
         else:
             logger.info(f'No burn-in batches requested')
 
-        #
-        iter_props_batches = []
-        energy_reblock_batches = []
-        weight_reblock_batches = []
-        ew_reblock_batches = []
-
-        #
-        sf_batches = []
-        sf_reblock_batches = []
+        # Main containers of data.
+        props_batches_data = []
+        sf_batches_data = []
+        energy_reblock_set = []
+        weight_reblock_set = []
+        ew_reblock_set = []
+        num_walkers_reblock_set = []
+        sf_reblock_set = []
 
         # The effective batches to calculate the estimators.
         eff_batches: dmc_base.T_ESBatchesIter = \
@@ -389,41 +365,67 @@ class DMCEstSampling(dmc.EstSampling):
                 #  realize the reblocking for each batch of data.
                 #  Let's think about it...
 
-                # Store the information of the DMC sampling.
                 if keep_iter_data:
+                    # Store the information of the DMC sampling.
                     iter_props = iter_props.copy()
-                    iter_props_batches.append(iter_props)
+                    props_batches_data.append(iter_props)
 
                 else:
-                    # Reblocking....
+                    # Just get reblocking objects.
                     energy_reblock = reblock.on_the_fly_obj_create(energies)
                     weight_reblock = reblock.on_the_fly_obj_create(weights)
                     ew_reblock = \
                         reblock.on_the_fly_obj_create(energies * weights)
+                    num_walkers_reblock = \
+                        reblock.on_the_fly_obj_create(num_walkers)
 
-                    energy_reblock_batches.append(energy_reblock)
-                    weight_reblock_batches.append(weight_reblock)
-                    ew_reblock_batches.append(ew_reblock)
+                    energy_reblock_set.append(energy_reblock)
+                    weight_reblock_set.append(weight_reblock)
+                    ew_reblock_set.append(ew_reblock)
+                    num_walkers_reblock_set.append(num_walkers_reblock)
+
+                # Handling the structure factor results.
+                iter_sf_array = batch_data.iter_structure_factor
 
                 if should_eval_sf:
 
-                    # Store the structure factor.
-                    iter_sf_array = batch_data.iter_structure_factor
-
                     if keep_iter_data:
-                        iter_sf_array = iter_sf_array.copy()
 
-                        # Calculate the pure estimator.
-                        sf_pure_est = \
-                            iter_sf_array / num_walkers[:, np.newaxis]
-                        sf_batches.append(sf_pure_est)
+                        # Keep a copy of the generated data of the sampling.
+
+                        if sf_config.as_pure_est:
+                            iter_sf_array = iter_sf_array.copy()
+
+                            # Normalize the pure estimator.
+                            sf_pure_est = \
+                                iter_sf_array / num_walkers[:, np.newaxis]
+
+                            sf_batches_data.append(sf_pure_est)
+
+                        else:
+                            iter_sf_array = iter_sf_array.copy()
+                            sf_batches_data.append(iter_sf_array)
 
                     else:
-                        iter_sf_array_last = iter_sf_array[-1].copy()
 
-                        # Calculate the pure estimator.
-                        sf_pure_est = iter_sf_array_last / num_walkers[-1]
-                        sf_reblock_batches.append(sf_pure_est)
+                        # Do not keep a copy of the generated data of the
+                        # sampling. Instead, return a reblocking object
+                        # to calculate the average values and errors.
+
+                        if sf_config.as_pure_est:
+                            iter_sf_array_last = iter_sf_array[-1].copy()
+
+                            # Normalize the pure estimator.
+                            sf_pure_est = \
+                                iter_sf_array_last / num_walkers[-1]
+
+                            sf_reblock_set.append(sf_pure_est)
+
+                        else:
+                            sf_reblock = \
+                                reblock.on_the_fly_obj_create(iter_sf_array)
+
+                            sf_reblock_set.append(sf_reblock)
 
                 rem_batches = num_batches - batch_idx - 1
                 object.__setattr__(self, 'remaining_batches', rem_batches)
@@ -438,13 +440,11 @@ class DMCEstSampling(dmc.EstSampling):
 
         logger.info('DMC sampling completed.')
 
-        return DMCESResult(last_state,
-                           iter_props_batches,
-                           energy_reblock_batches,
-                           weight_reblock_batches,
-                           ew_reblock_batches,
-                           sf_batches,
-                           sf_reblock_batches)
+        data_series = DMCEstDataSeries(props_batches_data,
+                                       sf_batches_data)
+        return DMCESResult(last_state, data_series)
+
+
 
 
 @attr.s(auto_attribs=True, frozen=True)
