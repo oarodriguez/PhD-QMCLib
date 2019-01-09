@@ -1,10 +1,12 @@
 import logging
 import typing as t
+from abc import ABCMeta, abstractmethod
 from itertools import islice
 
 import attr
 import numpy as np
 import tqdm
+from cached_property import cached_property
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs import utils
@@ -159,29 +161,289 @@ class WFOptimization:
         return opt_result
 
 
-class DMCEstDataSeries(t.NamedTuple):
-    """"""
-    props: t.List[np.ndarray]
-    structure_factor: t.List[np.ndarray]
+class DataBlocks(metaclass=ABCMeta):
+    """Abstract class to represent data in blocks."""
 
+    num_blocks: int
+    num_time_steps_block: int
+    totals: np.ndarray
+    weight_totals: t.Optional[np.ndarray] = None
 
-T_OptSeqNDArray = t.Optional[t.Sequence[np.ndarray]]
+    @classmethod
+    @abstractmethod
+    def from_data(cls, *args, **kwargs):
+        pass
+
+    @property
+    def mean(self):
+        """Mean value of the blocks."""
+        energy_rbc = self.reblock
+        weight_rbc = self.weight_reblock
+
+        if weight_rbc is None:
+            return self.reblock.mean
+        return energy_rbc.mean / weight_rbc.mean
+
+    @property
+    def mean_error(self):
+        """Error of the mean value of the blocks."""
+        ow_rbc = self.reblock
+
+        ow_mean = ow_rbc.mean
+        ow_var = ow_rbc.var
+        ow_eff_size = ow_rbc.eff_size
+        mean = self.mean
+
+        if self.weight_reblock is None:
+            #
+            w_mean = 1.
+            w_var = 0.
+            oww_mean = ow_mean
+            w_eff_size = 0.5
+            oww_eff_size = 0.5
+
+        else:
+            #
+            w_rbc = self.weight_reblock
+            oww_rbc = self.cross_weight_reblock
+
+            w_mean = w_rbc.mean
+            w_var = w_rbc.var
+            oww_mean = oww_rbc.mean
+            w_eff_size = w_rbc.eff_size
+            oww_eff_size = oww_rbc.eff_size
+
+        err_ow = ow_var / ow_mean ** 2
+        err_w = w_var / w_mean ** 2
+        err_oww = (oww_mean - ow_mean * w_mean) / (ow_mean * w_mean)
+
+        return mean * np.sqrt(err_ow / ow_eff_size +
+                              err_w / w_eff_size -
+                              2 * err_oww / oww_eff_size)
+
+    @property
+    def reblock(self):
+        """Reblocking of the totals of every block."""
+        return reblock.OTFObject.from_non_obj_data(self.totals)
+
+    @property
+    def weight_reblock(self):
+        """Reblocking of the totals of the weights of every block."""
+        if self.weight_totals is None:
+            return None
+        return reblock.OTFObject.from_non_obj_data(self.weight_totals)
+
+    @property
+    def cross_weight_reblock(self):
+        """Reblocking of the total * weight_total of every block."""
+        totals = self.totals
+        weight_totals = self.weight_totals
+        if weight_totals is None:
+            return None
+        cross_totals = totals * weight_totals
+        return reblock.OTFObject.from_non_obj_data(cross_totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCESResult:
-    """Result of the DMC sampling."""
+class NumWalkersBlocks(DataBlocks):
+    """Number of walkers data in blocks."""
 
-    #:
-    state: dmc_base.State
+    num_blocks: int
+    num_time_steps_block: int
+    totals: np.ndarray
 
-    #:
-    data_series: DMCEstDataSeries
+    @classmethod
+    def from_data(cls, num_blocks: int,
+                  num_time_steps_block: int,
+                  data: np.ndarray,
+                  reduce_data: bool = True):
+        """
+
+        :param num_blocks:
+        :param num_time_steps_block:
+        :param data:
+        :param reduce_data:
+        :return:
+        """
+        weight_data = data[dmc_base.IterProp.NUM_WALKERS]
+        if reduce_data:
+            weight_totals = weight_data.sum(axis=1)
+        else:
+            weight_totals = weight_data
+
+        return cls(num_blocks,
+                   num_time_steps_block,
+                   weight_totals)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class WeightBlocks(DataBlocks):
+    """Weight data in blocks."""
+
+    num_blocks: int
+    num_time_steps_block: int
+    totals: np.ndarray
+
+    @classmethod
+    def from_data(cls, num_blocks: int,
+                  num_time_steps_block: int,
+                  data: np.ndarray,
+                  reduce_data: bool = True):
+        """
+
+        :param num_blocks:
+        :param num_time_steps_block:
+        :param data:
+        :param reduce_data:
+        :return:
+        """
+        weight_data = data[dmc_base.IterProp.WEIGHT]
+        if reduce_data:
+            weight_totals = weight_data.sum(axis=1)
+        else:
+            weight_totals = weight_data
+
+        return cls(num_blocks,
+                   num_time_steps_block,
+                   weight_totals)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class EnergyBlocks(DataBlocks):
+    """Energy data in blocks."""
+
+    num_blocks: int
+    num_time_steps_block: int
+    totals: np.ndarray
+    weight_totals: np.ndarray
+
+    @classmethod
+    def from_data(cls, num_blocks: int,
+                  num_time_steps_block: int,
+                  data: np.ndarray,
+                  reduce_data: bool = True):
+        """
+
+        :param num_blocks:
+        :param num_time_steps_block:
+        :param data:
+        :param reduce_data:
+        :return:
+        """
+        energy_data = data[dmc_base.IterProp.ENERGY]
+        weight_data = data[dmc_base.IterProp.WEIGHT]
+        if reduce_data:
+            totals = energy_data.sum(axis=1)
+            weight_totals = weight_data.sum(axis=1)
+        else:
+            totals = energy_data
+            weight_totals = weight_data
+
+        return cls(num_blocks,
+                   num_time_steps_block,
+                   totals,
+                   weight_totals)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class SFBlocks(DataBlocks):
+    """Structure Factor data in blocks."""
+
+    num_blocks: int
+    num_time_steps_block: int
+    totals: np.ndarray
+    weight_totals: np.ndarray
+    as_pure_est: bool = True  # NOTE: Maybe we do not need this.
+
+    @classmethod
+    def from_data(cls, num_blocks: int,
+                  num_time_steps_block: int,
+                  sf_data: np.ndarray,
+                  props_data: np.ndarray,
+                  reduce_data: bool = True,
+                  as_pure_est: bool = True,
+                  pure_est_reduce_factor: np.ndarray = None):
+        """
+
+        :param reduce_data:
+        :param num_blocks:
+        :param num_time_steps_block:
+        :param sf_data:
+        :param props_data:
+        :param as_pure_est:
+        :param pure_est_reduce_factor: 
+        :return:
+        """
+        nts_block = num_time_steps_block
+        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+
+        if not as_pure_est:
+
+            if reduce_data:
+                totals = sf_data.sum(axis=1)
+                weight_totals = weight_data.sum(axis=1)
+
+            else:
+                totals = sf_data
+                weight_totals = weight_data
+
+        else:
+            # Normalize the pure estimator.
+            if reduce_data:
+
+                # Reductions are not used in pure estimators.
+                # We just take the last element.
+                totals = sf_data[:, nts_block - 1, :]
+                weight_totals = weight_data[:, nts_block - 1]
+
+            else:
+                totals = sf_data
+                weight_totals = weight_data * pure_est_reduce_factor
+
+        # Add an extra dimension.
+        weight_totals = weight_totals[:, np.newaxis]
+
+        return cls(num_blocks, num_time_steps_block,
+                   totals, weight_totals, as_pure_est)
 
     @property
+    def reblock(self):
+        """Reblocking of the totals of every block."""
+        return reblock.OTFSet.from_non_obj_data(self.totals)
+
+    @property
+    def weight_reblock(self):
+        """Reblocking of the totals of the weights of every block."""
+        if self.weight_totals is None:
+            return None
+        return reblock.OTFSet.from_non_obj_data(self.weight_totals)
+
+    @property
+    def cross_weight_reblock(self):
+        """Reblocking of the total * weight_total of every block."""
+        totals = self.totals
+        weight_totals = self.weight_totals
+        if weight_totals is None:
+            return None
+        cross_totals = totals * weight_totals
+        return reblock.OTFSet.from_non_obj_data(cross_totals)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class DMCESData:
+    """The data from a DMC sampling."""
+
+    #: The blocks / batches of data.
+    props_blocks: np.ndarray
+
+    #:
+    struct_factor_blocks: t.Optional[np.ndarray] = None
+
+    @cached_property
     def props(self):
         """"""
-        return np.hstack(self.data_series.props)
+        source_data = self.props_blocks
+        return np.hstack(source_data)
 
     @property
     def energy(self):
@@ -208,10 +470,42 @@ class DMCESResult:
         """"""
         return self.props[dmc_base.IterProp.ACCUM_ENERGY]
 
-    @property
-    def structure_factor(self):
+    @cached_property
+    def struct_factor(self):
         """"""
-        return np.vstack(self.data_series.structure_factor)
+        if self.struct_factor_blocks is None:
+            return None
+        return np.vstack(self.struct_factor_blocks)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class DMCESBlocks:
+    """Results of a DMC sampling grouped in block totals."""
+
+    energy: EnergyBlocks
+    weight: DataBlocks
+    num_walkers: DataBlocks
+    struct_factor: t.Optional[SFBlocks] = None
+
+
+T_OptSeqNDArray = t.Optional[t.Sequence[np.ndarray]]
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class DMCESResult:
+    """Result of the DMC estimator sampling."""
+
+    #: The last state of the sampling.
+    state: dmc_base.State
+
+    #: The blocked data of the sampling.
+    data_blocks: DMCESBlocks
+
+    #: The data generated during the sampling.
+    data: t.Optional[DMCESData] = None
+
+    #: The sampling object used to generate the results.
+    sampling: t.Optional['DMCEstSampling'] = None
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -251,8 +545,9 @@ class DMCEstSampling(dmc.EstSampling):
     remaining_batches: t.Optional[int] = attr.ib(default=None, init=False)
 
     def __attrs_post_init__(self):
-        """"""
+        """Post-initialization stage."""
         super().__attrs_post_init__()
+
         # Only take as much sys_conf items as target_num_walkers.
         ini_sys_conf_set = self.ini_sys_conf_set
         if ini_sys_conf_set is not None:
@@ -275,15 +570,19 @@ class DMCEstSampling(dmc.EstSampling):
         energy_field = dmc_base.IterProp.ENERGY
         weight_field = dmc_base.IterProp.WEIGHT
         num_walkers_field = dmc_base.IterProp.NUM_WALKERS
+        ref_energy_field = dmc_base.IterProp.REF_ENERGY
+        accum_energy_field = dmc_base.IterProp.ACCUM_ENERGY
 
         num_batches = self.num_batches
         num_time_steps_batch = self.num_time_steps_batch
         target_num_walkers = self.target_num_walkers
         burn_in_batches = self.burn_in_batches
         keep_iter_data = self.keep_iter_data
+        sf_config = self.structure_factor
+
+        nts_batch = num_time_steps_batch
 
         # Structure factor configuration.
-        sf_config = self.structure_factor
         should_eval_sf = sf_config is not None
 
         logger = logging.getLogger(DMC_TASK_LOG_NAME)
@@ -324,13 +623,37 @@ class DMCEstSampling(dmc.EstSampling):
             logger.info(f'No burn-in batches requested')
 
         # Main containers of data.
-        props_batches_data = []
-        sf_batches_data = []
-        energy_reblock_set = []
-        weight_reblock_set = []
-        ew_reblock_set = []
-        num_walkers_reblock_set = []
-        sf_reblock_set = []
+        if keep_iter_data:
+            iter_props_shape = num_batches, nts_batch
+        else:
+            iter_props_shape = num_batches,
+
+        props_blocks_data = \
+            np.empty(iter_props_shape, dtype=dmc_base.iter_props_dtype)
+
+        props_energy = props_blocks_data[energy_field]
+        props_weight = props_blocks_data[weight_field]
+        props_num_walkers = props_blocks_data[num_walkers_field]
+        props_ref_energy = props_blocks_data[ref_energy_field]
+        props_accum_energy = props_blocks_data[accum_energy_field]
+
+        if should_eval_sf:
+            # The shape of the structure factor array.
+            num_modes = sf_config.num_modes
+
+            if keep_iter_data:
+                sf_shape = num_batches, nts_batch, num_modes
+            else:
+                sf_shape = num_batches, num_modes
+
+            # S(k) batch.
+            sf_blocks_data = np.zeros(sf_shape, dtype=np.float64)
+
+        else:
+            sf_blocks_data = None
+
+        # Reduction factor for pure estimators.
+        pure_est_reduce_factor = np.ones(num_batches, dtype=np.float64)
 
         # The effective batches to calculate the estimators.
         eff_batches: dmc_base.T_ESBatchesIter = \
@@ -354,10 +677,12 @@ class DMCEstSampling(dmc.EstSampling):
 
             for batch_idx, batch_data in enum_eff_batches:
 
-                iter_props = batch_data.iter_props
-                energies = iter_props[energy_field]
-                weights = iter_props[weight_field]
-                num_walkers = iter_props[num_walkers_field]
+                batch_props = batch_data.iter_props
+                energy = batch_props[energy_field]
+                weight = batch_props[weight_field]
+                num_walkers = batch_props[num_walkers_field]
+                ref_energy = batch_props[ref_energy_field]
+                accum_energy = batch_props[accum_energy_field]
 
                 # NOTE: Should we return the iter_props by default? 🤔🤔🤔
                 #  If we keep the whole sampling data, i.e.,
@@ -366,66 +691,42 @@ class DMCEstSampling(dmc.EstSampling):
                 #  Let's think about it...
 
                 if keep_iter_data:
-                    # Store the information of the DMC sampling.
-                    iter_props = iter_props.copy()
-                    props_batches_data.append(iter_props)
+
+                    # Store all the information of the DMC sampling.
+                    props_blocks_data[batch_idx] = batch_props[:]
 
                 else:
-                    # Just get reblocking objects.
-                    energy_reblock = reblock.on_the_fly_obj_create(energies)
-                    weight_reblock = reblock.on_the_fly_obj_create(weights)
-                    ew_reblock = \
-                        reblock.on_the_fly_obj_create(energies * weights)
-                    num_walkers_reblock = \
-                        reblock.on_the_fly_obj_create(num_walkers)
 
-                    energy_reblock_set.append(energy_reblock)
-                    weight_reblock_set.append(weight_reblock)
-                    ew_reblock_set.append(ew_reblock)
-                    num_walkers_reblock_set.append(num_walkers_reblock)
+                    weight_sum = weight.sum()
+                    props_energy[batch_idx] = energy.sum()
+                    props_weight[batch_idx] = weight_sum
+                    props_num_walkers[batch_idx] = num_walkers.sum()
+                    props_ref_energy[batch_idx] = ref_energy[-1]
+                    props_accum_energy[batch_idx] = accum_energy[-1]
+
+                    reduce_fac = num_walkers[-1] / weight_sum
+                    pure_est_reduce_factor[batch_idx] = reduce_fac
 
                 # Handling the structure factor results.
-                iter_sf_array = batch_data.iter_structure_factor
-
                 if should_eval_sf:
 
+                    iter_sf_array = batch_data.iter_structure_factor
+
                     if keep_iter_data:
-
                         # Keep a copy of the generated data of the sampling.
-
-                        if sf_config.as_pure_est:
-                            iter_sf_array = iter_sf_array.copy()
-
-                            # Normalize the pure estimator.
-                            sf_pure_est = \
-                                iter_sf_array / num_walkers[:, np.newaxis]
-
-                            sf_batches_data.append(sf_pure_est)
-
-                        else:
-                            iter_sf_array = iter_sf_array.copy()
-                            sf_batches_data.append(iter_sf_array)
+                        sf_blocks_data[batch_idx] = iter_sf_array[:]
 
                     else:
 
-                        # Do not keep a copy of the generated data of the
-                        # sampling. Instead, return a reblocking object
-                        # to calculate the average values and errors.
-
                         if sf_config.as_pure_est:
-                            iter_sf_array_last = iter_sf_array[-1].copy()
-
-                            # Normalize the pure estimator.
-                            sf_pure_est = \
-                                iter_sf_array_last / num_walkers[-1]
-
-                            sf_reblock_set.append(sf_pure_est)
+                            # Get only the last element of the batch.
+                            sf_blocks_data[batch_idx] = \
+                                iter_sf_array[nts_batch - 1]
 
                         else:
-                            sf_reblock = \
-                                reblock.on_the_fly_obj_create(iter_sf_array)
-
-                            sf_reblock_set.append(sf_reblock)
+                            # Make the reduction.
+                            sf_blocks_data[batch_idx] = \
+                                iter_sf_array.sum(axis=0)
 
                 rem_batches = num_batches - batch_idx - 1
                 object.__setattr__(self, 'remaining_batches', rem_batches)
@@ -437,14 +738,50 @@ class DMCEstSampling(dmc.EstSampling):
                 pgs_bar.update()
 
         logger.info('Evaluation of estimators completed.')
-
         logger.info('DMC sampling completed.')
 
-        data_series = DMCEstDataSeries(props_batches_data,
-                                       sf_batches_data)
-        return DMCESResult(last_state, data_series)
+        # Create block objects with the totals of each block data.
+        reduce_data = True if keep_iter_data else False
 
+        energy_blocks = \
+            EnergyBlocks.from_data(num_batches, nts_batch,
+                                   props_blocks_data, reduce_data)
 
+        weight_blocks = \
+            WeightBlocks.from_data(num_batches, nts_batch,
+                                   props_blocks_data, reduce_data)
+
+        num_walkers_blocks = \
+            WeightBlocks.from_data(num_batches, nts_batch,
+                                   props_blocks_data, reduce_data)
+
+        if should_eval_sf:
+
+            struct_factor_blocks = \
+                SFBlocks.from_data(num_batches, nts_batch,
+                                   sf_blocks_data,
+                                   props_blocks_data, reduce_data,
+                                   sf_config.as_pure_est,
+                                   pure_est_reduce_factor)
+
+        else:
+            struct_factor_blocks = None
+
+        data_blocks = DMCESBlocks(energy_blocks,
+                                  weight_blocks,
+                                  num_walkers_blocks,
+                                  struct_factor_blocks)
+
+        if keep_iter_data:
+            data_series = DMCESData(props_blocks_data,
+                                    sf_blocks_data)
+        else:
+            data_series = None
+
+        return DMCESResult(last_state,
+                           data_blocks,
+                           data_series,
+                           sampling=self)
 
 
 @attr.s(auto_attribs=True, frozen=True)

@@ -643,6 +643,7 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
     """Structure factor estimator."""
 
     num_modes: int
+    as_pure_est: bool = True
     pfw_num_time_steps: t.Optional[int] = None
 
     def __attrs_post_init__(self):
