@@ -923,6 +923,10 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             """
             # Cloning table. Needed for evaluate pure estimators.
             cloning_refs = branching_spec[branch_ref_field]
+            actual_step_idx = step_idx % 2
+
+            actual_state_sf = aux_states_sf_array[actual_step_idx]
+            actual_iter_sf = iter_sf_array[step_idx]
 
             # Branching process (parallel for).
             for sys_idx in nb.prange(max_num_walkers):
@@ -943,6 +947,11 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                      state_confs,
                                      iter_sf_array,
                                      aux_states_sf_array)
+
+            # Accumulate the totals of the estimators.
+            for sys_idx in nb.prange(num_walkers):
+                # Accumulate S(k).
+                actual_iter_sf += actual_state_sf[sys_idx]
 
             if should_eval_sf_est:
                 # Calculate structure factor pure estimator after the

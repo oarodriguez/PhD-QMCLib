@@ -696,6 +696,7 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
             prev_state_sf = aux_states_sf_array[prev_step_idx]
             actual_state_sf = aux_states_sf_array[actual_step_idx]
 
+            prev_sys_sk = prev_state_sf[clone_ref_idx]
             sys_conf = state_confs[sys_idx]
 
             if not as_pure_est:
@@ -705,7 +706,9 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
                     momentum = momenta[kz_idx]
                     sys_sk_idx = \
                         structure_factor(momentum, sys_conf, cfc_spec_nt)
-                    iter_sf_array[step_idx, kz_idx] += sys_sk_idx
+
+                    # Just update the actual state.
+                    actual_state_sf[sys_idx, kz_idx] = sys_sk_idx
 
                 # Finish.
                 return
@@ -714,7 +717,8 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
             if step_idx >= pfs_nts:
                 # Just "transport" the structure factor of the previous
                 # configuration to the new one.
-                actual_state_sf[sys_idx] = prev_state_sf[clone_ref_idx]
+                for kz_idx in range(num_modes):
+                    actual_state_sf[sys_idx, kz_idx] = prev_sys_sk[kz_idx]
 
             else:
                 # Evaluate the structure factor for the actual
@@ -723,14 +727,10 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
                     momentum = momenta[kz_idx]
                     sys_sk_idx = \
                         structure_factor(momentum, sys_conf, cfc_spec_nt)
-                    actual_state_sf[sys_idx, kz_idx] = sys_sk_idx
 
                     # Update with the previous state ("transport").
-                    actual_state_sf[sys_idx, kz_idx] += \
-                        prev_state_sf[clone_ref_idx, kz_idx]
-
-            # Accumulate the total in the current state S(k).
-            iter_sf_array[step_idx, :] += actual_state_sf[sys_idx, :]
+                    actual_state_sf[sys_idx, kz_idx] = \
+                        sys_sk_idx + prev_sys_sk[kz_idx]
 
         return _core_func
 
