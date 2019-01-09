@@ -43,6 +43,28 @@ def test_on_the_fly_object():
     assert np.allclose(otf_reblock_vars, s_reblock_vars)
 
 
+def test_opt_block_size_warning():
+    """"""
+    # We need a small number of blocks to raise this warning.
+    size_max_order = 1
+    data_size = 2 ** size_max_order
+    data_sample = np.random.random_sample(data_size)
+
+    with pytest.warns(RuntimeWarning):
+        otf_s_reblock = rb.OTFObject.from_non_obj_data(data_sample)
+        otf_reblock_vars = otf_s_reblock.vars
+        print(otf_s_reblock.opt_iac_time)
+        print(otf_s_reblock.opt_block_size)
+
+    assert otf_s_reblock.opt_block_size == otf_s_reblock.block_sizes.max()
+
+    s_reblock = rb.Object(data_sample)
+    s_reblock_vars = s_reblock.vars
+    print(s_reblock_vars)
+
+    assert np.allclose(otf_reblock_vars, s_reblock_vars)
+
+
 def test_on_the_fly_fails():
     """"""
     size_max_order = 22

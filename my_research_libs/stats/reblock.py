@@ -179,7 +179,15 @@ class ObjectBase(metaclass=ABCMeta):
         int_corr_times = self.iac_times
         # B^3 > 2N * (2 \tau)^2
         criterion = block_sizes ** 3 > 8 * data_size * int_corr_times ** 2
-        opt_block_size = block_sizes[criterion].min()
+        if not np.count_nonzero(criterion):
+            opt_block_size = block_sizes.max()
+            warn("the optimum block size criterion is not satisfied by "
+                 "any of the autocorrelation times. The maximum block "
+                 "size will be treated as the optimal one. You may try "
+                 "to gather more data to suppress this warning.",
+                 RuntimeWarning)
+        else:
+            opt_block_size = block_sizes[criterion].min()
         return opt_block_size
 
     @property
