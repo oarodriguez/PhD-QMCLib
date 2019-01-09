@@ -705,7 +705,7 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
                     momentum = momenta[kz_idx]
                     sys_sk_idx = \
                         structure_factor(momentum, sys_conf, cfc_spec_nt)
-                    iter_sf_array[sys_idx, kz_idx] += sys_sk_idx
+                    iter_sf_array[step_idx, kz_idx] += sys_sk_idx
 
                 # Finish.
                 return
