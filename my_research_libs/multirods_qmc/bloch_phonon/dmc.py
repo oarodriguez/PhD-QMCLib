@@ -308,9 +308,6 @@ class _CoreFuncs(qmc_base.dmc.CoreFuncs):
     #: The common (fixed) spec to pass to the core functions of the model.
     cfc_spec_nt: model.CFCSpecNT
 
-    #: The slots of a system configuration array.
-    sys_conf_slots: t.ClassVar = SysConfSlot
-
     @cached_property
     def recast(self):
         """Apply the periodic boundary conditions on a configuration."""
@@ -333,8 +330,8 @@ class _CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
+        pos_slot = int(SysConfSlot.pos)
+        drift_slot = int(SysConfSlot.drift)
         recast = self.recast
 
         @nb.jit(nopython=True)
@@ -370,8 +367,8 @@ class _CoreFuncs(qmc_base.dmc.CoreFuncs):
         :return:
         """
         cfc_spec = self.cfc_spec_nt
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
+        pos_slot = int(SysConfSlot.pos)
+        drift_slot = int(SysConfSlot.drift)
 
         # JIT functions.
         ith_diffusion = self.ith_diffusion
@@ -438,8 +435,8 @@ class _CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         cfc_spec = self.cfc_spec_nt
         nop = cfc_spec.model_spec.boson_number
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
+        pos_slot = int(SysConfSlot.pos)
+        drift_slot = int(SysConfSlot.drift)
 
         # JIT functions.
         ith_energy_and_drift = model.core_funcs.ith_energy_and_drift

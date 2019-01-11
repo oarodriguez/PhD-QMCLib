@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
-from typing import ClassVar, NamedTuple, Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 import numpy as np
 from cached_property import cached_property
@@ -36,7 +36,7 @@ class SysConfSlot(IntEnum):
 
 
 class SysConfDistType(Enum):
-    """"""
+    """The ways to arrange the positions of the system configuration."""
     RANDOM = 'random'
     REGULAR = 'regular'
 
@@ -91,12 +91,6 @@ class Spec(model.Spec):
 
     #: The size of the QMC simulation box.
     supercell_size: float
-
-    #: The slots of the system configuration array.
-    sys_conf_slots: ClassVar = SysConfSlot
-
-    #: The ways to arrange the positions of the system configuration.
-    sys_conf_dist_type: ClassVar = SysConfDistType
 
     @property
     @abstractmethod
@@ -211,7 +205,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -313,7 +307,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -377,7 +371,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -440,8 +434,8 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         # TODO: Rename to drift
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
+        pos_slot = int(SysConfSlot.pos)
+        drift_slot = int(SysConfSlot.drift)
         ith_drift = self.ith_drift
 
         @jit(nopython=True)
@@ -476,7 +470,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -572,8 +566,8 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
-        # drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
+        pos_slot = int(SysConfSlot.pos)
+        # drift_slot = int(SysConfSlot.DRIFT_SLOT)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -679,7 +673,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -759,7 +753,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -861,7 +855,7 @@ class CoreFuncs(model.CoreFuncs):
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         # noinspection PyUnusedLocal
         @jit(nopython=True)

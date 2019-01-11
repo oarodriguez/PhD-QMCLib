@@ -152,7 +152,8 @@ class Spec(qmc_base.jastrow.Spec):
         # NOTE: Should we allocate space for the DRIFT_SLOT?
         # TODO: Fix NUM_SLOTS if DRIFT_SLOT becomes really unnecessary.
         nop = self.boson_number
-        return len(self.sys_conf_slots), nop
+        # noinspection PyTypeChecker
+        return len(qmc_base.jastrow.SysConfSlot), nop
 
     def init_get_sys_conf(self, dist_type=DIST_RAND, offset=None):
         """Creates and initializes a system configuration with the

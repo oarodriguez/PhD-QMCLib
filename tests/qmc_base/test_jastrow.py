@@ -7,6 +7,7 @@ from cached_property import cached_property
 from numpy import random
 
 from my_research_libs.qmc_base import jastrow, utils
+from my_research_libs.qmc_base.jastrow import SysConfSlot
 
 
 class OBFSpecNT(jastrow.OBFSpecNT, NamedTuple):
@@ -59,7 +60,7 @@ class Spec(jastrow.Spec):
     def sys_conf_shape(self):
         """"""
         nop = self.boson_number
-        return len(self.sys_conf_slots), nop
+        return len(SysConfSlot), nop
 
     def init_get_sys_conf(self):
         """Creates and initializes a system configuration with the
@@ -72,7 +73,7 @@ class Spec(jastrow.Spec):
         sc_size = self.supercell_size
         z_min, z_max = self.boundaries
         sys_conf = self.get_sys_conf_buffer()
-        pos_slot = self.sys_conf_slots.pos
+        pos_slot = SysConfSlot.pos
         spread = sc_size * random.random_sample(nop)
         sys_conf[pos_slot, :] = z_min + spread % sc_size
         return sys_conf

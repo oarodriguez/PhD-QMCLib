@@ -546,7 +546,10 @@ class DMCEstSampling(dmc.EstSampling):
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
-        super().__attrs_post_init__()
+
+        if self.rng_seed is None:
+            rng_seed = int(utils.get_random_rng_seed())
+            object.__setattr__(self, 'rng_seed', rng_seed)
 
         # Only take as much sys_conf items as target_num_walkers.
         ini_sys_conf_set = self.ini_sys_conf_set

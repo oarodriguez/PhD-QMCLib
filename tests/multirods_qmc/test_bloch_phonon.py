@@ -7,6 +7,7 @@ from matplotlib import pyplot
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
+from my_research_libs.qmc_base.jastrow import SysConfDistType, SysConfSlot
 
 LATTICE_DEPTH = 100
 LATTICE_RATIO = 1
@@ -66,19 +67,19 @@ def test_qmc_funcs():
     epp = energy_v / BOSON_NUMBER
     print("The energy per particle is: {:.6g}".format(epp))
 
-    drift_values = out_sys_conf[model_spec.sys_conf_slots.drift, :]
+    drift_values = out_sys_conf[SysConfSlot.drift, :]
     print("The drift is: {}".format(drift_values))
 
     # Testing that the array function do not modify its inputs
-    in_pos_values = sys_conf[model_spec.sys_conf_slots.pos, :]
-    out_pos_values = out_sys_conf[model_spec.sys_conf_slots.pos, :]
+    in_pos_values = sys_conf[SysConfSlot.pos, :]
+    out_pos_values = out_sys_conf[SysConfSlot.pos, :]
     assert np.alltrue(out_pos_values == in_pos_values)
 
     with pytest.raises(AssertionError):
         # Testing that the array function modified the output array
         # where expected.
-        in_pos_values = sys_conf[model_spec.sys_conf_slots.drift, :]
-        out_pos_values = out_sys_conf[model_spec.sys_conf_slots.drift, :]
+        in_pos_values = sys_conf[SysConfSlot.drift, :]
+        out_pos_values = out_sys_conf[SysConfSlot.drift, :]
         assert np.alltrue(out_pos_values == in_pos_values)
 
 
@@ -114,18 +115,21 @@ def test_vmc():
     ar /= num_steps
 
     states_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
-    sys_confs_set, sys_props_set, ar_ = states_data
+    sys_confs_set = states_data.confs
+    sys_props_set = states_data.props
+    ar_ = states_data.accept_rate
 
     move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
     accepted = np.count_nonzero(sys_props_set[move_stat_field])
     assert (accepted / num_steps) == ar_
 
-    num_slots = len(model_spec.sys_conf_slots)
+    # noinspection PyTypeChecker
+    num_slots = len(SysConfSlot)
     assert sys_confs_set.shape == (num_steps, num_slots, boson_number)
     assert ar == ar_
 
     print(f"Sampling acceptance rate: {ar:.5g}")
-    pos_slot = model_spec.sys_conf_slots.pos
+    pos_slot = SysConfSlot.pos
 
     ax = pyplot.gca()
     pos = sys_confs_set[:, pos_slot]
@@ -198,7 +202,7 @@ def test_wf_optimize():
                                    tbf_contact_cutoff=tbf_contact_cutoff)
     move_spread = 0.25 * model_spec.well_width
     num_steps = 4096 * 1
-    dist_type_regular = model_spec.sys_conf_dist_type.REGULAR
+    dist_type_regular = SysConfDistType.REGULAR
     offset = model_spec.well_width / 2
     ini_sys_conf = model_spec.init_get_sys_conf(dist_type=dist_type_regular,
                                                 offset=offset)

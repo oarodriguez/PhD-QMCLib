@@ -120,12 +120,6 @@ class Sampling(metaclass=ABCMeta):
     #: The seed of the pseudo-RNG used to realize the sampling.
     rng_seed: int
 
-    #:
-    state_props: t.ClassVar = StateProp
-
-    #:
-    iter_props: t.ClassVar = IterProp
-
     @property
     @abstractmethod
     def state_confs_shape(self):
