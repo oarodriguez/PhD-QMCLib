@@ -141,7 +141,7 @@ class WFOptimization:
         logger = logging.getLogger(WF_OPTIMIZATION_LOG_NAME)
 
         logger.info('Starting wave function optimization...')
-        logger.info(f'Using { num_sys_confs } configurations to '
+        logger.info(f'Using {num_sys_confs} configurations to '
                     f'minimize the variance...')
 
         sys_conf_set = sys_conf_set[-num_sys_confs:]
@@ -605,7 +605,7 @@ class DMCEstSampling(dmc.EstSampling):
         # The estimator sampling iterator.
         ini_state = \
             self.build_state(self.ini_sys_conf_set, self.ini_ref_energy)
-        
+
         batches_iter = self.batches(ini_state, num_time_steps_batch)
 
         if burn_in_batches:

@@ -286,7 +286,7 @@ class CoreFuncs(metaclass=ABCMeta):
         # JIT methods.
         evolve_system = self.evolve_system
 
-        @nb.jit(nopython=True, parallel=True)
+        @nb.jit(nopython=True, parallel=True, fastmath=False)
         def _evolve_state(prev_state_confs: np.ndarray,
                           prev_state_props: np.ndarray,
                           actual_state_confs: np.ndarray,
@@ -319,7 +319,7 @@ class CoreFuncs(metaclass=ABCMeta):
             actual_state_energies = actual_state_props[props_energy_field]
             aux_next_state_energies = aux_next_state_props[props_energy_field]
 
-            # prev_state_weights = prev_state_props[props_weight_field]
+            prev_state_weights = prev_state_props[props_weight_field]
             actual_state_weights = actual_state_props[props_weight_field]
             aux_next_state_weights = aux_next_state_props[props_weight_field]
 
@@ -327,11 +327,10 @@ class CoreFuncs(metaclass=ABCMeta):
             cloning_refs = branching_spec[branch_ref_field]
 
             # Total energy and weight of the next configuration.
-            state_energy = 0.
-            state_weight = 0.
-
-            # Initially, mask all the configurations.
-            actual_state_masks[:] = True
+            # NOTE: This initialization causes a memory leak with
+            #  parallel=True
+            # state_energy = 0.
+            # state_weight = 0.
 
             # Branching and diffusion process (parallel for).
             for sys_idx in nb.prange(max_num_walkers):
@@ -339,40 +338,51 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Beyond the actual number of walkers just pass to
                 # the next iteration.
                 if sys_idx >= actual_num_walkers:
-                    continue
 
-                # Lookup which configuration should be cloned.
-                ref_idx = cloning_refs[sys_idx]
-                sys_energy = prev_state_energies[ref_idx]
-                # sys_weight = prev_state_weights[ref_idx]
+                    # Mask the configuration.
+                    actual_state_masks[sys_idx] = True
 
-                # Cloning process. Actual states are not modified.
-                actual_state_confs[sys_idx] = prev_state_confs[ref_idx]
-                actual_state_energies[sys_idx] = sys_energy
+                else:
 
-                # Basic algorithm of branching gives a unit weight to each
-                # new walker. We set the value here. In addition, we unmask
-                # the walker, i.e., we mark it as valid.
-                actual_state_weights[sys_idx] = 1.
-                actual_state_masks[sys_idx] = False
+                    # Lookup which configuration should be cloned.
+                    cloning_ref_idx = cloning_refs[sys_idx]
+                    sys_energy = prev_state_energies[cloning_ref_idx]
+                    # sys_weight = prev_state_weights[ref_idx]
 
-                # The contribution to the total energy and weight.
-                state_energy += sys_energy
-                state_weight += 1.
+                    # Evolve the system for the next iteration.
+                    # TODO: Can we return tuples inside a nb.prange?
+                    evolve_system(sys_idx, cloning_ref_idx,
+                                  prev_state_confs,
+                                  prev_state_energies,
+                                  prev_state_weights,
+                                  actual_state_confs,
+                                  actual_state_energies,
+                                  actual_state_weights,
+                                  time_step,
+                                  ref_energy,
+                                  aux_next_state_confs,
+                                  aux_next_state_energies,
+                                  aux_next_state_weights)
 
-                # Evolve the system for the next iteration.
-                # TODO: Can we return tuples inside a nb.prange?
-                evolve_system(sys_idx, actual_state_confs,
-                              actual_state_energies,
-                              actual_state_weights,
-                              time_step,
-                              ref_energy,
-                              aux_next_state_confs,
-                              aux_next_state_energies,
-                              aux_next_state_weights)
+                    # Cloning process. Actual states are not modified.
+                    actual_state_confs[sys_idx] \
+                        = prev_state_confs[cloning_ref_idx]
+                    actual_state_energies[sys_idx] = sys_energy
 
-            return EvoStateResult(state_energy, state_weight,
-                                  actual_num_walkers)
+                    # Basic algorithm of branching gives a unit weight to each
+                    # new walker. We set the value here. In addition, we unmask
+                    # the walker, i.e., we mark it as valid.
+                    actual_state_weights[sys_idx] = 1.
+                    actual_state_masks[sys_idx] = False
+
+                    # The contribution to the total energy and weight.
+                    # NOTE: See memory leak note above.
+                    # state_energy += sys_energy
+                    # state_weight += 1.
+
+                # NOTE: It is faster not returning anything.
+                # return EvoStateResult(state_energy, state_weight,
+                #                       actual_num_walkers)
 
         return _evolve_state
 
@@ -382,6 +392,9 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
+        props_energy_field = StateProp.ENERGY.value
+        props_weight_field = StateProp.WEIGHT.value
+
         # JIT functions.
         evolve_state = self.evolve_state
         sync_branching_spec = self.sync_branching_spec
@@ -412,9 +425,17 @@ class CoreFuncs(metaclass=ABCMeta):
             actual_state_confs = np.zeros_like(ini_state_confs)
             actual_state_props = np.zeros_like(ini_state_props)
 
-            # Auxiliary configuration.
+            # Auxiliary arrays for the previous state.
+            aux_prev_state_confs = np.zeros_like(ini_state_confs)
+            aux_prev_state_props = np.zeros_like(ini_state_props)
+
+            # Auxiliary arrays for the next state.
             aux_next_state_confs = np.zeros_like(ini_state_confs)
             aux_next_state_props = np.zeros_like(ini_state_props)
+
+            # Current state properties.
+            actual_state_energies = actual_state_props[props_energy_field]
+            actual_state_weights = actual_state_props[props_weight_field]
 
             # Seed the numba RNG.
             if rng_seed:
@@ -431,8 +452,8 @@ class CoreFuncs(metaclass=ABCMeta):
 
             # Initial configuration.
             prev_state = ini_state
-            prev_state_confs = prev_state.confs
-            prev_state_props = prev_state.props
+            aux_prev_state_confs[:] = prev_state.confs[:]
+            aux_prev_state_props[:] = prev_state.props[:]
             prev_num_walkers = prev_state.num_walkers
             ref_energy = prev_state.ref_energy
 
@@ -441,26 +462,29 @@ class CoreFuncs(metaclass=ABCMeta):
             while True:
 
                 # We now have the effective number of walkers after branching.
-                actual_num_walkers = sync_branching_spec(prev_state_props,
+                actual_num_walkers = sync_branching_spec(aux_prev_state_props,
                                                          prev_num_walkers,
                                                          max_num_walkers,
                                                          branching_spec)
 
-                evo_result = evolve_state(prev_state_confs,
-                                          prev_state_props,
-                                          actual_state_confs,
-                                          actual_state_props,
-                                          aux_next_state_confs,
-                                          aux_next_state_props,
-                                          actual_num_walkers,
-                                          max_num_walkers,
-                                          time_step,
-                                          ref_energy,
-                                          branching_spec)
+                evolve_state(aux_prev_state_confs,
+                             aux_prev_state_props,
+                             actual_state_confs,
+                             actual_state_props,
+                             aux_next_state_confs,
+                             aux_next_state_props,
+                             actual_num_walkers,
+                             max_num_walkers,
+                             time_step,
+                             ref_energy,
+                             branching_spec)
 
                 # Update total energy and weight of the system.
-                state_energy = evo_result.energy
-                state_weight = evo_result.weight
+                state_energy = \
+                    actual_state_energies[:actual_num_walkers].sum()
+                state_weight = \
+                    actual_state_weights[:actual_num_walkers].sum()
+
                 total_energy += state_energy
                 total_weight += state_weight
 
@@ -481,8 +505,13 @@ class CoreFuncs(metaclass=ABCMeta):
                             max_num_walkers=max_num_walkers,
                             branching_spec=branching_spec)
 
-                prev_state_confs = aux_next_state_confs
-                prev_state_props = aux_next_state_props
+                # Exchange previous and next states arrays.
+                aux_prev_state_confs, aux_next_state_confs = \
+                    aux_next_state_confs, aux_prev_state_confs
+
+                aux_prev_state_props, aux_next_state_props = \
+                    aux_next_state_props, aux_prev_state_props
+
                 prev_num_walkers = actual_num_walkers
 
         return _states_generator
@@ -805,8 +834,9 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             # Yield indefinitely 🤔.
             while True:
 
-                # NOTE: Enumerate here, inside the while.
-                enum_generator: T_E_SIter = enumerate(generator)
+                # NOTE: Enumerate causes a memory leak in numba 0.40.
+                #   See https://github.com/numba/numba/issues/3473.
+                # enum_generator: T_E_SIter = enumerate(generator)
 
                 # Future reference to the last DMC state.
                 tmp_state = None
@@ -822,7 +852,10 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                 # in order to gather new data in the next batch/block.
                 pfw_aux_sf_array[:] = 0.
 
-                for step_idx, state in enum_generator:
+                # We use an initial index instead enumerate.
+                step_idx = 0
+
+                for state in generator:
 
                     state_confs = state.confs
                     num_walkers = state.num_walkers
@@ -851,16 +884,18 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                     if step_idx + 1 >= nts_batch:
                         break
 
+                    step_idx += 1
+
                 # TODO: Fixme... This is ugly 😠.
-                last_state = State(tmp_state.confs.copy(),
-                                   tmp_state.props.copy(),
+                last_state = State(tmp_state.confs,
+                                   tmp_state.props,
                                    tmp_state.energy,
                                    tmp_state.weight,
                                    tmp_state.num_walkers,
                                    tmp_state.ref_energy,
                                    tmp_state.accum_energy,
                                    tmp_state.max_num_walkers,
-                                   tmp_state.branching_spec.copy())
+                                   tmp_state.branching_spec)
 
                 batch_data = EstSamplingBatch(iter_props_array,
                                               iter_sf_array,
@@ -934,7 +969,9 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                      aux_states_sf_array)
 
             # Accumulate the totals of the estimators.
-            for sys_idx in nb.prange(num_walkers):
+            # NOTE: Fix up a memory leak using range instead numba.prange.
+            # TODO: Compare speed of range vs numba.prange.
+            for sys_idx in range(num_walkers):
                 # Accumulate S(k).
                 actual_iter_sf += actual_state_sf[sys_idx]
 

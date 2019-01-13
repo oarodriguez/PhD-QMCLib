@@ -380,6 +380,10 @@ class CoreFuncsBase(qmc_base.dmc.CoreFuncs):
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True)
         def _evolve_system(sys_idx: int,
+                           cloning_ref_idx: int,
+                           prev_state_confs: np.ndarray,
+                           prev_state_energies: np.ndarray,
+                           prev_state_weights: np.ndarray,
                            actual_state_confs: np.ndarray,
                            actual_state_energies: np.ndarray,
                            actual_state_weights: np.ndarray,
@@ -403,7 +407,7 @@ class CoreFuncsBase(qmc_base.dmc.CoreFuncs):
             """
             # Standard deviation as a function of time step.
             # sigma = sqrt(2 * time_step)
-
+            prev_conf = prev_state_confs[cloning_ref_idx]
             sys_conf = actual_state_confs[sys_idx]
             next_conf = next_state_confs[sys_idx]
 
@@ -411,13 +415,14 @@ class CoreFuncsBase(qmc_base.dmc.CoreFuncs):
             for i_ in range(nop):
                 # Diffuse current configuration. We can update the position
                 # of the next configuration.
-                z_i_next = ith_diffusion(i_, time_step, sys_conf)
+                z_i_next = ith_diffusion(i_, time_step, prev_conf)
+                sys_conf[pos_slot, i_] = z_i_next
                 next_conf[pos_slot, i_] = z_i_next
 
             energy = actual_state_energies[sys_idx]
             energy_next = 0.
             for i_ in range(nop):
-                ith_energy_drift = ith_energy_and_drift(i_, next_conf,
+                ith_energy_drift = ith_energy_and_drift(i_, sys_conf,
                                                         cfc_spec)
                 ith_energy_next, ith_drift_next = ith_energy_drift
                 next_conf[drift_slot, i_] = ith_drift_next
