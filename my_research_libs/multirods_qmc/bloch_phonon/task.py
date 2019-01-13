@@ -603,9 +603,10 @@ class DMCEstSampling(dmc.EstSampling):
             burn_in_batches = burn_in_batches
 
         # The estimator sampling iterator.
-        batches_iter = self.batches(num_time_steps_batch,
-                                    self.ini_sys_conf_set,
-                                    self.ini_ref_energy)
+        ini_state = \
+            self.build_state(self.ini_sys_conf_set, self.ini_ref_energy)
+        
+        batches_iter = self.batches(ini_state, num_time_steps_batch)
 
         if burn_in_batches:
             logger.info('Computing DMC burn-in stage...')

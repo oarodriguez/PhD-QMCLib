@@ -150,16 +150,16 @@ class Sampling(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def init_get_ini_state(self, ini_sys_conf_set: np.ndarray,
-                           ini_ref_energy: float) -> State:
-        """The initial state for the sampling.
+    def build_state(self, sys_conf_set: np.ndarray,
+                    ref_energy: float) -> State:
+        """Builds a state for the sampling.
 
         The state includes the drift, the energies wne the weights of
         each one of the initial system configurations.
 
-        :param ini_sys_conf_set: The initial configuration set of the
+        :param sys_conf_set: The initial configuration set of the
             sampling.
-        :param ini_ref_energy: The initial energy of reference.
+        :param ref_energy: The initial energy of reference.
         """
         pass
 
@@ -169,19 +169,14 @@ class Sampling(metaclass=ABCMeta):
         """The sampling core functions."""
         pass
 
-    def batches(self, num_time_steps_batch: int,
-                ini_sys_conf_set: np.ndarray,
-                ini_ref_energy: float = None) -> T_SBatchesIter:
+    def batches(self, ini_state: State,
+                num_time_steps_batch: int) -> T_SBatchesIter:
         """Generator of batches of states.
 
+        :param ini_state: The initial state of the sampling.
         :param num_time_steps_batch:
-        :param ini_sys_conf_set: The initial configuration set of the
-            sampling.
-        :param ini_ref_energy: The initial energy of reference.
         :return:
         """
-        ini_state = self.init_get_ini_state(ini_sys_conf_set,
-                                            ini_ref_energy)
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
         rng_seed = self.rng_seed
@@ -192,18 +187,14 @@ class Sampling(metaclass=ABCMeta):
                                        target_num_walkers,
                                        rng_seed)
 
-    def states(self, ini_sys_conf_set: np.ndarray,
-               ini_ref_energy: float = None) -> T_SIter:
+    def states(self, ini_state: State) -> T_SIter:
         """Generator object that yields DMC states.
 
-        :param ini_sys_conf_set: The initial configuration set of the
-            sampling.
-        :param ini_ref_energy: The initial energy of reference.
+        :param ini_state: The initial state of the sampling.
         :return:
         """
         time_step = self.time_step
         rng_seed = self.rng_seed
-        ini_state = self.init_get_ini_state(ini_sys_conf_set, ini_ref_energy)
         target_num_walkers = self.target_num_walkers
 
         return self.core_funcs.states_generator(time_step,

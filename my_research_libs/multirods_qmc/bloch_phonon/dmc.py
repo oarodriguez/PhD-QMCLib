@@ -89,28 +89,28 @@ class SamplingBase(qmc_base.dmc.Sampling):
         max_num_walkers = self.max_num_walkers
         return max_num_walkers,
 
-    def init_get_ini_state(self, ini_sys_conf_set: np.ndarray,
-                           ini_ref_energy: float = None) -> State:
-        """The initial state for the sampling.
+    def build_state(self, sys_conf_set: np.ndarray,
+                    ref_energy: float = None) -> State:
+        """Builds a state for the sampling.
 
         The state includes the drift, the energies wne the weights of
         each one of the initial system configurations.
 
-        :param ini_sys_conf_set:
-        :param ini_ref_energy:
+        :param sys_conf_set:
+        :param ref_energy:
         :return:
         """
         confs_shape = self.state_confs_shape
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
-        num_walkers = len(ini_sys_conf_set)
+        num_walkers = len(sys_conf_set)
 
         # Initial state arrays.
         state_confs = np.zeros(confs_shape, dtype=state_confs_dtype)
         state_props = np.zeros(props_shape, dtype=state_props_dtype)
 
         # Calculate the initial state arrays properties.
-        self.core_funcs.prepare_ini_state(ini_sys_conf_set, state_confs,
+        self.core_funcs.prepare_ini_state(sys_conf_set, state_confs,
                                           state_props)
 
         state_energies = state_props[StateProp.ENERGY][:num_walkers]
@@ -120,10 +120,10 @@ class SamplingBase(qmc_base.dmc.Sampling):
         state_weight = state_weights.sum()
         energy = state_energy / state_weight
 
-        if ini_ref_energy is None:
+        if ref_energy is None:
             # Calculate the initial energy of reference as the
             # average of the energy of the initial state.
-            ini_ref_energy = energy
+            ref_energy = energy
 
         # NOTE: The branching spec for the initial state is None.
         return State(confs=state_confs,
@@ -131,7 +131,7 @@ class SamplingBase(qmc_base.dmc.Sampling):
                      energy=state_energy,
                      weight=state_weight,
                      num_walkers=num_walkers,
-                     ref_energy=ini_ref_energy,
+                     ref_energy=ref_energy,
                      accum_energy=energy,
                      max_num_walkers=max_num_walkers)
 
