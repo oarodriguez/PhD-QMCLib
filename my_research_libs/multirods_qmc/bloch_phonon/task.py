@@ -608,7 +608,11 @@ class DMCEstSampling(dmc.EstSampling):
 
         batches_iter = self.batches(ini_state, num_time_steps_batch)
 
+        # Current batch data.
+        batch_data = None
+
         if burn_in_batches:
+
             logger.info('Computing DMC burn-in stage...')
 
             logger.info(f'A total of {burn_in_batches} batches will be '
@@ -617,7 +621,7 @@ class DMCEstSampling(dmc.EstSampling):
             # Burn-in stage.
             pgs_bar = tqdm.tqdm(total=burn_in_batches, dynamic_ncols=True)
             with pgs_bar:
-                for _ in islice(batches_iter, burn_in_batches):
+                for batch_data in islice(batches_iter, burn_in_batches):
                     # Burn, burn, burn...
                     pgs_bar.update(1)
 
@@ -666,9 +670,6 @@ class DMCEstSampling(dmc.EstSampling):
         # Enumerated effective batches.
         enum_eff_batches: dmc_base.T_E_ESBatchesIter \
             = enumerate(eff_batches)
-
-        # Reference to the last DMC state.
-        last_state = None
 
         logger.info('Starting the evaluation of estimators...')
 
@@ -740,6 +741,12 @@ class DMCEstSampling(dmc.EstSampling):
 
                 # logger.info(f'Batch #{batch_idx:d} completed')
                 pgs_bar.update()
+
+        # Pick the last state
+        if batch_data is None:
+            last_state = None
+        else:
+            last_state = batch_data.last_state
 
         logger.info('Evaluation of estimators completed.')
         logger.info('DMC sampling completed.')

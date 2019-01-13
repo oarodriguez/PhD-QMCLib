@@ -422,8 +422,12 @@ class CoreFuncs(metaclass=ABCMeta):
 
             # Configurations and properties of the current
             # state of the sampling (the one that will be yielded).
-            actual_state_confs = np.zeros_like(ini_state_confs)
-            actual_state_props = np.zeros_like(ini_state_props)
+            state_confs = np.zeros_like(ini_state_confs)
+            state_props = np.zeros_like(ini_state_props)
+
+            # Table to control the branching process.
+            state_branching_spec = \
+                np.zeros(max_num_walkers, dtype=branching_spec_dtype)
 
             # Auxiliary arrays for the previous state.
             aux_prev_state_confs = np.zeros_like(ini_state_confs)
@@ -434,56 +438,52 @@ class CoreFuncs(metaclass=ABCMeta):
             aux_next_state_props = np.zeros_like(ini_state_props)
 
             # Current state properties.
-            actual_state_energies = actual_state_props[props_energy_field]
-            actual_state_weights = actual_state_props[props_weight_field]
+            state_energies = state_props[props_energy_field]
+            state_weights = state_props[props_weight_field]
 
             # Seed the numba RNG.
             if rng_seed:
                 random.seed(rng_seed)
 
-            # Table to control the branching process.
-            branching_spec = \
-                np.zeros(max_num_walkers, dtype=branching_spec_dtype)
-
             # The total energy and weight, used to update the
             # energy of reference for population control.
             total_energy = 0.
             total_weight = 0.
+            state_ref_energy = ini_state.ref_energy
 
             # Initial configuration.
-            prev_state = ini_state
-            aux_prev_state_confs[:] = prev_state.confs[:]
-            aux_prev_state_props[:] = prev_state.props[:]
-            prev_num_walkers = prev_state.num_walkers
-            ref_energy = prev_state.ref_energy
+            aux_prev_state_confs[:] = ini_state.confs[:]
+            aux_prev_state_props[:] = ini_state.props[:]
+            prev_num_walkers = ini_state.num_walkers
 
             # The philosophy of the generator is simple: keep sampling
             # new states until the loop is broken from an outer scope.
             while True:
 
                 # We now have the effective number of walkers after branching.
-                actual_num_walkers = sync_branching_spec(aux_prev_state_props,
-                                                         prev_num_walkers,
-                                                         max_num_walkers,
-                                                         branching_spec)
+                state_num_walkers = \
+                    sync_branching_spec(aux_prev_state_props,
+                                        prev_num_walkers,
+                                        max_num_walkers,
+                                        state_branching_spec)
 
                 evolve_state(aux_prev_state_confs,
                              aux_prev_state_props,
-                             actual_state_confs,
-                             actual_state_props,
+                             state_confs,
+                             state_props,
                              aux_next_state_confs,
                              aux_next_state_props,
-                             actual_num_walkers,
+                             state_num_walkers,
                              max_num_walkers,
                              time_step,
-                             ref_energy,
-                             branching_spec)
+                             state_ref_energy,
+                             state_branching_spec)
 
                 # Update total energy and weight of the system.
                 state_energy = \
-                    actual_state_energies[:actual_num_walkers].sum()
+                    state_energies[:state_num_walkers].sum()
                 state_weight = \
-                    actual_state_weights[:actual_num_walkers].sum()
+                    state_weights[:state_num_walkers].sum()
 
                 total_energy += state_energy
                 total_weight += state_weight
@@ -491,19 +491,19 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Update reference energy to avoid the explosion of the
                 # number of walkers.
                 # TODO: Pass the control factor (0.5) as an argument.
-                accum_energy = total_energy / total_weight
-                ref_energy = accum_energy - 0.5 * log(
+                state_accum_energy = total_energy / total_weight
+                state_ref_energy = state_accum_energy - 0.5 * log(
                         state_weight / target_num_walkers) / time_step
 
-                yield State(confs=actual_state_confs,
-                            props=actual_state_props,
+                yield State(confs=state_confs,
+                            props=state_props,
                             energy=state_energy,
                             weight=state_weight,
-                            num_walkers=actual_num_walkers,
-                            ref_energy=ref_energy,
-                            accum_energy=accum_energy,
+                            num_walkers=state_num_walkers,
+                            ref_energy=state_ref_energy,
+                            accum_energy=state_accum_energy,
                             max_num_walkers=max_num_walkers,
-                            branching_spec=branching_spec)
+                            branching_spec=state_branching_spec)
 
                 # Exchange previous and next states arrays.
                 aux_prev_state_confs, aux_next_state_confs = \
@@ -512,7 +512,7 @@ class CoreFuncs(metaclass=ABCMeta):
                 aux_prev_state_props, aux_next_state_props = \
                     aux_next_state_props, aux_prev_state_props
 
-                prev_num_walkers = actual_num_walkers
+                prev_num_walkers = state_num_walkers
 
         return _states_generator
 
@@ -831,15 +831,15 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             generator = states_generator(time_step, ini_state,
                                          target_num_walkers, rng_seed)
 
+            # Future reference to the last DMC state of each batch.
+            state = ini_state
+
             # Yield indefinitely 🤔.
             while True:
 
                 # NOTE: Enumerate causes a memory leak in numba 0.40.
                 #   See https://github.com/numba/numba/issues/3473.
                 # enum_generator: T_E_SIter = enumerate(generator)
-
-                # Future reference to the last DMC state.
-                tmp_state = None
 
                 # Reset the zero the accumulated S(k) of all the states.
                 # This is very important, as the elements of this array are
@@ -878,24 +878,23 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                     iter_sf_array,
                                     pfw_aux_sf_array)
 
-                    tmp_state = state
-
                     # Stop/pause the iteration.
                     if step_idx + 1 >= nts_batch:
                         break
 
+                    # Counter goes up 🙂.
                     step_idx += 1
 
-                # TODO: Fixme... This is ugly 😠.
-                last_state = State(tmp_state.confs,
-                                   tmp_state.props,
-                                   tmp_state.energy,
-                                   tmp_state.weight,
-                                   tmp_state.num_walkers,
-                                   tmp_state.ref_energy,
-                                   tmp_state.accum_energy,
-                                   tmp_state.max_num_walkers,
-                                   tmp_state.branching_spec)
+                # NOTE: A copy. It is not so ugly 🤔.
+                last_state = State(state.confs,
+                                   state.props,
+                                   state.energy,
+                                   state.weight,
+                                   state.num_walkers,
+                                   state.ref_energy,
+                                   state.accum_energy,
+                                   state.max_num_walkers,
+                                   state.branching_spec)
 
                 batch_data = EstSamplingBatch(iter_props_array,
                                               iter_sf_array,
