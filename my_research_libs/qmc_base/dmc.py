@@ -97,6 +97,25 @@ T_SBatchesIter = t.Iterator[SamplingBatch]
 T_E_SBatchesIter = t.Iterator[t.Tuple[int, SamplingBatch]]
 
 
+class EstSamplingBatch(t.NamedTuple):
+    """"""
+    #: Properties data.
+    iter_props: np.ndarray
+    iter_structure_factor: np.ndarray = None
+    last_state: t.Optional[State] = None
+
+
+class EstAuxData(t.NamedTuple):
+    """"""
+    #: Properties data.
+    structure_factor: np.ndarray = None
+
+
+# Variables for type-hints.
+T_ESBatchesIter = t.Iterator[EstSamplingBatch]
+T_E_ESBatchesIter = t.Iterator[t.Tuple[int, EstSamplingBatch]]
+
+
 class Sampling(metaclass=ABCMeta):
     """Realizes a DMC sampling.
 
@@ -645,25 +664,6 @@ class CoreFuncs(metaclass=ABCMeta):
                 yield iter_data
 
         return _batches
-
-
-class EstSamplingBatch(t.NamedTuple):
-    """"""
-    #: Properties data.
-    iter_props: np.ndarray
-    iter_structure_factor: np.ndarray = None
-    last_state: t.Optional[State] = None
-
-
-class EstAuxData(t.NamedTuple):
-    """"""
-    #: Properties data.
-    structure_factor: np.ndarray = None
-
-
-# Variables for type-hints.
-T_ESBatchesIter = t.Iterator[EstSamplingBatch]
-T_E_ESBatchesIter = t.Iterator[t.Tuple[int, EstSamplingBatch]]
 
 
 # noinspection PyUnusedLocal

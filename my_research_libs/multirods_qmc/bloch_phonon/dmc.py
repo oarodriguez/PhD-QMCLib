@@ -17,12 +17,31 @@ from . import model
 __all__ = [
     'BatchFuncResult',
     'CoreFuncs',
+    'CoreFuncsBase',
+    'EstSampling',
+    'EstSamplingCoreFuncs',
     'IterProp',
     'Sampling',
-    'SamplingBatch',
+    'SamplingBase',
     'State',
-    'StateProp'
+    'StateProp',
+    'StructureFactorEst'
 ]
+
+StateProp = qmc_base.dmc.StateProp
+IterProp = qmc_base.dmc.IterProp
+
+state_confs_dtype = np.float64
+
+state_props_dtype = np.dtype([
+    (StateProp.ENERGY.value, np.float64),
+    (StateProp.WEIGHT.value, np.float64),
+    (StateProp.MASK.value, np.bool)
+])
+
+T_ExtArrays = t.Tuple[np.ndarray, ...]
+T_RelDist = t.Union[t.SupportsFloat, np.ndarray]
+T_Momentum = t.Union[t.SupportsFloat, np.ndarray]
 
 
 class State(qmc_base.dmc.State, t.NamedTuple):
@@ -44,23 +63,7 @@ class BatchFuncResult(t.NamedTuple):
     iter_props: np.ndarray
 
 
-StateProp = qmc_base.dmc.StateProp
-IterProp = qmc_base.dmc.IterProp
-
-state_confs_dtype = np.float64
-
-state_props_dtype = np.dtype([
-    (StateProp.ENERGY.value, np.float64),
-    (StateProp.WEIGHT.value, np.float64),
-    (StateProp.MASK.value, np.bool)
-])
-
-T_ExtArrays = t.Tuple[np.ndarray, ...]
-T_RelDist = t.Union[t.SupportsFloat, np.ndarray]
-T_Momentum = t.Union[t.SupportsFloat, np.ndarray]
-
-
-class _Sampling(qmc_base.dmc.Sampling):
+class SamplingBase(qmc_base.dmc.Sampling):
     """A class to realize a DMC sampling."""
     __slots__ = ()
 
@@ -298,7 +301,7 @@ class _Sampling(qmc_base.dmc.Sampling):
         return CoreFuncs.from_model_spec(self.model_spec)
 
 
-class _CoreFuncs(qmc_base.dmc.CoreFuncs):
+class CoreFuncsBase(qmc_base.dmc.CoreFuncs):
     """The DMC core functions for the Bloch-Phonon model."""
     __slots__ = ()
 
@@ -585,7 +588,7 @@ class _CoreFuncs(qmc_base.dmc.CoreFuncs):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class Sampling(_Sampling):
+class Sampling(SamplingBase):
     """A class to realize a DMC sampling."""
 
     #: The model instance.
@@ -610,7 +613,7 @@ class Sampling(_Sampling):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class CoreFuncs(_CoreFuncs):
+class CoreFuncs(CoreFuncsBase):
     """The DMC core functions for the Bloch-Phonon model."""
 
     boundaries: t.Tuple[float, float]
@@ -733,7 +736,7 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class EstSampling(_Sampling, qmc_base.dmc.EstSampling):
+class EstSampling(SamplingBase, qmc_base.dmc.EstSampling):
     """Class to evaluate estimators using a DMC sampling."""
 
     model_spec: model.Spec
@@ -782,7 +785,7 @@ class EstSampling(_Sampling, qmc_base.dmc.EstSampling):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class EstSamplingCoreFuncs(_CoreFuncs, qmc_base.dmc.EstSamplingCoreFuncs):
+class EstSamplingCoreFuncs(CoreFuncsBase, qmc_base.dmc.EstSamplingCoreFuncs):
     """Core functions to evaluate estimators using a DMC sampling."""
 
     boundaries: t.Tuple[float, float]

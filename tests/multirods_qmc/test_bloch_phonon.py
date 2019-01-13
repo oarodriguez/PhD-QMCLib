@@ -4,6 +4,7 @@ import attr
 import numpy as np
 import pytest
 from matplotlib import pyplot
+from tqdm import tqdm
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
@@ -229,8 +230,8 @@ def test_dmc():
     lattice_depth = 0
     lattice_ratio = 1
     interaction_strength = 40
-    boson_number = 50
-    supercell_size = 50
+    boson_number = 16
+    supercell_size = 16
     tbf_contact_cutoff = 0.25 * supercell_size
 
     # TODO: Improve this test.
@@ -242,7 +243,7 @@ def test_dmc():
                                    tbf_contact_cutoff=tbf_contact_cutoff)
 
     move_spread = 0.25 * model_spec.well_width
-    num_steps = 4096 * 2
+    num_steps = 4906 * 1
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
@@ -254,8 +255,8 @@ def test_dmc():
     print(f"Acceptance ratio: {ar_:.5g}")
 
     time_step = 1e-3
-    num_batches = 8
-    num_time_steps_batch = 32
+    num_batches = 96
+    num_time_steps_batch = 512
     ini_sys_conf_set = sys_conf_set[-100:]
     target_num_walkers = 480
     max_num_walkers = 512
@@ -582,3 +583,4 @@ def test_dmc_task():
 
 if __name__ == '__main__':
     test_dmc()
+    # test_dmc_task()
