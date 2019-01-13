@@ -9,7 +9,7 @@ from cached_property import cached_property
 from numpy import random
 
 from my_research_libs import qmc_base, utils
-from my_research_libs.qmc_base.dmc import SamplingBatch
+from my_research_libs.qmc_base.dmc import SamplingBatch, branching_spec_dtype
 from my_research_libs.qmc_base.jastrow import SysConfSlot
 from my_research_libs.qmc_base.utils import recast_to_supercell
 from . import model
@@ -125,15 +125,20 @@ class SamplingBase(qmc_base.dmc.Sampling):
             # average of the energy of the initial state.
             ref_energy = energy
 
+        # Table to control the branching process.
+        branching_spec = \
+            np.zeros(max_num_walkers, dtype=branching_spec_dtype)
+
         # NOTE: The branching spec for the initial state is None.
-        return State(confs=state_confs,
-                     props=state_props,
-                     energy=state_energy,
-                     weight=state_weight,
-                     num_walkers=num_walkers,
-                     ref_energy=ref_energy,
-                     accum_energy=energy,
-                     max_num_walkers=max_num_walkers)
+        return qmc_base.dmc.State(confs=state_confs,
+                                  props=state_props,
+                                  energy=state_energy,
+                                  weight=state_weight,
+                                  num_walkers=num_walkers,
+                                  ref_energy=ref_energy,
+                                  accum_energy=energy,
+                                  max_num_walkers=max_num_walkers,
+                                  branching_spec=branching_spec)
 
     def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
                                   iter_batch: SamplingBatch) -> t.Tuple:
