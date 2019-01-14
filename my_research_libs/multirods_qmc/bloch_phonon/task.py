@@ -9,7 +9,6 @@ import tqdm
 from cached_property import cached_property
 
 import my_research_libs.qmc_base.dmc as dmc_base
-from my_research_libs import utils
 from my_research_libs.qmc_base import vmc as vmc_base
 from my_research_libs.stats import reblock
 from . import dmc, model, vmc
@@ -32,11 +31,13 @@ logging.basicConfig(format=BASIC_FORMAT, level=logging.INFO)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class VMCSampling(vmc.Sampling):
+class VMCSampling:
     """VMC Sampling."""
 
-    model_spec: model.Spec
+    #: The spread magnitude of the random moves for the sampling.
     move_spread: float
+
+    #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: t.Optional[int] = None
 
     #: The initial configuration of the sampling.
@@ -48,15 +49,10 @@ class VMCSampling(vmc.Sampling):
     #: Number of steps per batch.
     num_steps_batch: int = 4096
 
-    def __attrs_post_init__(self):
-        """"""
-        if self.rng_seed is None:
-            rng_seed = int(utils.get_random_rng_seed())
-            object.__setattr__(self, 'rng_seed', rng_seed)
-
-    def run(self):
+    def run(self, model_spec: model.Spec):
         """
 
+        :param model_spec:
         :return:
         """
         num_batches = self.num_batches
@@ -69,7 +65,9 @@ class VMCSampling(vmc.Sampling):
         logger.info(f'Sampling {num_batches} batches of steps...')
         logger.info(f'Sampling {num_steps_batch} steps per batch...')
 
-        batches = self.batches(num_steps_batch, self.ini_sys_conf)
+        # New sampling instance
+        sampling = vmc.Sampling(model_spec, self.move_spread, self.rng_seed)
+        batches = sampling.batches(num_steps_batch, self.ini_sys_conf)
 
         # By default burn-in all but the last batch.
         burn_in_batches = num_batches - 1
@@ -101,15 +99,13 @@ class VMCSampling(vmc.Sampling):
 
         logger.info('VMC Sampling completed.')
 
-        return last_batch
+        # TODO: Should we return the sampling object?
+        return last_batch, sampling
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class WFOptimization:
     """Wave function optimization."""
-
-    #: The spec of the model.
-    model_spec: model.Spec
 
     #: The number of configurations used in the process.
     num_sys_confs: int = 1024
@@ -126,10 +122,12 @@ class WFOptimization:
     #: Display log messages or not.
     verbose: bool = False
 
-    def run(self, sys_conf_set: np.ndarray,
+    def run(self, model_spec: model.Spec,
+            sys_conf_set: np.ndarray,
             ini_wf_abs_log_set: np.ndarray):
         """
 
+        :param model_spec: The spec of the model.
         :param sys_conf_set: he system configurations used for the
             minimization process.
         :param ini_wf_abs_log_set: The initial wave function values. Used
@@ -147,7 +145,7 @@ class WFOptimization:
         sys_conf_set = sys_conf_set[-num_sys_confs:]
         ini_wf_abs_log_set = ini_wf_abs_log_set[-num_sys_confs:]
 
-        optimizer = model.CSWFOptimizer(self.model_spec,
+        optimizer = model.CSWFOptimizer(model_spec,
                                         sys_conf_set,
                                         ini_wf_abs_log_set,
                                         self.ref_energy,
@@ -371,7 +369,7 @@ class SSFBlocks(DataBlocks):
         :param sf_data:
         :param props_data:
         :param as_pure_est:
-        :param pure_est_reduce_factor: 
+        :param pure_est_reduce_factor:
         :return:
         """
         nts_block = num_time_steps_block
@@ -513,15 +511,26 @@ class DMCESResult:
     data: t.Optional[DMCESData] = None
 
     #: The sampling object used to generate the results.
-    sampling: t.Optional['DMCEstSampling'] = None
+    sampling: t.Optional[dmc.EstSampling] = None
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCEstSampling(dmc.EstSampling):
+class SSFEstSpec:
+    """Structure factor estimator basic config."""
+    num_modes: int
+    as_pure_est: bool = True
+    pfw_num_time_steps: t.Optional[int] = None
+
+
+class DMCIniSysConfSetError(ValueError):
+    """Indicates an invalid ``ini_sys_conf_set`` in a ``DMCEstSampling``."""
+    pass
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class DMCEstSampling:
     """DMC sampling."""
 
-    #: Estimator sampling object
-    model_spec: model.Spec
     time_step: float
     max_num_walkers: int = 512
     target_num_walkers: int = 480
@@ -550,21 +559,10 @@ class DMCEstSampling(dmc.EstSampling):
     remaining_batches: t.Optional[int] = attr.ib(default=None, init=False)
 
     # *** Estimators configuration ***
-    ssf_spec: t.Optional[dmc.SSFEstSpec] = None
+    ssf_spec: t.Optional[SSFEstSpec] = None
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
-
-        if self.rng_seed is None:
-            rng_seed = int(utils.get_random_rng_seed())
-            object.__setattr__(self, 'rng_seed', rng_seed)
-
-        # Only take as much sys_conf items as target_num_walkers.
-        ini_sys_conf_set = self.ini_sys_conf_set
-        if ini_sys_conf_set is not None:
-            ini_sys_conf_set = ini_sys_conf_set[-self.target_num_walkers:]
-            object.__setattr__(self, 'ini_sys_conf_set', ini_sys_conf_set)
-
         if self.burn_in_batches is None:
             burn_in_batches = max(1, self.num_batches // 8)
             object.__setattr__(self, 'burn_in_batches', burn_in_batches)
@@ -573,7 +571,7 @@ class DMCEstSampling(dmc.EstSampling):
         """"""
         pass
 
-    def run(self):
+    def run(self, model_spec: model.Spec):
         """
 
         :return:
@@ -589,12 +587,17 @@ class DMCEstSampling(dmc.EstSampling):
         target_num_walkers = self.target_num_walkers
         burn_in_batches = self.burn_in_batches
         keep_iter_data = self.keep_iter_data
-        sff_spec = self.ssf_spec
+        ssf_spec_task = self.ssf_spec
 
+        # Alias 😐.
         nts_batch = num_time_steps_batch
 
         # Structure factor configuration.
-        should_eval_ssf = sff_spec is not None
+        should_eval_ssf = ssf_spec_task is not None
+
+        if self.ini_sys_conf_set is None:
+            raise DMCIniSysConfSetError('the initial system configuration '
+                                        'is undefined')
 
         logger = logging.getLogger(DMC_TASK_LOG_NAME)
 
@@ -610,11 +613,30 @@ class DMCEstSampling(dmc.EstSampling):
         else:
             burn_in_batches = burn_in_batches
 
+        if should_eval_ssf:
+
+            ssf_spec = dmc.SSFEstSpec(model_spec,
+                                      ssf_spec_task.num_modes,
+                                      ssf_spec_task.as_pure_est,
+                                      ssf_spec_task.pfw_num_time_steps)
+
+        else:
+
+            ssf_spec = None
+
+        sampling = dmc.EstSampling(model_spec,
+                                   self.time_step,
+                                   self.max_num_walkers,
+                                   self.target_num_walkers,
+                                   self.num_walkers_control_factor,
+                                   self.rng_seed,
+                                   ssf_spec=ssf_spec)
+
         # The estimator sampling iterator.
         ini_state = \
-            self.build_state(self.ini_sys_conf_set, self.ini_ref_energy)
+            sampling.build_state(self.ini_sys_conf_set, self.ini_ref_energy)
 
-        batches_iter = self.batches(ini_state, num_time_steps_batch)
+        batches_iter = sampling.batches(ini_state, num_time_steps_batch)
 
         # Current batch data.
         batch_data = None
@@ -655,7 +677,7 @@ class DMCEstSampling(dmc.EstSampling):
 
         if should_eval_ssf:
             # The shape of the structure factor array.
-            num_modes = sff_spec.num_modes
+            num_modes = ssf_spec.num_modes
 
             if keep_iter_data:
                 ssf_shape = num_batches, nts_batch, num_modes
@@ -683,7 +705,7 @@ class DMCEstSampling(dmc.EstSampling):
 
         if should_eval_ssf:
             logger.info(f'Static structure factor is going to be calculated.')
-            logger.info(f'A total of {sff_spec.num_modes} k-modes will '
+            logger.info(f'A total of {ssf_spec.num_modes} k-modes will '
                         f'be used as input for S(k).')
 
         with tqdm.tqdm(total=num_batches, dynamic_ncols=True) as pgs_bar:
@@ -731,7 +753,7 @@ class DMCEstSampling(dmc.EstSampling):
 
                     else:
 
-                        if sff_spec.as_pure_est:
+                        if ssf_spec.as_pure_est:
                             # Get only the last element of the batch.
                             ssf_blocks_data[batch_idx] = \
                                 iter_ssf_array[nts_batch - 1]
@@ -777,7 +799,7 @@ class DMCEstSampling(dmc.EstSampling):
                 SSFBlocks.from_data(num_batches, nts_batch,
                                     ssf_blocks_data,
                                     props_blocks_data, reduce_data,
-                                    sff_spec.as_pure_est,
+                                    ssf_spec.as_pure_est,
                                     pure_est_reduce_factor)
 
         else:
@@ -797,7 +819,7 @@ class DMCEstSampling(dmc.EstSampling):
         data = DMCESData(data_blocks, data_series)
 
         # NOTE: Should we return a new instance?
-        sampling = self
+        # sampling = attr.evolve(sampling)
 
         return DMCESResult(last_state,
                            data=data,
@@ -807,6 +829,9 @@ class DMCEstSampling(dmc.EstSampling):
 @attr.s(auto_attribs=True, frozen=True)
 class DMC:
     """Class to realize a whole DMC calculation."""
+
+    #:
+    model_spec: model.Spec
 
     #:
     dmc_sampling: DMCEstSampling
@@ -855,6 +880,14 @@ class DMC:
 
         logger.info('Starting QMC-DMC calculation...')
 
+        # The base DMC model spec.
+        dmc_model_spec = self.model_spec
+
+        # This reference to the current task will be modified, so the same
+        # task can be executed again without realizing the VMC sampling and
+        # the wave function optimization.
+        self_evolve = self
+
         if vmc_sampling is None:
 
             logger.info('VMC sampling task is not configured.')
@@ -875,9 +908,13 @@ class DMC:
 
         else:
 
-            vmc_result = vmc_sampling.run()
+            vmc_result, _ = vmc_sampling.run(self.model_spec)
             sys_conf_set = vmc_result.confs
             wf_abs_log_set = vmc_result.props[wf_abs_log_field]
+
+            # A future execution of this task won't need the realization
+            # of the VMC sampling again.
+            self_evolve = attr.evolve(self_evolve, vmc_sampling=None)
 
             if should_optimize:
 
@@ -886,28 +923,36 @@ class DMC:
 
                 # Run optimization task.
                 dmc_model_spec = \
-                    wf_optimize.run(sys_conf_set=sys_conf_set,
+                    wf_optimize.run(dmc_model_spec,
+                                    sys_conf_set=sys_conf_set,
                                     ini_wf_abs_log_set=wf_abs_log_set)
 
-                vmc_sampling: VMCSampling = \
-                    attr.evolve(vmc_sampling, model_spec=dmc_model_spec)
-
-                vmc_result = vmc_sampling.run()
+                vmc_result, _ = vmc_sampling.run(dmc_model_spec)
                 sys_conf_set = vmc_result.confs
 
-                # Update the model spec of the VMC sampling, as well
-                # as the initial configuration set.
-                dmc_sampling = attr.evolve(dmc_sampling,
-                                           model_spec=dmc_model_spec,
-                                           ini_sys_conf_set=sys_conf_set)
+                # In a posterior execution the same task again, we
+                # may skip the optimization stage.
+                self_evolve = attr.evolve(self_evolve,
+                                          model_spec=dmc_model_spec,
+                                          wf_optimize=None)
 
-            else:
+            # Update the model spec of the VMC sampling, as well
+            # as the initial configuration set.
+            dmc_sampling = \
+                attr.evolve(dmc_sampling, ini_sys_conf_set=sys_conf_set)
 
-                dmc_sampling = attr.evolve(dmc_sampling,
-                                           ini_sys_conf_set=sys_conf_set)
+            # We have to update the DMC sampling.
+            self_evolve = \
+                attr.evolve(self_evolve, dmc_sampling=dmc_sampling)
 
-        dmc_result = dmc_sampling.run()
+        try:
+            dmc_result = dmc_sampling.run(dmc_model_spec)
+
+        except DMCIniSysConfSetError:
+            dmc_result = None
+            logger.exception('The following exception occurred during the '
+                             'execution of the task:')
 
         logger.info("All tasks finished.")
 
-        return dmc_result
+        return dmc_result, self_evolve

@@ -529,8 +529,8 @@ def test_dmc_task():
     lattice_depth = 0
     lattice_ratio = 1
     interaction_strength = 4
-    boson_number = 30
-    supercell_size = 30
+    boson_number = 8
+    supercell_size = 8
     tbf_contact_cutoff = 0.25 * supercell_size
 
     # TODO: Improve this test.
@@ -547,36 +547,37 @@ def test_dmc_task():
     num_steps_batch = 4096
     # num_steps = num_batches * num_steps_batch
     vmc_sampling = \
-        bloch_phonon.task.VMCSampling(model_spec, move_spread,
-                                      rng_seed, ini_sys_conf,
+        bloch_phonon.task.VMCSampling(move_spread,
+                                      rng_seed=rng_seed,
+                                      ini_sys_conf=ini_sys_conf,
                                       num_batches=num_batches,
                                       num_steps_batch=num_steps_batch)
 
     time_step = 1e-3
     num_batches = 4
     num_time_steps_batch = 512
-    ini_sys_conf_set = None
+    # ini_sys_conf_set = None
     target_num_walkers = 480
     max_num_walkers = 512
     ini_ref_energy = None
     rng_seed = None
 
     num_modes = 2 * boson_number
-    ssf_spec = bloch_phonon.dmc.SSFEstSpec(model_spec,
-                                           num_modes=num_modes)
+    ssf_spec = bloch_phonon.task.SSFEstSpec(num_modes=num_modes)
     dmc_sampling = bloch_phonon.task.DMCEstSampling(
-            model_spec, time_step,
+            time_step,
             max_num_walkers,
             target_num_walkers,
             rng_seed=rng_seed,
-            ini_sys_conf_set=ini_sys_conf_set,
             ini_ref_energy=ini_ref_energy,
             num_batches=num_batches,
             num_time_steps_batch=num_time_steps_batch,
             ssf_spec=ssf_spec
     )
 
-    dmc_task = bloch_phonon.task.DMC(dmc_sampling, vmc_sampling)
+    dmc_task = bloch_phonon.task.DMC(model_spec,
+                                     dmc_sampling,
+                                     vmc_sampling)
     task_result = dmc_task.run()
 
 
