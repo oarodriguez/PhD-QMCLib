@@ -25,7 +25,7 @@ __all__ = [
     'SamplingBase',
     'State',
     'StateProp',
-    'StructureFactorEst'
+    'SSFEstSpec'
 ]
 
 StateProp = qmc_base.dmc.StateProp
@@ -640,7 +640,7 @@ class CoreFuncs(CoreFuncsBase):
                    model_spec.cfc_spec_nt)
 
 
-class SFEstSpecNT(qmc_base.dmc.SFEstSpecNT):
+class SSFEstSpecNT(qmc_base.dmc.SSFEstSpecNT, t.NamedTuple):
     """"""
     num_modes: int
     as_pure_est: bool = True
@@ -649,7 +649,7 @@ class SFEstSpecNT(qmc_base.dmc.SFEstSpecNT):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
+class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
     """Structure factor estimator."""
 
     num_modes: int
@@ -665,7 +665,11 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
             object.__setattr__(self, 'pfw_num_time_steps', pfs_nts)
 
     def get_momenta(self, model_spec: model.Spec):
-        """"""
+        """
+
+        :param model_spec:
+        :return:
+        """
         num_modes = self.num_modes
         supercell_size = model_spec.supercell_size
         return np.arange(1, num_modes + 1) * 2 * pi / supercell_size
@@ -673,6 +677,7 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
     def build_core_func(self, model_spec: model.Spec):
         """
 
+        :param model_spec:
         :return:
         """
         num_modes = self.num_modes
@@ -681,32 +686,33 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
         momenta = self.get_momenta(model_spec)
 
         cfc_spec_nt = model_spec.cfc_spec_nt
-        structure_factor = model.core_funcs.structure_factor
+        ssf_func = model.core_funcs.structure_factor
 
+        # noinspection PyUnusedLocal
         @nb.jit(nopython=True)
         def _core_func(step_idx: int,
                        sys_idx: int,
                        clone_ref_idx: int,
                        state_confs: np.ndarray,
-                       iter_sf_array: np.ndarray,
-                       aux_states_sf_array: np.ndarray):
+                       iter_ssf_array: np.ndarray,
+                       aux_states_ssf_array: np.ndarray):
             """
 
             :param step_idx:
             :param sys_idx:
             :param clone_ref_idx:
             :param state_confs:
-            :param iter_sf_array:
-            :param aux_states_sf_array:
+            :param iter_ssf_array:
+            :param aux_states_ssf_array:
             :return:
             """
             prev_step_idx = step_idx % 2 - 1
             actual_step_idx = step_idx % 2
 
-            prev_state_sf = aux_states_sf_array[prev_step_idx]
-            actual_state_sf = aux_states_sf_array[actual_step_idx]
+            prev_state_ssf = aux_states_ssf_array[prev_step_idx]
+            actual_state_ssf = aux_states_ssf_array[actual_step_idx]
 
-            prev_sys_sk = prev_state_sf[clone_ref_idx]
+            prev_sys_sk = prev_state_ssf[clone_ref_idx]
             sys_conf = state_confs[sys_idx]
 
             if not as_pure_est:
@@ -715,10 +721,10 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
                 for kz_idx in range(num_modes):
                     momentum = momenta[kz_idx]
                     sys_sk_idx = \
-                        structure_factor(momentum, sys_conf, cfc_spec_nt)
+                        ssf_func(momentum, sys_conf, cfc_spec_nt)
 
                     # Just update the actual state.
-                    actual_state_sf[sys_idx, kz_idx] = sys_sk_idx
+                    actual_state_ssf[sys_idx, kz_idx] = sys_sk_idx
 
                 # Finish.
                 return
@@ -728,7 +734,7 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
                 # Just "transport" the structure factor of the previous
                 # configuration to the new one.
                 for kz_idx in range(num_modes):
-                    actual_state_sf[sys_idx, kz_idx] = prev_sys_sk[kz_idx]
+                    actual_state_ssf[sys_idx, kz_idx] = prev_sys_sk[kz_idx]
 
             else:
                 # Evaluate the structure factor for the actual
@@ -736,10 +742,10 @@ class StructureFactorEst(qmc_base.dmc.StructureFactorEst):
                 for kz_idx in range(num_modes):
                     momentum = momenta[kz_idx]
                     sys_sk_idx = \
-                        structure_factor(momentum, sys_conf, cfc_spec_nt)
+                        ssf_func(momentum, sys_conf, cfc_spec_nt)
 
                     # Update with the previous state ("transport").
-                    actual_state_sf[sys_idx, kz_idx] = \
+                    actual_state_ssf[sys_idx, kz_idx] = \
                         sys_sk_idx + prev_sys_sk[kz_idx]
 
         return _core_func
@@ -757,7 +763,7 @@ class EstSampling(SamplingBase, qmc_base.dmc.EstSampling):
     rng_seed: t.Optional[int] = None
 
     # *** Estimators configuration ***
-    structure_factor: t.Optional[StructureFactorEst] = None
+    ssf_spec: t.Optional[SSFEstSpec] = None
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
@@ -772,22 +778,23 @@ class EstSampling(SamplingBase, qmc_base.dmc.EstSampling):
         boundaries = model_spec.boundaries
         cfc_spec_nt = model_spec.cfc_spec_nt
 
-        sf_config = self.structure_factor
-        if sf_config is not None:
-            sf_num_modes = sf_config.num_modes
-            sf_as_pure_est = sf_config.as_pure_est
-            sf_pfw_nts = sf_config.pfw_num_time_steps
-            sf_core_func = sf_config.build_core_func(model_spec)
-        else:
-            sf_num_modes = 1
-            sf_as_pure_est = False
-            sf_pfw_nts = 512
-            sf_core_func = None
+        ssf_spec = self.ssf_spec
+        if ssf_spec is not None:
+            ssf_num_modes = ssf_spec.num_modes
+            ssf_as_pure_est = ssf_spec.as_pure_est
+            ssf_pfw_nts = ssf_spec.pfw_num_time_steps
+            ssf_core_func = ssf_spec.build_core_func(model_spec)
 
-        sf_spec_nt = qmc_base.dmc.SFEstSpecNT(sf_num_modes,
-                                              sf_as_pure_est,
-                                              sf_pfw_nts,
-                                              sf_core_func)
+        else:
+            ssf_num_modes = 1
+            ssf_as_pure_est = False
+            ssf_pfw_nts = 512
+            ssf_core_func = None
+
+        sf_spec_nt = SSFEstSpecNT(ssf_num_modes,
+                                  ssf_as_pure_est,
+                                  ssf_pfw_nts,
+                                  ssf_core_func)
 
         return EstSamplingCoreFuncs(boundaries,
                                     cfc_spec_nt,
@@ -800,7 +807,7 @@ class EstSamplingCoreFuncs(CoreFuncsBase, qmc_base.dmc.EstSamplingCoreFuncs):
 
     boundaries: t.Tuple[float, float]
     cfc_spec_nt: model.CFCSpecNT
-    sf_spec_nt: SFEstSpecNT = None
+    ssf_spec_nt: SSFEstSpecNT = None
 
     def __attrs_post_init__(self):
         """"""

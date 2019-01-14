@@ -31,7 +31,7 @@ __all__ = [
     'SamplingBatch',
     'State',
     'StateProp',
-    'StructureFactorEst',
+    'SSFEstSpec',
     'branching_spec_dtype',
     'iter_props_dtype',
     'dummy_pure_est_core_func'
@@ -101,7 +101,7 @@ class EstSamplingBatch(t.NamedTuple):
     """"""
     #: Properties data.
     iter_props: np.ndarray
-    iter_structure_factor: np.ndarray = None
+    iter_ssf: np.ndarray = None
     last_state: t.Optional[State] = None
 
 
@@ -698,7 +698,7 @@ def dummy_pure_est_core_func(step_idx: int,
     return
 
 
-class SFEstSpecNT(t.NamedTuple):
+class SSFEstSpecNT(t.NamedTuple):
     """"""
     #: Number of modes to evaluate the structure factor S(k).
     num_modes: int
@@ -707,7 +707,7 @@ class SFEstSpecNT(t.NamedTuple):
     core_func: t.Callable = dummy_pure_est_core_func
 
 
-class StructureFactorEst(metaclass=ABCMeta):
+class SSFEstSpec(metaclass=ABCMeta):
     """Structure factor estimator."""
 
     #: Number of modes to evaluate the structure factor S(k).
@@ -746,7 +746,7 @@ class EstSampling(Sampling):
     # *** *** Configuration of the estimators. *** ***
 
     #: Structure factor estimator.
-    structure_factor: t.Optional[StructureFactorEst] = None
+    ssf_spec: t.Optional[SSFEstSpec] = None
 
     @property
     @abstractmethod
@@ -760,12 +760,12 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
     __slots__ = ()
 
     #:
-    sf_spec_nt: t.Optional[SFEstSpecNT]
+    ssf_spec_nt: t.Optional[SSFEstSpecNT]
 
     @property
-    def should_eval_sf_est(self):
+    def should_eval_ssf_est(self):
         """"""
-        return self.sf_spec_nt is not dummy_pure_est_core_func
+        return self.ssf_spec_nt is not dummy_pure_est_core_func
 
     @cached_property
     def batches(self):
@@ -773,7 +773,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
 
         :return:
         """
-        sf_num_modes = self.sf_spec_nt.num_modes
+        ssf_num_modes = self.ssf_spec_nt.num_modes
 
         iter_energy_field = IterProp.ENERGY.value
         iter_weight_field = IterProp.WEIGHT.value
@@ -809,16 +809,16 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             ipb_shape = nts_batch,
 
             # The shape of the structure factor array.
-            isf_shape = nts_batch, sf_num_modes  # S(k) batch.
+            i_ssf_shape = nts_batch, ssf_num_modes  # S(k) batch.
 
             # The shape of the auxiliary arrays to store the structure
             # factor of a single state during the forward walking process.
-            pfw_aux_sfb_shape = 2, max_num_walkers, sf_num_modes
+            pfw_aux_ssf_b_shape = 2, max_num_walkers, ssf_num_modes
 
             # Array to store the configuration data of a batch of states.
             iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
-            iter_sf_array = np.zeros(isf_shape, dtype=np.float64)
-            pfw_aux_sf_array = np.zeros(pfw_aux_sfb_shape, dtype=np.float64)
+            iter_ssf_array = np.zeros(i_ssf_shape, dtype=np.float64)
+            pfw_aux_ssf_array = np.zeros(pfw_aux_ssf_b_shape, dtype=np.float64)
 
             # Extract fields.
             iter_energies = iter_props_array[iter_energy_field]
@@ -844,13 +844,13 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                 # Reset the zero the accumulated S(k) of all the states.
                 # This is very important, as the elements of this array are
                 # modified in place during the sampling of the estimator.
-                iter_sf_array[:] = 0
+                iter_ssf_array[:] = 0
 
                 # Reset to zero the auxiliary states after the end of
                 # each batch to accumulate new values during the forward
                 # walking to sampling pure estimator. This has to be done
                 # in order to gather new data in the next batch/block.
-                pfw_aux_sf_array[:] = 0.
+                pfw_aux_ssf_array[:] = 0.
 
                 # We use an initial index instead enumerate.
                 step_idx = 0
@@ -875,8 +875,8 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                     max_num_walkers,
                                     branching_spec,
                                     iter_props_array,
-                                    iter_sf_array,
-                                    pfw_aux_sf_array)
+                                    iter_ssf_array,
+                                    pfw_aux_ssf_array)
 
                     # Stop/pause the iteration.
                     if step_idx + 1 >= nts_batch:
@@ -897,7 +897,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                    state.branching_spec)
 
                 batch_data = EstSamplingBatch(iter_props_array,
-                                              iter_sf_array,
+                                              iter_ssf_array,
                                               last_state)
                 yield batch_data
 
@@ -913,10 +913,10 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
 
         # Structure factor
         # Flag to evaluate structure factor.
-        sf_as_pure_est = self.sf_spec_nt.as_pure_est
-        sf_pfw_nts = self.sf_spec_nt.pfw_num_time_steps
-        sf_est_core_func = self.sf_spec_nt.core_func
-        should_eval_sf_est = self.should_eval_sf_est
+        ssf_as_pure_est = self.ssf_spec_nt.as_pure_est
+        ssf_pfw_nts = self.ssf_spec_nt.pfw_num_time_steps
+        ssf_est_core_func = self.ssf_spec_nt.core_func
+        should_eval_ssf_est = self.should_eval_ssf_est
 
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True, parallel=True)
@@ -926,7 +926,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                              max_num_walkers: int,
                              branching_spec: np.ndarray,
                              iter_props_array: np.ndarray,
-                             iter_sf_array: np.ndarray,
+                             iter_ssf_array: np.ndarray,
                              aux_states_sf_array: np.ndarray):
             """
 
@@ -936,7 +936,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             :param max_num_walkers:
             :param branching_spec:
             :param iter_props_array:
-            :param iter_sf_array:
+            :param iter_ssf_array:
             :param aux_states_sf_array:
             :return:
             """
@@ -944,8 +944,8 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             cloning_refs = branching_spec[branch_ref_field]
             actual_step_idx = step_idx % 2
 
-            actual_state_sf = aux_states_sf_array[actual_step_idx]
-            actual_iter_sf = iter_sf_array[step_idx]
+            actual_state_ssf = aux_states_sf_array[actual_step_idx]
+            actual_iter_ssf = iter_ssf_array[step_idx]
 
             # Branching process (parallel for).
             for sys_idx in nb.prange(max_num_walkers):
@@ -958,29 +958,29 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                 # Lookup which configuration should be cloned.
                 clone_ref_idx = cloning_refs[sys_idx]
 
-                if should_eval_sf_est:
+                if should_eval_ssf_est:
                     # Evaluate structure factor.
-                    sf_est_core_func(step_idx,
-                                     sys_idx,
-                                     clone_ref_idx,
-                                     state_confs,
-                                     iter_sf_array,
-                                     aux_states_sf_array)
+                    ssf_est_core_func(step_idx,
+                                      sys_idx,
+                                      clone_ref_idx,
+                                      state_confs,
+                                      iter_ssf_array,
+                                      aux_states_sf_array)
 
             # Accumulate the totals of the estimators.
             # NOTE: Fix up a memory leak using range instead numba.prange.
             # TODO: Compare speed of range vs numba.prange.
             for sys_idx in range(num_walkers):
                 # Accumulate S(k).
-                actual_iter_sf += actual_state_sf[sys_idx]
+                actual_iter_ssf += actual_state_ssf[sys_idx]
 
-            if should_eval_sf_est:
+            if should_eval_ssf_est:
                 # Calculate structure factor pure estimator after the
                 # forward sampling stage.
-                if sf_as_pure_est:
-                    if step_idx < sf_pfw_nts:
-                        iter_sf_array[step_idx] /= step_idx + 1
+                if ssf_as_pure_est:
+                    if step_idx < ssf_pfw_nts:
+                        iter_ssf_array[step_idx] /= step_idx + 1
                     else:
-                        iter_sf_array[step_idx] /= sf_pfw_nts
+                        iter_ssf_array[step_idx] /= ssf_pfw_nts
 
         return _eval_estimators

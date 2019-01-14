@@ -346,7 +346,7 @@ class EnergyBlocks(DataBlocks):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class SFBlocks(DataBlocks):
+class SSFBlocks(DataBlocks):
     """Structure Factor data in blocks."""
 
     num_blocks: int
@@ -430,14 +430,14 @@ class SFBlocks(DataBlocks):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCESData:
+class DMCESDataSeries:
     """The data from a DMC sampling."""
 
     #: The blocks / batches of data.
     props_blocks: np.ndarray
 
     #:
-    struct_factor_blocks: t.Optional[np.ndarray] = None
+    ssf_blocks: t.Optional[np.ndarray] = None
 
     @cached_property
     def props(self):
@@ -471,21 +471,32 @@ class DMCESData:
         return self.props[dmc_base.IterProp.ACCUM_ENERGY]
 
     @cached_property
-    def struct_factor(self):
+    def ss_factor(self):
         """"""
-        if self.struct_factor_blocks is None:
+        if self.ssf_blocks is None:
             return None
-        return np.vstack(self.struct_factor_blocks)
+        return np.vstack(self.ssf_blocks)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCESBlocks:
+class DMCESDataBlocks:
     """Results of a DMC sampling grouped in block totals."""
 
     energy: EnergyBlocks
-    weight: DataBlocks
-    num_walkers: DataBlocks
-    struct_factor: t.Optional[SFBlocks] = None
+    weight: WeightBlocks
+    num_walkers: NumWalkersBlocks
+    ss_factor: t.Optional[SSFBlocks] = None
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class DMCESData:
+    """The data from a DMC sampling."""
+
+    #: Data blocks.
+    blocks: DMCESDataBlocks
+
+    #: Full data.
+    series: t.Optional[DMCESDataSeries] = None
 
 
 T_OptSeqNDArray = t.Optional[t.Sequence[np.ndarray]]
@@ -497,9 +508,6 @@ class DMCESResult:
 
     #: The last state of the sampling.
     state: dmc_base.State
-
-    #: The blocked data of the sampling.
-    data_blocks: DMCESBlocks
 
     #: The data generated during the sampling.
     data: t.Optional[DMCESData] = None
@@ -521,7 +529,7 @@ class DMCEstSampling(dmc.EstSampling):
     rng_seed: t.Optional[int] = None
 
     # *** Estimators configuration ***
-    structure_factor: t.Optional[dmc.StructureFactorEst] = None
+    ssf_spec: t.Optional[dmc.SSFEstSpec] = None
 
     #: The initial configuration set of the sampling.
     ini_sys_conf_set: t.Optional[np.ndarray] = None
@@ -581,12 +589,12 @@ class DMCEstSampling(dmc.EstSampling):
         target_num_walkers = self.target_num_walkers
         burn_in_batches = self.burn_in_batches
         keep_iter_data = self.keep_iter_data
-        sf_config = self.structure_factor
+        sff_spec = self.ssf_spec
 
         nts_batch = num_time_steps_batch
 
         # Structure factor configuration.
-        should_eval_sf = sf_config is not None
+        should_eval_ssf = sff_spec is not None
 
         logger = logging.getLogger(DMC_TASK_LOG_NAME)
 
@@ -645,20 +653,20 @@ class DMCEstSampling(dmc.EstSampling):
         props_ref_energy = props_blocks_data[ref_energy_field]
         props_accum_energy = props_blocks_data[accum_energy_field]
 
-        if should_eval_sf:
+        if should_eval_ssf:
             # The shape of the structure factor array.
-            num_modes = sf_config.num_modes
+            num_modes = sff_spec.num_modes
 
             if keep_iter_data:
-                sf_shape = num_batches, nts_batch, num_modes
+                ssf_shape = num_batches, nts_batch, num_modes
             else:
-                sf_shape = num_batches, num_modes
+                ssf_shape = num_batches, num_modes
 
             # S(k) batch.
-            sf_blocks_data = np.zeros(sf_shape, dtype=np.float64)
+            ssf_blocks_data = np.zeros(ssf_shape, dtype=np.float64)
 
         else:
-            sf_blocks_data = None
+            ssf_blocks_data = None
 
         # Reduction factor for pure estimators.
         pure_est_reduce_factor = np.ones(num_batches, dtype=np.float64)
@@ -673,9 +681,9 @@ class DMCEstSampling(dmc.EstSampling):
 
         logger.info('Starting the evaluation of estimators...')
 
-        if should_eval_sf:
-            logger.info(f'Structure factor is going to be calculated.')
-            logger.info(f'A total of {sf_config.num_modes} k-modes will '
+        if should_eval_ssf:
+            logger.info(f'Static structure factor is going to be calculated.')
+            logger.info(f'A total of {sff_spec.num_modes} k-modes will '
                         f'be used as input for S(k).')
 
         with tqdm.tqdm(total=num_batches, dynamic_ncols=True) as pgs_bar:
@@ -713,31 +721,28 @@ class DMCEstSampling(dmc.EstSampling):
                     pure_est_reduce_factor[batch_idx] = reduce_fac
 
                 # Handling the structure factor results.
-                if should_eval_sf:
+                if should_eval_ssf:
 
-                    iter_sf_array = batch_data.iter_structure_factor
+                    iter_ssf_array = batch_data.iter_ssf
 
                     if keep_iter_data:
                         # Keep a copy of the generated data of the sampling.
-                        sf_blocks_data[batch_idx] = iter_sf_array[:]
+                        ssf_blocks_data[batch_idx] = iter_ssf_array[:]
 
                     else:
 
-                        if sf_config.as_pure_est:
+                        if sff_spec.as_pure_est:
                             # Get only the last element of the batch.
-                            sf_blocks_data[batch_idx] = \
-                                iter_sf_array[nts_batch - 1]
+                            ssf_blocks_data[batch_idx] = \
+                                iter_ssf_array[nts_batch - 1]
 
                         else:
                             # Make the reduction.
-                            sf_blocks_data[batch_idx] = \
-                                iter_sf_array.sum(axis=0)
+                            ssf_blocks_data[batch_idx] = \
+                                iter_ssf_array.sum(axis=0)
 
                 rem_batches = num_batches - batch_idx - 1
                 object.__setattr__(self, 'remaining_batches', rem_batches)
-
-                # Pick the last state
-                last_state = batch_data.last_state
 
                 # logger.info(f'Batch #{batch_idx:d} completed')
                 pgs_bar.update()
@@ -763,36 +768,40 @@ class DMCEstSampling(dmc.EstSampling):
                                    props_blocks_data, reduce_data)
 
         num_walkers_blocks = \
-            WeightBlocks.from_data(num_batches, nts_batch,
-                                   props_blocks_data, reduce_data)
+            NumWalkersBlocks.from_data(num_batches, nts_batch,
+                                       props_blocks_data, reduce_data)
 
-        if should_eval_sf:
+        if should_eval_ssf:
 
-            struct_factor_blocks = \
-                SFBlocks.from_data(num_batches, nts_batch,
-                                   sf_blocks_data,
-                                   props_blocks_data, reduce_data,
-                                   sf_config.as_pure_est,
-                                   pure_est_reduce_factor)
+            ssf_blocks = \
+                SSFBlocks.from_data(num_batches, nts_batch,
+                                    ssf_blocks_data,
+                                    props_blocks_data, reduce_data,
+                                    sff_spec.as_pure_est,
+                                    pure_est_reduce_factor)
 
         else:
-            struct_factor_blocks = None
+            ssf_blocks = None
 
-        data_blocks = DMCESBlocks(energy_blocks,
-                                  weight_blocks,
-                                  num_walkers_blocks,
-                                  struct_factor_blocks)
+        data_blocks = DMCESDataBlocks(energy_blocks,
+                                      weight_blocks,
+                                      num_walkers_blocks,
+                                      ssf_blocks)
 
         if keep_iter_data:
-            data_series = DMCESData(props_blocks_data,
-                                    sf_blocks_data)
+            data_series = DMCESDataSeries(props_blocks_data,
+                                          ssf_blocks_data)
         else:
             data_series = None
 
+        data = DMCESData(data_blocks, data_series)
+
+        # NOTE: Should we return a new instance?
+        sampling = self
+
         return DMCESResult(last_state,
-                           data_blocks,
-                           data_series,
-                           sampling=self)
+                           data=data,
+                           sampling=sampling)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -800,7 +809,7 @@ class DMC:
     """Class to realize a whole DMC calculation."""
 
     #:
-    dmc_est_sampling: DMCEstSampling
+    dmc_sampling: DMCEstSampling
 
     #:
     vmc_sampling: t.Optional[VMCSampling] = None
@@ -838,7 +847,7 @@ class DMC:
 
         vmc_sampling = self.vmc_sampling
         wf_optimize = self.wf_optimize
-        dmc_est_sampling = self.dmc_est_sampling
+        dmc_sampling = self.dmc_sampling
         should_optimize = self.should_optimize
 
         logger = logging.getLogger(QMC_DMC_TASK_LOG_NAME)
@@ -888,16 +897,16 @@ class DMC:
 
                 # Update the model spec of the VMC sampling, as well
                 # as the initial configuration set.
-                dmc_est_sampling = attr.evolve(dmc_est_sampling,
-                                               model_spec=dmc_model_spec,
-                                               ini_sys_conf_set=sys_conf_set)
+                dmc_sampling = attr.evolve(dmc_sampling,
+                                           model_spec=dmc_model_spec,
+                                           ini_sys_conf_set=sys_conf_set)
 
             else:
 
-                dmc_est_sampling = attr.evolve(dmc_est_sampling,
-                                               ini_sys_conf_set=sys_conf_set)
+                dmc_sampling = attr.evolve(dmc_sampling,
+                                           ini_sys_conf_set=sys_conf_set)
 
-        dmc_result = dmc_est_sampling.run()
+        dmc_result = dmc_sampling.run()
 
         logger.info("All tasks finished.")
 

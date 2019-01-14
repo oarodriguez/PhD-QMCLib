@@ -497,14 +497,14 @@ def test_dmc_est_sampling():
     ini_ref_energy = None
     rng_seed = None
 
-    sf_config = bloch_phonon.dmc.StructureFactorEst(num_modes=100)
+    ssf_est_spec = bloch_phonon.dmc.SSFEstSpec(num_modes=100)
     dmc_sampling = \
         bloch_phonon.dmc.EstSampling(model_spec,
                                      time_step,
                                      max_num_walkers=max_num_walkers,
                                      target_num_walkers=target_num_walkers,
                                      rng_seed=rng_seed,
-                                     structure_factor=sf_config)
+                                     ssf_spec=ssf_est_spec)
 
     ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
     dmc_es_batches = dmc_sampling.batches(ini_state, num_time_steps_batch)
@@ -515,10 +515,10 @@ def test_dmc_est_sampling():
     for batch in es_batches:
         state_props = batch.iter_props
         nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
-        sf_iter = batch.iter_structure_factor
+        iter_ssf = batch.iter_ssf
         # print(state_props)
-        sf_batch_data = sf_iter / nw_iter[:, np.newaxis]
-        print(sf_batch_data)
+        ssf_batch_data = iter_ssf / nw_iter[:, np.newaxis]
+        print(ssf_batch_data)
         print(nw_iter)
         print('---')
 
@@ -562,13 +562,13 @@ def test_dmc_task():
     rng_seed = None
 
     num_modes = 2 * boson_number
-    sf_config = bloch_phonon.dmc.StructureFactorEst(num_modes=num_modes)
+    ssf_est_spec = bloch_phonon.dmc.SSFEstSpec(num_modes=num_modes)
     dmc_sampling = bloch_phonon.task.DMCEstSampling(
             model_spec, time_step,
             max_num_walkers,
             target_num_walkers,
             rng_seed=rng_seed,
-            structure_factor=sf_config,
+            ssf_spec=ssf_est_spec,
             ini_sys_conf_set=ini_sys_conf_set,
             ini_ref_energy=ini_ref_energy,
             num_batches=num_batches,
