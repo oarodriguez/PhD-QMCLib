@@ -652,6 +652,7 @@ class SSFEstSpecNT(qmc_base.dmc.SSFEstSpecNT, t.NamedTuple):
 class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
     """Structure factor estimator."""
 
+    model_spec: model.Spec
     num_modes: int
     as_pure_est: bool = True
     pfw_num_time_steps: t.Optional[int] = None
@@ -664,26 +665,27 @@ class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
             pfs_nts = 99999999
             object.__setattr__(self, 'pfw_num_time_steps', pfs_nts)
 
-    def get_momenta(self, model_spec: model.Spec):
+    @cached_property
+    def momenta(self):
         """
 
-        :param model_spec:
         :return:
         """
         num_modes = self.num_modes
-        supercell_size = model_spec.supercell_size
+        supercell_size = self.model_spec.supercell_size
         return np.arange(1, num_modes + 1) * 2 * pi / supercell_size
 
-    def build_core_func(self, model_spec: model.Spec):
+    @cached_property
+    def core_func(self):
         """
 
-        :param model_spec:
         :return:
         """
+        model_spec = self.model_spec
         num_modes = self.num_modes
         as_pure_est = self.as_pure_est
         pfs_nts = self.pfw_num_time_steps
-        momenta = self.get_momenta(model_spec)
+        momenta = self.momenta
 
         cfc_spec_nt = model_spec.cfc_spec_nt
         ssf_func = model.core_funcs.structure_factor
@@ -783,7 +785,7 @@ class EstSampling(SamplingBase, qmc_base.dmc.EstSampling):
             ssf_num_modes = ssf_spec.num_modes
             ssf_as_pure_est = ssf_spec.as_pure_est
             ssf_pfw_nts = ssf_spec.pfw_num_time_steps
-            ssf_core_func = ssf_spec.build_core_func(model_spec)
+            ssf_core_func = ssf_spec.core_func
 
         else:
             ssf_num_modes = 1

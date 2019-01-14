@@ -722,13 +722,13 @@ class SSFEstSpec(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def get_momenta(self, *args, **kwargs):
+    def momenta(self, *args, **kwargs):
         """"""
         pass
 
     @property
     @abstractmethod
-    def build_core_func(self, *args, **kwargs):
+    def core_func(self, *args, **kwargs):
         """"""
         pass
 

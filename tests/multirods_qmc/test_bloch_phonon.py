@@ -562,17 +562,18 @@ def test_dmc_task():
     rng_seed = None
 
     num_modes = 2 * boson_number
-    ssf_est_spec = bloch_phonon.dmc.SSFEstSpec(num_modes=num_modes)
+    ssf_spec = bloch_phonon.dmc.SSFEstSpec(model_spec,
+                                           num_modes=num_modes)
     dmc_sampling = bloch_phonon.task.DMCEstSampling(
             model_spec, time_step,
             max_num_walkers,
             target_num_walkers,
             rng_seed=rng_seed,
-            ssf_spec=ssf_est_spec,
             ini_sys_conf_set=ini_sys_conf_set,
             ini_ref_energy=ini_ref_energy,
             num_batches=num_batches,
-            num_time_steps_batch=num_time_steps_batch
+            num_time_steps_batch=num_time_steps_batch,
+            ssf_spec=ssf_spec
     )
 
     dmc_task = bloch_phonon.task.DMC(dmc_sampling, vmc_sampling)

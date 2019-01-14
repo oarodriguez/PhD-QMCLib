@@ -528,9 +528,6 @@ class DMCEstSampling(dmc.EstSampling):
     num_walkers_control_factor: t.Optional[float] = 0.5
     rng_seed: t.Optional[int] = None
 
-    # *** Estimators configuration ***
-    ssf_spec: t.Optional[dmc.SSFEstSpec] = None
-
     #: The initial configuration set of the sampling.
     ini_sys_conf_set: t.Optional[np.ndarray] = None
 
@@ -551,6 +548,9 @@ class DMCEstSampling(dmc.EstSampling):
 
     #: Remaining batches
     remaining_batches: t.Optional[int] = attr.ib(default=None, init=False)
+
+    # *** Estimators configuration ***
+    ssf_spec: t.Optional[dmc.SSFEstSpec] = None
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
