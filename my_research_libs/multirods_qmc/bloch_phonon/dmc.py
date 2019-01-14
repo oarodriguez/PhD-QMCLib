@@ -103,6 +103,9 @@ class SamplingBase(qmc_base.dmc.Sampling):
         confs_shape = self.state_confs_shape
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
+
+        # Only take as much sys_conf items as target_num_walkers.
+        sys_conf_set = np.asarray(sys_conf_set)[-self.target_num_walkers:]
         num_walkers = len(sys_conf_set)
 
         # Initial state arrays.
