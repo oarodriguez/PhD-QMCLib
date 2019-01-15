@@ -5,19 +5,13 @@ import attr
 import numpy as np
 
 from my_research_libs.qmc_base import vmc as vmc_base
-from my_research_libs.qmc_exec import dmc as dmc_exec
+from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
 from . import dmc, model, vmc
 
 __all__ = [
     'DMC',
     'WFOptimizationSpec'
 ]
-
-QMC_DMC_TASK_LOG_NAME = 'QMC-DMC Task'
-WF_OPTIMIZATION_LOG_NAME = 'WF Optimize'
-
-BASIC_FORMAT = "%(asctime)-15s | %(name)-12s %(levelname)-5s: %(message)s"
-logging.basicConfig(format=BASIC_FORMAT, level=logging.INFO)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -83,11 +77,9 @@ class WFOptimizationSpec:
         """
         num_sys_confs = self.num_sys_confs
 
-        logger = logging.getLogger(WF_OPTIMIZATION_LOG_NAME)
-
-        logger.info('Starting wave function optimization...')
-        logger.info(f'Using {num_sys_confs} configurations to '
-                    f'minimize the variance...')
+        exec_logger.info('Starting wave function optimization...')
+        exec_logger.info(f'Using {num_sys_confs} configurations to '
+                         f'minimize the variance...')
 
         sys_conf_set = sys_conf_set[-num_sys_confs:]
         ini_wf_abs_log_set = ini_wf_abs_log_set[-num_sys_confs:]
@@ -101,7 +93,7 @@ class WFOptimizationSpec:
                                         self.verbose)
         opt_result = optimizer.exec()
 
-        logger.info('Wave function optimization completed.')
+        exec_logger.info('Wave function optimization completed.')
 
         return opt_result
 
@@ -230,10 +222,7 @@ class DMC:
         dmc_spec = self.dmc_spec
         should_optimize = self.should_optimize
 
-        logger = logging.getLogger(QMC_DMC_TASK_LOG_NAME)
-        logger.setLevel(logging.INFO)
-
-        logger.info('Starting QMC-DMC calculation...')
+        exec_logger.info('Starting QMC-DMC calculation...')
 
         # The base DMC model spec.
         dmc_model_spec = self.model_spec
@@ -245,13 +234,14 @@ class DMC:
 
         if vmc_spec is None:
 
-            logger.info('VMC sampling task is not configured.')
-            logger.info('Continue to next task...')
+            exec_logger.info('VMC sampling task is not configured.')
+            exec_logger.info('Continue to next task...')
 
             if wf_opt_spec is not None:
 
-                logger.warning("can't do WF optimization without a previous "
-                               "VMC sampling task specification.")
+                exec_logger.warning("can't do WF optimization without a "
+                                    "previous VMC sampling task "
+                                    "specification.")
                 logging.warning("Skipping wave function optimization "
                                 "task...")
                 # raise TypeError("can't do WF optimization without a "
@@ -259,7 +249,7 @@ class DMC:
             else:
                 logging.info("Wave function optimization task is not "
                              "configured.")
-                logger.info('Continue to next task...')
+                exec_logger.info('Continue to next task...')
 
         else:
 
@@ -273,8 +263,8 @@ class DMC:
 
             if should_optimize:
 
-                logger.info('Starting VMC sampling with optimized '
-                            'trial wave function...')
+                exec_logger.info('Starting VMC sampling with optimized '
+                                 'trial wave function...')
 
                 # Run optimization task.
                 dmc_model_spec = \
@@ -305,9 +295,9 @@ class DMC:
 
         except dmc_exec.DMCIniSysConfSetError:
             dmc_result = None
-            logger.exception('The following exception occurred during the '
-                             'execution of the task:')
+            exec_logger.exception('The following exception occurred '
+                                  'during the execution of the task:')
 
-        logger.info("All tasks finished.")
+        exec_logger.info("All tasks finished.")
 
         return dmc_result, self_evolve

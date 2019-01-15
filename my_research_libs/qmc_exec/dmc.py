@@ -1,4 +1,3 @@
-import logging
 import typing as t
 from abc import ABCMeta, abstractmethod
 from itertools import islice
@@ -14,6 +13,7 @@ from my_research_libs.qmc_data.dmc import (
     DMCESData, DMCESDataBlocks, DMCESDataSeries, EnergyBlocks,
     NumWalkersBlocks, SSFBlocks, WeightBlocks
 )
+from .logging import exec_logger
 
 DMC_TASK_LOG_NAME = f'DMC Sampling'
 VMC_SAMPLING_LOG_NAME = 'VMC Sampling'
@@ -51,12 +51,9 @@ class VMCSamplingSpec(metaclass=ABCMeta):
         num_batches = self.num_batches
         num_steps_batch = self.num_steps_batch
 
-        logger = logging.getLogger(VMC_SAMPLING_LOG_NAME)
-        logger.setLevel(logging.INFO)
-
-        logger.info('Starting VMC sampling...')
-        logger.info(f'Sampling {num_batches} batches of steps...')
-        logger.info(f'Sampling {num_steps_batch} steps per batch...')
+        exec_logger.info('Starting VMC sampling...')
+        exec_logger.info(f'Sampling {num_batches} batches of steps...')
+        exec_logger.info(f'Sampling {num_steps_batch} steps per batch...')
 
         # New sampling instance
         sampling = self.build_sampling(model_spec)
@@ -65,10 +62,10 @@ class VMCSamplingSpec(metaclass=ABCMeta):
         # By default burn-in all but the last batch.
         burn_in_batches = num_batches - 1
         if burn_in_batches:
-            logger.info('Executing burn-in stage...')
+            exec_logger.info('Executing burn-in stage...')
 
-            logger.info(f'A total of {burn_in_batches} batches will be '
-                        f'discarded.')
+            exec_logger.info(f'A total of {burn_in_batches} batches will be '
+                             f'discarded.')
 
             # Burn-in stage.
             pgs_bar = tqdm.tqdm(total=burn_in_batches, dynamic_ncols=True)
@@ -77,20 +74,20 @@ class VMCSamplingSpec(metaclass=ABCMeta):
                     # Burn batches...
                     pgs_bar.update(1)
 
-            logger.info('Burn-in stage completed.')
+            exec_logger.info('Burn-in stage completed.')
 
         else:
 
-            logger.info(f'No burn-in batches requested.')
+            exec_logger.info(f'No burn-in batches requested.')
 
         # *** *** ***
 
-        logger.info('Sampling the last batch...')
+        exec_logger.info('Sampling the last batch...')
 
         # Get the last batch.
         last_batch: vmc_base.SamplingBatch = next(batches)
 
-        logger.info('VMC Sampling completed.')
+        exec_logger.info('VMC Sampling completed.')
 
         # TODO: Should we return the sampling object?
         return last_batch, sampling
@@ -204,13 +201,12 @@ class DMCSamplingSpec:
             raise DMCIniSysConfSetError('the initial system configuration '
                                         'is undefined')
 
-        logger = logging.getLogger(DMC_TASK_LOG_NAME)
-
         #
-        logger.info('Starting DMC sampling...')
-        logger.info(f'Using an average of {target_num_walkers} walkers.')
-        logger.info(f'Sampling {num_batches} batches of time.')
-        logger.info(f'Sampling {num_time_steps_batch} time-steps per batch.')
+        exec_logger.info('Starting DMC sampling...')
+        exec_logger.info(f'Using an average of {target_num_walkers} walkers.')
+        exec_logger.info(f'Sampling {num_batches} batches of time.')
+        exec_logger.info(f'Sampling {num_time_steps_batch} time-steps '
+                         f'per batch.')
 
         # We will burn-in the first ten percent of the sampling chain.
         if burn_in_batches is None:
@@ -231,10 +227,10 @@ class DMCSamplingSpec:
 
         if burn_in_batches:
 
-            logger.info('Computing DMC burn-in stage...')
+            exec_logger.info('Computing DMC burn-in stage...')
 
-            logger.info(f'A total of {burn_in_batches} batches will be '
-                        f'discarded.')
+            exec_logger.info(f'A total of {burn_in_batches} batches will be '
+                             f'discarded.')
 
             # Burn-in stage.
             pgs_bar = tqdm.tqdm(total=burn_in_batches, dynamic_ncols=True)
@@ -243,10 +239,10 @@ class DMCSamplingSpec:
                     # Burn, burn, burn...
                     pgs_bar.update(1)
 
-            logger.info('Burn-in stage completed.')
+            exec_logger.info('Burn-in stage completed.')
 
         else:
-            logger.info(f'No burn-in batches requested')
+            exec_logger.info(f'No burn-in batches requested')
 
         # Main containers of data.
         if keep_iter_data:
@@ -289,12 +285,13 @@ class DMCSamplingSpec:
         enum_eff_batches: dmc_base.T_E_ESBatchesIter \
             = enumerate(eff_batches)
 
-        logger.info('Starting the evaluation of estimators...')
+        exec_logger.info('Starting the evaluation of estimators...')
 
         if should_eval_ssf:
-            logger.info(f'Static structure factor is going to be calculated.')
-            logger.info(f'A total of {ssf_spec.num_modes} k-modes will '
-                        f'be used as input for S(k).')
+            exec_logger.info(
+                f'Static structure factor is going to be calculated.')
+            exec_logger.info(f'A total of {ssf_spec.num_modes} k-modes will '
+                             f'be used as input for S(k).')
 
         with tqdm.tqdm(total=num_batches, dynamic_ncols=True) as pgs_bar:
 
@@ -363,8 +360,8 @@ class DMCSamplingSpec:
         else:
             last_state = batch_data.last_state
 
-        logger.info('Evaluation of estimators completed.')
-        logger.info('DMC sampling completed.')
+        exec_logger.info('Evaluation of estimators completed.')
+        exec_logger.info('DMC sampling completed.')
 
         # Create block objects with the totals of each block data.
         reduce_data = True if keep_iter_data else False
