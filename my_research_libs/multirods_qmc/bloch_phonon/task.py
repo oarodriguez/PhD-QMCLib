@@ -15,10 +15,10 @@ from . import dmc, model, vmc
 
 __all__ = [
     'DMC',
-    'DMCEstSampling',
-    'VMCSampling',
+    'DMCSamplingSpec',
     'DMCESResult',
-    'WFOptimization'
+    'VMCSamplingSpec',
+    'WFOptimizationSpec'
 ]
 
 QMC_DMC_TASK_LOG_NAME = 'QMC-DMC Task'
@@ -31,7 +31,7 @@ logging.basicConfig(format=BASIC_FORMAT, level=logging.INFO)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class VMCSampling:
+class VMCSamplingSpec:
     """VMC Sampling."""
 
     #: The spread magnitude of the random moves for the sampling.
@@ -104,7 +104,7 @@ class VMCSampling:
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class WFOptimization:
+class WFOptimizationSpec:
     """Wave function optimization."""
 
     #: The number of configurations used in the process.
@@ -523,12 +523,12 @@ class SSFEstSpec:
 
 
 class DMCIniSysConfSetError(ValueError):
-    """Indicates an invalid ``ini_sys_conf_set`` in a ``DMCEstSampling``."""
+    """Indicates an invalid ``ini_sys_conf_set`` in a ``DMCSamplingSpec``."""
     pass
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCEstSampling:
+class DMCSamplingSpec:
     """DMC sampling."""
 
     time_step: float
@@ -834,13 +834,13 @@ class DMC:
     model_spec: model.Spec
 
     #:
-    dmc_sampling: DMCEstSampling
+    dmc_spec: DMCSamplingSpec
 
     #:
-    vmc_sampling: t.Optional[VMCSampling] = None
+    vmc_spec: t.Optional[VMCSamplingSpec] = None
 
     #:
-    wf_optimize: t.Optional[WFOptimization] = None
+    wf_opt_spec: t.Optional[WFOptimizationSpec] = None
 
     #:
     output_file: t.Optional[str] = None
@@ -861,7 +861,7 @@ class DMC:
         if self.skip_optimize:
             return False
 
-        return False if self.wf_optimize is None else True
+        return False if self.wf_opt_spec is None else True
 
     def run(self):
         """
@@ -870,9 +870,9 @@ class DMC:
         """
         wf_abs_log_field = vmc_base.StateProp.WF_ABS_LOG
 
-        vmc_sampling = self.vmc_sampling
-        wf_optimize = self.wf_optimize
-        dmc_sampling = self.dmc_sampling
+        vmc_spec = self.vmc_spec
+        wf_opt_spec = self.wf_opt_spec
+        dmc_spec = self.dmc_spec
         should_optimize = self.should_optimize
 
         logger = logging.getLogger(QMC_DMC_TASK_LOG_NAME)
@@ -888,12 +888,12 @@ class DMC:
         # the wave function optimization.
         self_evolve = self
 
-        if vmc_sampling is None:
+        if vmc_spec is None:
 
             logger.info('VMC sampling task is not configured.')
             logger.info('Continue to next task...')
 
-            if wf_optimize is not None:
+            if wf_opt_spec is not None:
 
                 logger.warning("can't do WF optimization without a previous "
                                "VMC sampling task specification.")
@@ -908,13 +908,13 @@ class DMC:
 
         else:
 
-            vmc_result, _ = vmc_sampling.run(self.model_spec)
+            vmc_result, _ = vmc_spec.run(self.model_spec)
             sys_conf_set = vmc_result.confs
             wf_abs_log_set = vmc_result.props[wf_abs_log_field]
 
             # A future execution of this task won't need the realization
             # of the VMC sampling again.
-            self_evolve = attr.evolve(self_evolve, vmc_sampling=None)
+            self_evolve = attr.evolve(self_evolve, vmc_spec=None)
 
             if should_optimize:
 
@@ -923,30 +923,30 @@ class DMC:
 
                 # Run optimization task.
                 dmc_model_spec = \
-                    wf_optimize.run(dmc_model_spec,
+                    wf_opt_spec.run(dmc_model_spec,
                                     sys_conf_set=sys_conf_set,
                                     ini_wf_abs_log_set=wf_abs_log_set)
 
-                vmc_result, _ = vmc_sampling.run(dmc_model_spec)
+                vmc_result, _ = vmc_spec.run(dmc_model_spec)
                 sys_conf_set = vmc_result.confs
 
                 # In a posterior execution the same task again, we
                 # may skip the optimization stage.
                 self_evolve = attr.evolve(self_evolve,
                                           model_spec=dmc_model_spec,
-                                          wf_optimize=None)
+                                          wf_opt_spec=wf_opt_spec)
 
             # Update the model spec of the VMC sampling, as well
             # as the initial configuration set.
-            dmc_sampling = \
-                attr.evolve(dmc_sampling, ini_sys_conf_set=sys_conf_set)
+            dmc_spec = \
+                attr.evolve(dmc_spec, ini_sys_conf_set=sys_conf_set)
 
             # We have to update the DMC sampling.
             self_evolve = \
-                attr.evolve(self_evolve, dmc_sampling=dmc_sampling)
+                attr.evolve(self_evolve, dmc_spec=dmc_spec)
 
         try:
-            dmc_result = dmc_sampling.run(dmc_model_spec)
+            dmc_result = dmc_spec.run(dmc_model_spec)
 
         except DMCIniSysConfSetError:
             dmc_result = None
