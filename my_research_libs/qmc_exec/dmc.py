@@ -93,6 +93,15 @@ class VMCSamplingSpec(metaclass=ABCMeta):
         return last_batch, sampling
 
 
+class WFOptimizationSpec(metaclass=ABCMeta):
+    """Wave function optimization."""
+
+    @abstractmethod
+    def run(self, *args, **kwargs):
+        """"""
+        pass
+
+
 @attr.s(auto_attribs=True, frozen=True)
 class DMCESResult:
     """Result of the DMC estimator sampling."""
@@ -107,7 +116,7 @@ class DMCESResult:
     sampling: t.Optional[dmc_base.EstSampling] = None
 
 
-class SSFEstSpec:
+class SSFEstSpec(metaclass=ABCMeta):
     """Structure factor estimator basic config."""
     num_modes: int
     as_pure_est: bool
@@ -119,7 +128,7 @@ class DMCIniSysConfSetError(ValueError):
     pass
 
 
-class DMCSamplingSpec:
+class DMCSamplingSpec(metaclass=ABCMeta):
     """DMC sampling."""
 
     time_step: float
@@ -288,8 +297,8 @@ class DMCSamplingSpec:
         exec_logger.info('Starting the evaluation of estimators...')
 
         if should_eval_ssf:
-            exec_logger.info(
-                f'Static structure factor is going to be calculated.')
+            exec_logger.info(f'Static structure factor is going to be '
+                             f'calculated.')
             exec_logger.info(f'A total of {ssf_spec.num_modes} k-modes will '
                              f'be used as input for S(k).')
 
@@ -409,3 +418,40 @@ class DMCSamplingSpec:
         return DMCESResult(last_state,
                            data=data,
                            sampling=sampling)
+
+
+class DMC(metaclass=ABCMeta):
+    """Class to realize a whole DMC calculation."""
+
+    #:
+    model_spec: model_base.Spec
+
+    #:
+    dmc_spec: DMCSamplingSpec
+
+    #:
+    vmc_spec: t.Optional[VMCSamplingSpec]
+
+    #:
+    wf_opt_spec: t.Optional[WFOptimizationSpec]
+
+    #:
+    output_file: t.Optional[str]
+
+    #:
+    skip_optimize: bool
+
+    #:
+    verbose: bool
+
+    @property
+    def should_optimize(self):
+        """"""
+        if self.skip_optimize:
+            return False
+        return False if self.wf_opt_spec is None else True
+
+    @abstractmethod
+    def run(self):
+        """"""
+        pass

@@ -45,7 +45,7 @@ class VMCSamplingSpec(dmc_exec.VMCSamplingSpec):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class WFOptimizationSpec:
+class WFOptimizationSpec(dmc_exec.WFOptimizationSpec):
     """Wave function optimization."""
 
     #: The number of configurations used in the process.
@@ -174,7 +174,7 @@ class DMCSamplingSpec(dmc_exec.DMCSamplingSpec):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMC:
+class DMC(dmc_exec.DMC):
     """Class to realize a whole DMC calculation."""
 
     #:
@@ -201,14 +201,6 @@ class DMC:
     def __attrs_post_init__(self):
         """"""
         pass
-
-    @property
-    def should_optimize(self):
-        """"""
-        if self.skip_optimize:
-            return False
-
-        return False if self.wf_opt_spec is None else True
 
     def run(self):
         """
