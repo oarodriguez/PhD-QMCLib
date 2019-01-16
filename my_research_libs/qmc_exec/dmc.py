@@ -21,6 +21,7 @@ __all__ = [
     'DMCProcSpec',
     'DMCProcResult',
     'ProcExecutor',
+    'ProcExecutorResult',
     'SSFEstSpec',
     'VMCProcSpec',
     'VMCProcInput',
@@ -202,6 +203,17 @@ class DMCProcSpec(metaclass=ABCMeta):
 T_ProcDirectorInput = t.Union[VMCProcInput, DMCProcInput]
 
 
+@attr.s(auto_attribs=True)
+class ProcExecutorResult(metaclass=ABCMeta):
+    """Result of a complete QMC procedure execution."""
+
+    #: The result of the DMC procedure.
+    dmc_proc_result: DMCProcResult
+
+    #: A modified executor instance.
+    proc_executor: 'ProcExecutor'
+
+
 class ProcExecutor(metaclass=ABCMeta):
     """Manages a whole DMC calculation."""
 
@@ -260,7 +272,7 @@ class ProcExecutor(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def exec(self, proc_input: T_ProcDirectorInput):
+    def exec(self, proc_input: T_ProcDirectorInput) -> ProcExecutorResult:
         """"""
         pass
 

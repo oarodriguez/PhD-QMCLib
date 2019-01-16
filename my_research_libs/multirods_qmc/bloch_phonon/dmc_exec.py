@@ -6,7 +6,7 @@ import numpy as np
 from my_research_libs.qmc_base import vmc as vmc_base
 from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
 from my_research_libs.qmc_exec.dmc import (
-    DMCProcInput, VMCProcInput
+    DMCProcInput, ProcExecutorResult, VMCProcInput
 )
 from . import dmc, model, vmc
 
@@ -299,4 +299,4 @@ class ProcExecutor(dmc_exec.ProcExecutor):
 
         exec_logger.info("All tasks finished.")
 
-        return dmc_proc_result, self_evolve
+        return ProcExecutorResult(dmc_proc_result, self_evolve)
