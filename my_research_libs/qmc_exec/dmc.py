@@ -10,8 +10,8 @@ from my_research_libs.qmc_base import (
     dmc as dmc_base, model as model_base, vmc as vmc_base
 )
 from my_research_libs.qmc_data.dmc import (
-    DMCESData, DMCESDataBlocks, DMCESDataSeries, EnergyBlocks,
-    NumWalkersBlocks, SSFBlocks, WeightBlocks
+    EnergyBlocks, NumWalkersBlocks, PropsDataBlocks, PropsDataSeries,
+    SSFBlocks, SamplingData, WeightBlocks
 )
 from .data import DMCProcResult
 from .logging import exec_logger
@@ -532,22 +532,22 @@ class ProcExecutor(metaclass=ABCMeta):
         else:
             ssf_blocks = None
 
-        data_blocks = DMCESDataBlocks(energy_blocks,
+        data_blocks = PropsDataBlocks(energy_blocks,
                                       weight_blocks,
                                       num_walkers_blocks,
                                       ssf_blocks)
 
         if keep_iter_data:
-            data_series = DMCESDataSeries(props_blocks_data,
+            data_series = PropsDataSeries(props_blocks_data,
                                           ssf_blocks_data)
         else:
             data_series = None
 
-        data = DMCESData(data_blocks, data_series)
+        sampling_data = SamplingData(data_blocks, data_series)
 
         # NOTE: Should we return a new instance?
         # sampling = attr.evolve(sampling)
 
         return DMCProcResult(last_state,
-                             data=data,
+                             data=sampling_data,
                              sampling=sampling)

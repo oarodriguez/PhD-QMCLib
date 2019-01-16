@@ -9,7 +9,7 @@ from my_research_libs.qmc_base import dmc as dmc_base
 from my_research_libs.stats import reblock
 
 
-class DataBlocks(metaclass=ABCMeta):
+class PropBlocks(metaclass=ABCMeta):
     """Abstract class to represent data in blocks."""
 
     num_blocks: int
@@ -93,7 +93,7 @@ class DataBlocks(metaclass=ABCMeta):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class NumWalkersBlocks(DataBlocks):
+class NumWalkersBlocks(PropBlocks):
     """Number of walkers data in blocks."""
 
     num_blocks: int
@@ -125,7 +125,7 @@ class NumWalkersBlocks(DataBlocks):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class WeightBlocks(DataBlocks):
+class WeightBlocks(PropBlocks):
     """Weight data in blocks."""
 
     num_blocks: int
@@ -157,7 +157,7 @@ class WeightBlocks(DataBlocks):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class EnergyBlocks(DataBlocks):
+class EnergyBlocks(PropBlocks):
     """Energy data in blocks."""
 
     num_blocks: int
@@ -194,7 +194,7 @@ class EnergyBlocks(DataBlocks):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class SSFBlocks(DataBlocks):
+class SSFBlocks(PropBlocks):
     """Structure Factor data in blocks."""
 
     num_blocks: int
@@ -278,19 +278,19 @@ class SSFBlocks(DataBlocks):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCESDataSeries:
+class PropsDataSeries:
     """The data from a DMC sampling."""
 
-    #: The blocks / batches of data.
-    props_blocks: np.ndarray
+    #: The blocks of data of the sampling basic properties.
+    iter_props_blocks: np.ndarray
 
-    #:
+    #: The  blocks of data of the static structure factor.
     ssf_blocks: t.Optional[np.ndarray] = None
 
     @cached_property
     def props(self):
         """"""
-        source_data = self.props_blocks
+        source_data = self.iter_props_blocks
         return np.hstack(source_data)
 
     @property
@@ -327,7 +327,7 @@ class DMCESDataSeries:
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCESDataBlocks:
+class PropsDataBlocks:
     """Results of a DMC sampling grouped in block totals."""
 
     energy: EnergyBlocks
@@ -337,11 +337,11 @@ class DMCESDataBlocks:
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCESData:
+class SamplingData:
     """The data from a DMC sampling."""
 
     #: Data blocks.
-    blocks: DMCESDataBlocks
+    blocks: PropsDataBlocks
 
     #: Full data.
-    series: t.Optional[DMCESDataSeries] = None
+    series: t.Optional[PropsDataSeries] = None

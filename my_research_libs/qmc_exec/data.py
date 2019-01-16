@@ -3,7 +3,7 @@ import typing as t
 import attr
 
 from my_research_libs.qmc_base import dmc as dmc_base
-from my_research_libs.qmc_data.dmc import DMCESData
+from my_research_libs.qmc_data.dmc import SamplingData
 
 __all__ = [
     'DMCProcResult'
@@ -18,7 +18,7 @@ class DMCProcResult:
     state: dmc_base.State
 
     #: The data generated during the sampling.
-    data: t.Optional[DMCESData] = None
+    data: t.Optional[SamplingData] = None
 
     #: The sampling object used to generate the results.
     sampling: t.Optional[dmc_base.EstSampling] = None
