@@ -24,6 +24,7 @@ __all__ = [
     'Sampling',
     'SamplingBase',
     'State',
+    'StateError',
     'StateProp',
     'SSFEstSpec'
 ]
@@ -61,6 +62,11 @@ class BatchFuncResult(t.NamedTuple):
     """The result of a function evaluated over a sampling batch."""
     func: np.ndarray
     iter_props: np.ndarray
+
+
+class StateError(ValueError):
+    """Flags errors related to the handling of a DMC state."""
+    pass
 
 
 class SamplingBase(qmc_base.dmc.Sampling):
@@ -103,6 +109,12 @@ class SamplingBase(qmc_base.dmc.Sampling):
         confs_shape = self.state_confs_shape
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
+
+        if len(confs_shape) == len(sys_conf_set.shape):
+            # Equal number of dimensions, but...
+            if confs_shape[1:] != self.model_spec.sys_conf_shape:
+                raise StateError("sys_conf_set is not a valid set of "
+                                 "configurations of the model spec")
 
         # Only take as much sys_conf items as target_num_walkers.
         sys_conf_set = np.asarray(sys_conf_set)[-self.target_num_walkers:]
