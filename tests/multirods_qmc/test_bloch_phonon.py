@@ -7,6 +7,7 @@ from matplotlib import pyplot
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
+from my_research_libs.multirods_qmc.bloch_phonon import dmc_exec
 from my_research_libs.qmc_base.jastrow import SysConfDistType, SysConfSlot
 
 LATTICE_DEPTH = 100
@@ -549,7 +550,6 @@ def test_dmc_task():
     vmc_sampling = \
         bloch_phonon.dmc_exec.VMCProcSpec(move_spread,
                                           rng_seed=rng_seed,
-                                          ini_sys_conf=ini_sys_conf,
                                           num_batches=num_batches,
                                           num_steps_batch=num_steps_batch)
 
@@ -563,23 +563,23 @@ def test_dmc_task():
     rng_seed = None
 
     num_modes = 2 * boson_number
-    ssf_spec = bloch_phonon.dmc_exec.SSFEstSpec(num_modes=num_modes)
+    ssf_spec = dmc_exec.SSFEstSpec(num_modes=num_modes)
     dmc_sampling = \
         bloch_phonon.dmc_exec.DMCProcSpec(
                 time_step,
                 max_num_walkers,
                 target_num_walkers,
                 rng_seed=rng_seed,
-                ini_ref_energy=ini_ref_energy,
                 num_batches=num_batches,
                 num_time_steps_batch=num_time_steps_batch,
                 ssf_spec=ssf_spec
         )
 
-    dmc_task = bloch_phonon.dmc_exec.ProcExecutor(model_spec,
-                                                  dmc_sampling,
-                                                  vmc_sampling)
-    task_result = dmc_task.exec()
+    dmc_task = dmc_exec.ProcExecutor(model_spec,
+                                     dmc_sampling,
+                                     vmc_sampling)
+    proc_input = dmc_task.build_proc_input(ini_sys_conf)
+    task_result = dmc_task.exec(proc_input)
 
 
 if __name__ == '__main__':

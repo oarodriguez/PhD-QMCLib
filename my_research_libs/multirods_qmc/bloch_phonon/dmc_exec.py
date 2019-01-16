@@ -5,6 +5,9 @@ import numpy as np
 
 from my_research_libs.qmc_base import vmc as vmc_base
 from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
+from my_research_libs.qmc_exec.dmc import (
+    DMCProcInput, VMCProcInput
+)
 from . import dmc, model, vmc
 
 __all__ = [
@@ -23,8 +26,6 @@ class VMCProcSpec(dmc_exec.VMCProcSpec):
     move_spread: float
 
     rng_seed: t.Optional[int] = None
-
-    ini_sys_conf: t.Optional[np.ndarray] = None
 
     num_batches: int = 64
 
@@ -84,10 +85,6 @@ class DMCProcSpec(dmc_exec.DMCProcSpec):
 
     rng_seed: t.Optional[int] = None
 
-    ini_sys_conf_set: t.Optional[np.ndarray] = None
-
-    ini_ref_energy: t.Optional[float] = None
-
     num_batches: int = 512  # 2^9
 
     num_time_steps_batch: int = 512  # 2^9
@@ -133,7 +130,7 @@ class DMCProcSpec(dmc_exec.DMCProcSpec):
 @attr.s(auto_attribs=True, frozen=True)
 class ProcExecutor(dmc_exec.ProcExecutor):
     """Class to realize a whole DMC calculation."""
-    #
+
     model_spec: model.Spec
 
     dmc_proc_spec: DMCProcSpec
@@ -204,49 +201,56 @@ class ProcExecutor(dmc_exec.ProcExecutor):
 
         return opt_result
 
-    def exec(self):
+    def build_proc_input(self, maybe_sys_conf_set: np.ndarray,
+                         ref_energy: float = None):
+        """
+
+        :param maybe_sys_conf_set:
+        :param ref_energy:
+        :return:
+        """
+        maybe_sys_conf_set = np.asarray(maybe_sys_conf_set)
+        if self.should_exec_vmc:
+            proc_input = \
+                VMCProcInput.from_sys_conf(maybe_sys_conf_set, self)
+
+        else:
+            proc_input = \
+                DMCProcInput.from_sys_conf_set(maybe_sys_conf_set, self,
+                                               ref_energy)
+
+        return proc_input
+
+    def exec(self, proc_input: dmc_exec.T_ProcDirectorInput):
         """
 
         :return:
         """
         wf_abs_log_field = vmc_base.StateProp.WF_ABS_LOG
 
-        dmc_proc_spec = self.dmc_proc_spec
         should_exec_vmc = self.should_exec_vmc
         should_optimize = self.should_optimize
 
         exec_logger.info('Starting QMC-DMC calculation...')
 
-        # The base DMC model spec.
-        # dmc_model_spec = self.model_spec
-
         # This reference to the current task will be modified, so the same
         # task can be executed again without realizing the VMC sampling and
         # the wave function optimization.
         self_evolve = self
+        dmc_proc_input = proc_input
 
         if not should_exec_vmc:
 
             exec_logger.info('VMC sampling task is not configured.')
-            exec_logger.info('Continue to next task...')
+            exec_logger.info('Continue to next task.')
 
             if should_optimize:
-
-                exec_logger.warning("can't do WF optimization without a "
-                                    "previous VMC sampling task "
-                                    "specification.")
-                exec_logger.warning("Skipping wave function optimization "
-                                    "task...")
-                # raise TypeError("can't do WF optimization without a "
-                #                 "previous VMC sampling task specification")
-            else:
-                exec_logger.info("Wave function optimization task is not "
-                                 "configured.")
-                exec_logger.info('Continue to next task...')
+                raise TypeError("can't do WF optimization without a "
+                                "previous VMC sampling task specification")
 
         else:
 
-            vmc_result, _ = self.exec_vmc_proc()
+            vmc_result, _ = self.exec_vmc_proc(proc_input)
             sys_conf_set = vmc_result.confs
             wf_abs_log_set = vmc_result.props[wf_abs_log_field]
 
@@ -264,7 +268,8 @@ class ProcExecutor(dmc_exec.ProcExecutor):
                     self.exec_wf_opt_proc(sys_conf_set=sys_conf_set,
                                           ini_wf_abs_log_set=wf_abs_log_set)
 
-                vmc_result, _ = self.exec_vmc_proc()
+                # Use the same build_proc_input.
+                vmc_result, _ = self.exec_vmc_proc(proc_input)
                 sys_conf_set = vmc_result.confs
 
                 # In a posterior execution the same task again, we
@@ -275,26 +280,22 @@ class ProcExecutor(dmc_exec.ProcExecutor):
 
             else:
 
+                exec_logger.info("Wave function optimization task is not "
+                                 "configured.")
+                exec_logger.info('Continue to next task.')
+
                 # In a posterior execution the same task again, we
                 # may skip the optimization stage.
                 self_evolve = attr.evolve(self_evolve, wf_opt_proc_spec=None)
 
             # Update the model spec of the VMC sampling, as well
             # as the initial configuration set.
-            dmc_proc_spec = \
-                attr.evolve(dmc_proc_spec, ini_sys_conf_set=sys_conf_set)
+            dmc_proc_input = \
+                dmc_exec.DMCProcInput.from_sys_conf_set(sys_conf_set,
+                                                        proc_director=self)
 
-            # We have to update the DMC sampling.
-            self_evolve = \
-                attr.evolve(self_evolve, dmc_proc_spec=dmc_proc_spec)
-
-        try:
-            dmc_proc_result = self_evolve.exec_dmc_proc()
-
-        except dmc_exec.DMCIniSysConfSetError:
-            dmc_proc_result = None
-            exec_logger.exception('The following exception occurred '
-                                  'during the execution of the task:')
+        # Execute the main task.
+        dmc_proc_result = self_evolve.exec_dmc_proc(dmc_proc_input)
 
         exec_logger.info("All tasks finished.")
 

@@ -16,17 +16,40 @@ from my_research_libs.qmc_data.dmc import (
 from .logging import exec_logger
 
 __all__ = [
-    'DMCESResult',
-    'DMCIniSysConfSetError',
+    'DMCProcInput',
+    'DMCProcInputError',
     'DMCProcSpec',
+    'DMCProcResult',
     'ProcExecutor',
     'SSFEstSpec',
     'VMCProcSpec',
+    'VMCProcInput',
+    'VMCProcInputError',
     'WFOptProcSpec'
 ]
 
 DMC_TASK_LOG_NAME = f'DMC Sampling'
 VMC_SAMPLING_LOG_NAME = 'VMC Sampling'
+
+
+@attr.s(auto_attribs=True)
+class VMCProcInput(metaclass=ABCMeta):
+    """Represents the input for the VMC calculation procedure."""
+
+    state: vmc_base.State
+
+    @classmethod
+    def from_sys_conf(cls, sys_conf: np.ndarray,
+                      proc_director: 'ProcExecutor'):
+        """
+
+        :param sys_conf:
+        :param proc_director:
+        :return:
+        """
+        vmc_sampling = proc_director.vmc_sampling
+        state = vmc_sampling.build_state(sys_conf)
+        return cls(state)
 
 
 class VMCProcSpec(metaclass=ABCMeta):
@@ -39,7 +62,7 @@ class VMCProcSpec(metaclass=ABCMeta):
     rng_seed: t.Optional[int]
 
     #: The initial configuration of the sampling.
-    ini_sys_conf: t.Optional[np.ndarray]
+    ini_state: t.Optional[vmc_base.State]
 
     #: The number of batches of the sampling.
     num_batches: int
@@ -59,8 +82,47 @@ class WFOptProcSpec(metaclass=ABCMeta):
     pass
 
 
+class SSFEstSpec(metaclass=ABCMeta):
+    """Structure factor estimator basic config."""
+    num_modes: int
+    as_pure_est: bool
+    pfw_num_time_steps: t.Optional[int]
+
+
+class VMCProcInputError(ValueError):
+    """Flags an invalid input for a VMC calculation procedure."""
+    pass
+
+
+class DMCProcInputError(ValueError):
+    """Flags an invalid input for a DMC calculation procedure."""
+    pass
+
+
+@attr.s(auto_attribs=True)
+class DMCProcInput(metaclass=ABCMeta):
+    """Represents the input for the DMC calculation procedure."""
+
+    state: dmc_base.State
+
+    @classmethod
+    def from_sys_conf_set(cls, sys_conf_set: np.ndarray,
+                          proc_director: 'ProcExecutor',
+                          ref_energy: float = None):
+        """
+
+        :param sys_conf_set:
+        :param proc_director:
+        :param ref_energy:
+        :return:
+        """
+        dmc_sampling = proc_director.dmc_sampling
+        state = dmc_sampling.build_state(sys_conf_set, ref_energy)
+        return cls(state)
+
+
 @attr.s(auto_attribs=True, frozen=True)
-class DMCESResult:
+class DMCProcResult:
     """Result of the DMC estimator sampling."""
 
     #: The last state of the sampling.
@@ -71,18 +133,6 @@ class DMCESResult:
 
     #: The sampling object used to generate the results.
     sampling: t.Optional[dmc_base.EstSampling] = None
-
-
-class SSFEstSpec(metaclass=ABCMeta):
-    """Structure factor estimator basic config."""
-    num_modes: int
-    as_pure_est: bool
-    pfw_num_time_steps: t.Optional[int]
-
-
-class DMCIniSysConfSetError(ValueError):
-    """Indicates an invalid ``ini_sys_conf_set`` in a ``DMCProcSpec``."""
-    pass
 
 
 class DMCProcSpec(metaclass=ABCMeta):
@@ -149,6 +199,9 @@ class DMCProcSpec(metaclass=ABCMeta):
         pass
 
 
+T_ProcDirectorInput = t.Union[VMCProcInput, DMCProcInput]
+
+
 class ProcExecutor(metaclass=ABCMeta):
     """Manages a whole DMC calculation."""
 
@@ -196,13 +249,25 @@ class ProcExecutor(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def exec(self):
+    def build_proc_input(self, maybe_sys_conf_set: np.ndarray,
+                         ref_energy: float = None):
+        """
+
+        :param maybe_sys_conf_set:
+        :param ref_energy:
+        :return:
+        """
+        pass
+
+    @abstractmethod
+    def exec(self, proc_input: T_ProcDirectorInput):
         """"""
         pass
 
-    def exec_vmc_proc(self):
+    def exec_vmc_proc(self, proc_input: VMCProcInput):
         """
 
+        :param proc_input:
         :return:
         """
         vmc_spec = self.vmc_proc_spec
@@ -215,7 +280,11 @@ class ProcExecutor(metaclass=ABCMeta):
 
         # New sampling instance
         sampling = self.vmc_sampling
-        batches = sampling.batches(num_steps_batch, vmc_spec.ini_sys_conf)
+        if not isinstance(proc_input, VMCProcInput):
+            raise VMCProcInputError('the input data for the VMC procedure is '
+                                    'not valid')
+        ini_sys_conf = proc_input.state.sys_conf
+        batches = sampling.batches(num_steps_batch, ini_sys_conf)
 
         # By default burn-in all but the last batch.
         burn_in_batches = num_batches - 1
@@ -250,9 +319,10 @@ class ProcExecutor(metaclass=ABCMeta):
         # TODO: Should we return the sampling object?
         return last_batch, sampling
 
-    def exec_dmc_proc(self):
+    def exec_dmc_proc(self, proc_input: DMCProcInput):
         """
 
+        :param proc_input:
         :return:
         """
         energy_field = dmc_base.IterProp.ENERGY
@@ -275,11 +345,6 @@ class ProcExecutor(metaclass=ABCMeta):
         ssf_spec = dmc_proc_spec.ssf_spec
         should_eval_ssf = dmc_proc_spec.should_eval_ssf
 
-        if dmc_proc_spec.ini_sys_conf_set is None:
-            raise DMCIniSysConfSetError('the initial system configuration '
-                                        'is undefined')
-
-        #
         exec_logger.info('Starting DMC sampling...')
         exec_logger.info(f'Using an average of {target_num_walkers} walkers.')
         exec_logger.info(f'Sampling {num_batches} batches of time.')
@@ -293,12 +358,12 @@ class ProcExecutor(metaclass=ABCMeta):
             burn_in_batches = burn_in_batches
 
         sampling = self.dmc_sampling
+        if not isinstance(proc_input, DMCProcInput):
+            raise DMCProcInputError('the input data for the DMC procedure is '
+                                    'not valid')
 
         # The estimator sampling iterator.
-        ini_state = \
-            sampling.build_state(dmc_proc_spec.ini_sys_conf_set,
-                                 dmc_proc_spec.ini_ref_energy)
-
+        ini_state = proc_input.state
         batches_iter = sampling.batches(ini_state, num_time_steps_batch)
 
         # Current batch data.
@@ -485,6 +550,6 @@ class ProcExecutor(metaclass=ABCMeta):
         # NOTE: Should we return a new instance?
         # sampling = attr.evolve(sampling)
 
-        return DMCESResult(last_state,
-                           data=data,
-                           sampling=sampling)
+        return DMCProcResult(last_state,
+                             data=data,
+                             sampling=sampling)
