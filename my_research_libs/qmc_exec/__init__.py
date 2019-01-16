@@ -6,7 +6,7 @@
     Quantum Monte Carlo calculation.
 """
 #
-from . import dmc
+from . import data, dmc
 
 #
 from .logging import exec_logger

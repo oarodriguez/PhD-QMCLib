@@ -13,13 +13,13 @@ from my_research_libs.qmc_data.dmc import (
     DMCESData, DMCESDataBlocks, DMCESDataSeries, EnergyBlocks,
     NumWalkersBlocks, SSFBlocks, WeightBlocks
 )
+from .data import DMCProcResult
 from .logging import exec_logger
 
 __all__ = [
     'DMCProcInput',
     'DMCProcInputError',
     'DMCProcSpec',
-    'DMCProcResult',
     'ProcExecutor',
     'ProcExecutorResult',
     'SSFEstSpec',
@@ -120,20 +120,6 @@ class DMCProcInput(metaclass=ABCMeta):
         dmc_sampling = proc_director.dmc_sampling
         state = dmc_sampling.build_state(sys_conf_set, ref_energy)
         return cls(state)
-
-
-@attr.s(auto_attribs=True, frozen=True)
-class DMCProcResult:
-    """Result of the DMC estimator sampling."""
-
-    #: The last state of the sampling.
-    state: dmc_base.State
-
-    #: The data generated during the sampling.
-    data: t.Optional[DMCESData] = None
-
-    #: The sampling object used to generate the results.
-    sampling: t.Optional[dmc_base.EstSampling] = None
 
 
 class DMCProcSpec(metaclass=ABCMeta):
