@@ -144,6 +144,17 @@ class _SamplingBase(metaclass=ABCMeta):
         """The parameters of the transition probability function."""
         pass
 
+    @abstractmethod
+    def build_state(self, sys_conf: np.ndarray) -> State:
+        """Builds a state for the sampling.
+
+        The state includes the drift, the energies wne the weights of
+        each one of the initial system configurations.
+
+        :param sys_conf: The configuration of the state.
+        """
+        pass
+
     @property
     @abstractmethod
     def core_funcs(self) -> 'CoreFuncs':

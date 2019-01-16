@@ -13,6 +13,7 @@ from . import model
 __all__ = [
     'CoreFuncs',
     'Sampling',
+    'StateError',
     'TPFSpecNT',
     'NormalCoreFuncs',
     'NormalSampling',
@@ -23,6 +24,7 @@ __all__ = [
 
 # Export symbols from base modules.
 StateProp = qmc_base.vmc.StateProp
+STAT_REJECTED = qmc_base.vmc.STAT_REJECTED
 
 
 class TPFSpecNT(qmc_base.jastrow.vmc.NTPFSpecNT, NamedTuple):
@@ -49,6 +51,11 @@ class UTPFSpecNT(qmc_base.jastrow.vmc.UTPFSpecNT, NamedTuple):
     upper_bound: float
 
 
+class StateError(ValueError):
+    """Flags errors related to the handling of a VMC state."""
+    pass
+
+
 @attr.s(auto_attribs=True, frozen=True)
 class Sampling(qmc_base.jastrow.vmc.Sampling):
     """The spec of the VMC sampling."""
@@ -71,6 +78,24 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
         z_min, z_max = self.model_spec.boundaries
         return UTPFSpecNT(boson_number, move_spread=move_spread,
                           lower_bound=z_min, upper_bound=z_max)
+
+    def build_state(self, sys_conf: np.ndarray) -> qmc_base.vmc.State:
+        """Builds a state for the sampling.
+
+        The state includes the drift, the energies wne the weights of
+        each one of the initial system configurations.
+
+        :param sys_conf: The configuration of the state.
+        """
+        # noinspection PyTypeChecker
+        sys_conf = np.asarray(sys_conf)
+        if sys_conf.shape != self.model_spec.sys_conf_shape:
+            raise StateError("sys_conf is not a valid configuration "
+                             "of the model spec")
+
+        wf_spec_nt = self.wf_spec_nt
+        wf_abs_log = self.core_funcs.wf_abs_log(sys_conf, wf_spec_nt)
+        return qmc_base.vmc.State(sys_conf, wf_abs_log, STAT_REJECTED)
 
     @property
     def core_funcs(self) -> 'CoreFuncs':
