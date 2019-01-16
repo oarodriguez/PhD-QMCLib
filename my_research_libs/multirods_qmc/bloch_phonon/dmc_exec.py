@@ -8,28 +8,26 @@ from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
 from . import dmc, model, vmc
 
 __all__ = [
-    'DMC',
-    'WFOptimizationSpec'
+    'DMCProcSpec',
+    'ProcExecutor',
+    'SSFEstSpec',
+    'VMCProcSpec',
+    'WFOptProcSpec'
 ]
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class VMCSamplingSpec(dmc_exec.VMCSamplingSpec):
+class VMCProcSpec(dmc_exec.VMCProcSpec):
     """VMC Sampling."""
 
-    #: The spread magnitude of the random moves for the sampling.
     move_spread: float
 
-    #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: t.Optional[int] = None
 
-    #: The initial configuration of the sampling.
     ini_sys_conf: t.Optional[np.ndarray] = None
 
-    #: The number of batches of the sampling.
     num_batches: int = 64
 
-    #: Number of steps per batch.
     num_steps_batch: int = 4096
 
     def build_sampling(self, model_spec: model.Spec) -> vmc.Sampling:
@@ -42,7 +40,7 @@ class VMCSamplingSpec(dmc_exec.VMCSamplingSpec):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class WFOptimizationSpec(dmc_exec.WFOptimizationSpec):
+class WFOptProcSpec(dmc_exec.WFOptProcSpec):
     """Wave function optimization."""
 
     #: The number of configurations used in the process.
@@ -73,31 +71,29 @@ class SSFEstSpec(dmc_exec.SSFEstSpec):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCSamplingSpec(dmc_exec.DMCSamplingSpec):
+class DMCProcSpec(dmc_exec.DMCProcSpec):
     """DMC sampling."""
 
     time_step: float
+
     max_num_walkers: int = 512
+
     target_num_walkers: int = 480
+
     num_walkers_control_factor: t.Optional[float] = 0.5
+
     rng_seed: t.Optional[int] = None
 
-    #: The initial configuration set of the sampling.
     ini_sys_conf_set: t.Optional[np.ndarray] = None
 
-    #: The initial energy of reference.
     ini_ref_energy: t.Optional[float] = None
 
-    #: The number of batches of the sampling.
     num_batches: int = 512  # 2^9
 
-    #: Number of time steps per batch.
     num_time_steps_batch: int = 512  # 2^9
 
-    #: The number of batches to discard.
     burn_in_batches: t.Optional[int] = None
 
-    #: Keep the estimator values for all the time steps.
     keep_iter_data: bool = False
 
     #: Remaining batches
@@ -135,28 +131,21 @@ class DMCSamplingSpec(dmc_exec.DMCSamplingSpec):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMC(dmc_exec.DMC):
+class ProcExecutor(dmc_exec.ProcExecutor):
     """Class to realize a whole DMC calculation."""
-
-    #:
+    #
     model_spec: model.Spec
 
-    #:
-    dmc_spec: DMCSamplingSpec
+    dmc_proc_spec: DMCProcSpec
 
-    #:
-    vmc_spec: t.Optional[VMCSamplingSpec] = None
+    vmc_proc_spec: t.Optional[VMCProcSpec] = None
 
-    #:
-    wf_opt_spec: t.Optional[WFOptimizationSpec] = None
+    wf_opt_proc_spec: t.Optional[WFOptProcSpec] = None
 
-    #:
     output_file: t.Optional[str] = None
 
-    #:
-    skip_optimize: bool = False
+    skip_wf_opt_proc: bool = False
 
-    #:
     verbose: bool = False
 
     def __attrs_post_init__(self):
@@ -169,7 +158,7 @@ class DMC(dmc_exec.DMC):
 
         :return:
         """
-        return self.dmc_spec.build_sampling(self.model_spec)
+        return self.dmc_proc_spec.build_sampling(self.model_spec)
 
     @property
     def vmc_sampling(self) -> t.Union[vmc.Sampling, None]:
@@ -177,13 +166,13 @@ class DMC(dmc_exec.DMC):
 
         :return:
         """
-        vmc_spec = self.vmc_spec
+        vmc_spec = self.vmc_proc_spec
         if vmc_spec is None:
             return None
         return vmc_spec.build_sampling(self.model_spec)
 
-    def exec_wf_opt(self, sys_conf_set: np.ndarray,
-                    ini_wf_abs_log_set: np.ndarray):
+    def exec_wf_opt_proc(self, sys_conf_set: np.ndarray,
+                         ini_wf_abs_log_set: np.ndarray):
         """
 
         :param sys_conf_set: he system configurations used for the
@@ -192,7 +181,8 @@ class DMC(dmc_exec.DMC):
             to calculate the weights.
         :return:
         """
-        num_sys_confs = self.wf_opt_spec.num_sys_confs
+        wf_opt_proc_spec = self.wf_opt_proc_spec
+        num_sys_confs = wf_opt_proc_spec.num_sys_confs
 
         exec_logger.info('Starting wave function optimization...')
         exec_logger.info(f'Using {num_sys_confs} configurations to '
@@ -204,24 +194,24 @@ class DMC(dmc_exec.DMC):
         optimizer = model.CSWFOptimizer(self.model_spec,
                                         sys_conf_set,
                                         ini_wf_abs_log_set,
-                                        self.wf_opt_spec.ref_energy,
-                                        self.wf_opt_spec.use_threads,
-                                        self.wf_opt_spec.num_workers,
-                                        self.wf_opt_spec.verbose)
+                                        wf_opt_proc_spec.ref_energy,
+                                        wf_opt_proc_spec.use_threads,
+                                        wf_opt_proc_spec.num_workers,
+                                        wf_opt_proc_spec.verbose)
         opt_result = optimizer.exec()
 
         exec_logger.info('Wave function optimization completed.')
 
         return opt_result
 
-    def run(self):
+    def exec(self):
         """
 
         :return:
         """
         wf_abs_log_field = vmc_base.StateProp.WF_ABS_LOG
 
-        dmc_spec = self.dmc_spec
+        dmc_proc_spec = self.dmc_proc_spec
         should_exec_vmc = self.should_exec_vmc
         should_optimize = self.should_optimize
 
@@ -256,13 +246,13 @@ class DMC(dmc_exec.DMC):
 
         else:
 
-            vmc_result, _ = self.exec_vmc()
+            vmc_result, _ = self.exec_vmc_proc()
             sys_conf_set = vmc_result.confs
             wf_abs_log_set = vmc_result.props[wf_abs_log_field]
 
             # A future execution of this task won't need the realization
             # of the VMC sampling again.
-            self_evolve = attr.evolve(self_evolve, vmc_spec=None)
+            self_evolve = attr.evolve(self_evolve, vmc_proc_spec=None)
 
             if should_optimize:
 
@@ -271,41 +261,41 @@ class DMC(dmc_exec.DMC):
 
                 # Run optimization task.
                 dmc_model_spec = \
-                    self.exec_wf_opt(sys_conf_set=sys_conf_set,
-                                     ini_wf_abs_log_set=wf_abs_log_set)
+                    self.exec_wf_opt_proc(sys_conf_set=sys_conf_set,
+                                          ini_wf_abs_log_set=wf_abs_log_set)
 
-                vmc_result, _ = self.exec_vmc()
+                vmc_result, _ = self.exec_vmc_proc()
                 sys_conf_set = vmc_result.confs
 
                 # In a posterior execution the same task again, we
                 # may skip the optimization stage.
                 self_evolve = attr.evolve(self_evolve,
                                           model_spec=dmc_model_spec,
-                                          wf_opt_spec=None)
+                                          wf_opt_proc_spec=None)
 
             else:
 
                 # In a posterior execution the same task again, we
                 # may skip the optimization stage.
-                self_evolve = attr.evolve(self_evolve, wf_opt_spec=None)
+                self_evolve = attr.evolve(self_evolve, wf_opt_proc_spec=None)
 
             # Update the model spec of the VMC sampling, as well
             # as the initial configuration set.
-            dmc_spec = \
-                attr.evolve(dmc_spec, ini_sys_conf_set=sys_conf_set)
+            dmc_proc_spec = \
+                attr.evolve(dmc_proc_spec, ini_sys_conf_set=sys_conf_set)
 
             # We have to update the DMC sampling.
             self_evolve = \
-                attr.evolve(self_evolve, dmc_spec=dmc_spec)
+                attr.evolve(self_evolve, dmc_proc_spec=dmc_proc_spec)
 
         try:
-            dmc_result = self_evolve.exec_dmc()
+            dmc_proc_result = self_evolve.exec_dmc_proc()
 
         except dmc_exec.DMCIniSysConfSetError:
-            dmc_result = None
+            dmc_proc_result = None
             exec_logger.exception('The following exception occurred '
                                   'during the execution of the task:')
 
         exec_logger.info("All tasks finished.")
 
-        return dmc_result, self_evolve
+        return dmc_proc_result, self_evolve

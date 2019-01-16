@@ -547,11 +547,11 @@ def test_dmc_task():
     num_steps_batch = 4096
     # num_steps = num_batches * num_steps_batch
     vmc_sampling = \
-        bloch_phonon.dmc_exec.VMCSamplingSpec(move_spread,
-                                              rng_seed=rng_seed,
-                                              ini_sys_conf=ini_sys_conf,
-                                              num_batches=num_batches,
-                                              num_steps_batch=num_steps_batch)
+        bloch_phonon.dmc_exec.VMCProcSpec(move_spread,
+                                          rng_seed=rng_seed,
+                                          ini_sys_conf=ini_sys_conf,
+                                          num_batches=num_batches,
+                                          num_steps_batch=num_steps_batch)
 
     time_step = 1e-3
     num_batches = 4
@@ -565,7 +565,7 @@ def test_dmc_task():
     num_modes = 2 * boson_number
     ssf_spec = bloch_phonon.dmc_exec.SSFEstSpec(num_modes=num_modes)
     dmc_sampling = \
-        bloch_phonon.dmc_exec.DMCSamplingSpec(
+        bloch_phonon.dmc_exec.DMCProcSpec(
                 time_step,
                 max_num_walkers,
                 target_num_walkers,
@@ -576,12 +576,12 @@ def test_dmc_task():
                 ssf_spec=ssf_spec
         )
 
-    dmc_task = bloch_phonon.dmc_exec.DMC(model_spec,
-                                         dmc_sampling,
-                                         vmc_sampling)
-    task_result = dmc_task.run()
+    dmc_task = bloch_phonon.dmc_exec.ProcExecutor(model_spec,
+                                                  dmc_sampling,
+                                                  vmc_sampling)
+    task_result = dmc_task.exec()
 
 
 if __name__ == '__main__':
-    test_dmc()
-    # test_dmc_task()
+    # test_dmc()
+    test_dmc_task()

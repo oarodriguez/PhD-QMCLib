@@ -15,12 +15,22 @@ from my_research_libs.qmc_data.dmc import (
 )
 from .logging import exec_logger
 
+__all__ = [
+    'DMCESResult',
+    'DMCIniSysConfSetError',
+    'DMCProcSpec',
+    'ProcExecutor',
+    'SSFEstSpec',
+    'VMCProcSpec',
+    'WFOptProcSpec'
+]
+
 DMC_TASK_LOG_NAME = f'DMC Sampling'
 VMC_SAMPLING_LOG_NAME = 'VMC Sampling'
 
 
-class VMCSamplingSpec(metaclass=ABCMeta):
-    """VMC Sampling."""
+class VMCProcSpec(metaclass=ABCMeta):
+    """VMC Sampling procedure spec."""
 
     #: The spread magnitude of the random moves for the sampling.
     move_spread: float
@@ -44,8 +54,8 @@ class VMCSamplingSpec(metaclass=ABCMeta):
         pass
 
 
-class WFOptimizationSpec(metaclass=ABCMeta):
-    """Wave function optimization."""
+class WFOptProcSpec(metaclass=ABCMeta):
+    """Wave function optimization procedure spec."""
     pass
 
 
@@ -71,12 +81,12 @@ class SSFEstSpec(metaclass=ABCMeta):
 
 
 class DMCIniSysConfSetError(ValueError):
-    """Indicates an invalid ``ini_sys_conf_set`` in a ``DMCSamplingSpec``."""
+    """Indicates an invalid ``ini_sys_conf_set`` in a ``DMCProcSpec``."""
     pass
 
 
-class DMCSamplingSpec(metaclass=ABCMeta):
-    """DMC sampling."""
+class DMCProcSpec(metaclass=ABCMeta):
+    """DMC sampling procedure spec."""
 
     #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
@@ -139,26 +149,26 @@ class DMCSamplingSpec(metaclass=ABCMeta):
         pass
 
 
-class DMC(metaclass=ABCMeta):
-    """Class to realize a whole DMC calculation."""
+class ProcExecutor(metaclass=ABCMeta):
+    """Manages a whole DMC calculation."""
 
-    #:
+    #: The model spec.
     model_spec: model_base.Spec
 
-    #:
-    dmc_spec: DMCSamplingSpec
+    #: The spec of the DMC sampling.
+    dmc_proc_spec: DMCProcSpec
 
-    #:
-    vmc_spec: t.Optional[VMCSamplingSpec]
+    #: The spec of the VMC sampling.
+    vmc_proc_spec: t.Optional[VMCProcSpec]
 
-    #:
-    wf_opt_spec: t.Optional[WFOptimizationSpec]
+    #: The spec of the wave function optimization procedure.
+    wf_opt_proc_spec: t.Optional[WFOptProcSpec]
 
     #:
     output_file: t.Optional[str]
 
-    #:
-    skip_optimize: bool
+    #: Whether or not to skip the optimization procedure.
+    skip_wf_opt_proc: bool
 
     #:
     verbose: bool
@@ -166,14 +176,14 @@ class DMC(metaclass=ABCMeta):
     @property
     def should_exec_vmc(self):
         """"""
-        return False if self.vmc_spec is None else True
+        return False if self.vmc_proc_spec is None else True
 
     @property
     def should_optimize(self):
         """"""
-        if self.skip_optimize:
+        if self.skip_wf_opt_proc:
             return False
-        return False if self.wf_opt_spec is None else True
+        return False if self.wf_opt_proc_spec is None else True
 
     @property
     @abstractmethod
@@ -185,12 +195,17 @@ class DMC(metaclass=ABCMeta):
     def vmc_sampling(self) -> vmc_base.Sampling:
         pass
 
-    def exec_vmc(self):
+    @abstractmethod
+    def exec(self):
+        """"""
+        pass
+
+    def exec_vmc_proc(self):
         """
 
         :return:
         """
-        vmc_spec = self.vmc_spec
+        vmc_spec = self.vmc_proc_spec
         num_batches = vmc_spec.num_batches
         num_steps_batch = vmc_spec.num_steps_batch
 
@@ -235,7 +250,7 @@ class DMC(metaclass=ABCMeta):
         # TODO: Should we return the sampling object?
         return last_batch, sampling
 
-    def exec_dmc(self):
+    def exec_dmc_proc(self):
         """
 
         :return:
@@ -246,21 +261,21 @@ class DMC(metaclass=ABCMeta):
         ref_energy_field = dmc_base.IterProp.REF_ENERGY
         accum_energy_field = dmc_base.IterProp.ACCUM_ENERGY
 
-        dmc_spec = self.dmc_spec
-        num_batches = dmc_spec.num_batches
-        num_time_steps_batch = dmc_spec.num_time_steps_batch
-        target_num_walkers = dmc_spec.target_num_walkers
-        burn_in_batches = dmc_spec.burn_in_batches
-        keep_iter_data = dmc_spec.keep_iter_data
+        dmc_proc_spec = self.dmc_proc_spec
+        num_batches = dmc_proc_spec.num_batches
+        num_time_steps_batch = dmc_proc_spec.num_time_steps_batch
+        target_num_walkers = dmc_proc_spec.target_num_walkers
+        burn_in_batches = dmc_proc_spec.burn_in_batches
+        keep_iter_data = dmc_proc_spec.keep_iter_data
 
         # Alias 😐.
         nts_batch = num_time_steps_batch
 
         # Structure factor configuration.
-        ssf_spec = dmc_spec.ssf_spec
-        should_eval_ssf = dmc_spec.should_eval_ssf
+        ssf_spec = dmc_proc_spec.ssf_spec
+        should_eval_ssf = dmc_proc_spec.should_eval_ssf
 
-        if dmc_spec.ini_sys_conf_set is None:
+        if dmc_proc_spec.ini_sys_conf_set is None:
             raise DMCIniSysConfSetError('the initial system configuration '
                                         'is undefined')
 
@@ -281,8 +296,8 @@ class DMC(metaclass=ABCMeta):
 
         # The estimator sampling iterator.
         ini_state = \
-            sampling.build_state(dmc_spec.ini_sys_conf_set,
-                                 dmc_spec.ini_ref_energy)
+            sampling.build_state(dmc_proc_spec.ini_sys_conf_set,
+                                 dmc_proc_spec.ini_ref_energy)
 
         batches_iter = sampling.batches(ini_state, num_time_steps_batch)
 
@@ -473,8 +488,3 @@ class DMC(metaclass=ABCMeta):
         return DMCESResult(last_state,
                            data=data,
                            sampling=sampling)
-
-    @abstractmethod
-    def run(self):
-        """"""
-        pass
