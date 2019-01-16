@@ -38,68 +38,15 @@ class VMCSamplingSpec(metaclass=ABCMeta):
     num_steps_batch: int
 
     @abstractmethod
-    def build_sampling(self, model_spec: model_base.Spec) -> vmc_base.Sampling:
+    def build_sampling(self, model_spec: model_base.Spec) -> \
+            vmc_base.Sampling:
         """"""
         pass
-
-    def run(self, model_spec: model_base.Spec):
-        """
-
-        :param model_spec:
-        :return:
-        """
-        num_batches = self.num_batches
-        num_steps_batch = self.num_steps_batch
-
-        exec_logger.info('Starting VMC sampling...')
-        exec_logger.info(f'Sampling {num_batches} batches of steps...')
-        exec_logger.info(f'Sampling {num_steps_batch} steps per batch...')
-
-        # New sampling instance
-        sampling = self.build_sampling(model_spec)
-        batches = sampling.batches(num_steps_batch, self.ini_sys_conf)
-
-        # By default burn-in all but the last batch.
-        burn_in_batches = num_batches - 1
-        if burn_in_batches:
-            exec_logger.info('Executing burn-in stage...')
-
-            exec_logger.info(f'A total of {burn_in_batches} batches will be '
-                             f'discarded.')
-
-            # Burn-in stage.
-            pgs_bar = tqdm.tqdm(total=burn_in_batches, dynamic_ncols=True)
-            with pgs_bar:
-                for _ in islice(batches, burn_in_batches):
-                    # Burn batches...
-                    pgs_bar.update(1)
-
-            exec_logger.info('Burn-in stage completed.')
-
-        else:
-
-            exec_logger.info(f'No burn-in batches requested.')
-
-        # *** *** ***
-
-        exec_logger.info('Sampling the last batch...')
-
-        # Get the last batch.
-        last_batch: vmc_base.SamplingBatch = next(batches)
-
-        exec_logger.info('VMC Sampling completed.')
-
-        # TODO: Should we return the sampling object?
-        return last_batch, sampling
 
 
 class WFOptimizationSpec(metaclass=ABCMeta):
     """Wave function optimization."""
-
-    @abstractmethod
-    def run(self, *args, **kwargs):
-        """"""
-        pass
+    pass
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -131,10 +78,19 @@ class DMCIniSysConfSetError(ValueError):
 class DMCSamplingSpec(metaclass=ABCMeta):
     """DMC sampling."""
 
+    #: The "time-step" (squared, average move spread) of the sampling.
     time_step: float
+
+    #: The maximum wight of the population of walkers.
     max_num_walkers: int
+
+    #: The average total weight of the population of walkers.
     target_num_walkers: int
+
+    #: Multiplier for the population control during the branching stage.
     num_walkers_control_factor: t.Optional[float]
+
+    #: The seed of the pseudo-RNG used to realize the sampling.
     rng_seed: t.Optional[int]
 
     #: The initial configuration set of the sampling.
@@ -173,8 +129,8 @@ class DMCSamplingSpec(metaclass=ABCMeta):
         return False if self.ssf_spec is None else True
 
     @abstractmethod
-    def build_sampling(self,
-                       model_spec: model_base.Spec) -> dmc_base.EstSampling:
+    def build_sampling(self, model_spec: model_base.Spec) -> \
+            dmc_base.EstSampling:
         """"""
         pass
 
@@ -182,7 +138,104 @@ class DMCSamplingSpec(metaclass=ABCMeta):
         """"""
         pass
 
-    def run(self, model_spec: model_base.Spec):
+
+class DMC(metaclass=ABCMeta):
+    """Class to realize a whole DMC calculation."""
+
+    #:
+    model_spec: model_base.Spec
+
+    #:
+    dmc_spec: DMCSamplingSpec
+
+    #:
+    vmc_spec: t.Optional[VMCSamplingSpec]
+
+    #:
+    wf_opt_spec: t.Optional[WFOptimizationSpec]
+
+    #:
+    output_file: t.Optional[str]
+
+    #:
+    skip_optimize: bool
+
+    #:
+    verbose: bool
+
+    @property
+    def should_exec_vmc(self):
+        """"""
+        return False if self.vmc_spec is None else True
+
+    @property
+    def should_optimize(self):
+        """"""
+        if self.skip_optimize:
+            return False
+        return False if self.wf_opt_spec is None else True
+
+    @property
+    @abstractmethod
+    def dmc_sampling(self) -> dmc_base.EstSampling:
+        pass
+
+    @property
+    @abstractmethod
+    def vmc_sampling(self) -> vmc_base.Sampling:
+        pass
+
+    def exec_vmc(self):
+        """
+
+        :return:
+        """
+        vmc_spec = self.vmc_spec
+        num_batches = vmc_spec.num_batches
+        num_steps_batch = vmc_spec.num_steps_batch
+
+        exec_logger.info('Starting VMC sampling...')
+        exec_logger.info(f'Sampling {num_batches} batches of steps...')
+        exec_logger.info(f'Sampling {num_steps_batch} steps per batch...')
+
+        # New sampling instance
+        sampling = self.vmc_sampling
+        batches = sampling.batches(num_steps_batch, vmc_spec.ini_sys_conf)
+
+        # By default burn-in all but the last batch.
+        burn_in_batches = num_batches - 1
+        if burn_in_batches:
+            exec_logger.info('Executing burn-in stage...')
+
+            exec_logger.info(f'A total of {burn_in_batches} batches will be '
+                             f'discarded.')
+
+            # Burn-in stage.
+            pgs_bar = tqdm.tqdm(total=burn_in_batches, dynamic_ncols=True)
+            with pgs_bar:
+                for _ in islice(batches, burn_in_batches):
+                    # Burn batches...
+                    pgs_bar.update(1)
+
+            exec_logger.info('Burn-in stage completed.')
+
+        else:
+
+            exec_logger.info(f'No burn-in batches requested.')
+
+        # *** *** ***
+
+        exec_logger.info('Sampling the last batch...')
+
+        # Get the last batch.
+        last_batch: vmc_base.SamplingBatch = next(batches)
+
+        exec_logger.info('VMC Sampling completed.')
+
+        # TODO: Should we return the sampling object?
+        return last_batch, sampling
+
+    def exec_dmc(self):
         """
 
         :return:
@@ -193,20 +246,21 @@ class DMCSamplingSpec(metaclass=ABCMeta):
         ref_energy_field = dmc_base.IterProp.REF_ENERGY
         accum_energy_field = dmc_base.IterProp.ACCUM_ENERGY
 
-        num_batches = self.num_batches
-        num_time_steps_batch = self.num_time_steps_batch
-        target_num_walkers = self.target_num_walkers
-        burn_in_batches = self.burn_in_batches
-        keep_iter_data = self.keep_iter_data
+        dmc_spec = self.dmc_spec
+        num_batches = dmc_spec.num_batches
+        num_time_steps_batch = dmc_spec.num_time_steps_batch
+        target_num_walkers = dmc_spec.target_num_walkers
+        burn_in_batches = dmc_spec.burn_in_batches
+        keep_iter_data = dmc_spec.keep_iter_data
 
         # Alias 😐.
         nts_batch = num_time_steps_batch
 
         # Structure factor configuration.
-        ssf_spec = self.ssf_spec
-        should_eval_ssf = self.should_eval_ssf
+        ssf_spec = dmc_spec.ssf_spec
+        should_eval_ssf = dmc_spec.should_eval_ssf
 
-        if self.ini_sys_conf_set is None:
+        if dmc_spec.ini_sys_conf_set is None:
             raise DMCIniSysConfSetError('the initial system configuration '
                                         'is undefined')
 
@@ -223,11 +277,12 @@ class DMCSamplingSpec(metaclass=ABCMeta):
         else:
             burn_in_batches = burn_in_batches
 
-        sampling = self.build_sampling(model_spec)
+        sampling = self.dmc_sampling
 
         # The estimator sampling iterator.
         ini_state = \
-            sampling.build_state(self.ini_sys_conf_set, self.ini_ref_energy)
+            sampling.build_state(dmc_spec.ini_sys_conf_set,
+                                 dmc_spec.ini_ref_energy)
 
         batches_iter = sampling.batches(ini_state, num_time_steps_batch)
 
@@ -418,38 +473,6 @@ class DMCSamplingSpec(metaclass=ABCMeta):
         return DMCESResult(last_state,
                            data=data,
                            sampling=sampling)
-
-
-class DMC(metaclass=ABCMeta):
-    """Class to realize a whole DMC calculation."""
-
-    #:
-    model_spec: model_base.Spec
-
-    #:
-    dmc_spec: DMCSamplingSpec
-
-    #:
-    vmc_spec: t.Optional[VMCSamplingSpec]
-
-    #:
-    wf_opt_spec: t.Optional[WFOptimizationSpec]
-
-    #:
-    output_file: t.Optional[str]
-
-    #:
-    skip_optimize: bool
-
-    #:
-    verbose: bool
-
-    @property
-    def should_optimize(self):
-        """"""
-        if self.skip_optimize:
-            return False
-        return False if self.wf_opt_spec is None else True
 
     @abstractmethod
     def run(self):

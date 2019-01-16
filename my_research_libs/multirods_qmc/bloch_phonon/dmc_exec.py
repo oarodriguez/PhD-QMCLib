@@ -1,4 +1,3 @@
-import logging
 import typing as t
 
 import attr
@@ -39,9 +38,7 @@ class VMCSamplingSpec(dmc_exec.VMCSamplingSpec):
         :param model_spec:
         :return:
         """
-        return vmc.Sampling(model_spec,
-                            self.move_spread,
-                            self.rng_seed)
+        return vmc.Sampling(model_spec, self.move_spread, self.rng_seed)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -62,40 +59,6 @@ class WFOptimizationSpec(dmc_exec.WFOptimizationSpec):
 
     #: Display log messages or not.
     verbose: bool = False
-
-    def run(self, model_spec: model.Spec,
-            sys_conf_set: np.ndarray,
-            ini_wf_abs_log_set: np.ndarray):
-        """
-
-        :param model_spec: The spec of the model.
-        :param sys_conf_set: he system configurations used for the
-            minimization process.
-        :param ini_wf_abs_log_set: The initial wave function values. Used
-            to calculate the weights.
-        :return:
-        """
-        num_sys_confs = self.num_sys_confs
-
-        exec_logger.info('Starting wave function optimization...')
-        exec_logger.info(f'Using {num_sys_confs} configurations to '
-                         f'minimize the variance...')
-
-        sys_conf_set = sys_conf_set[-num_sys_confs:]
-        ini_wf_abs_log_set = ini_wf_abs_log_set[-num_sys_confs:]
-
-        optimizer = model.CSWFOptimizer(model_spec,
-                                        sys_conf_set,
-                                        ini_wf_abs_log_set,
-                                        self.ref_energy,
-                                        self.use_threads,
-                                        self.num_workers,
-                                        self.verbose)
-        opt_result = optimizer.exec()
-
-        exec_logger.info('Wave function optimization completed.')
-
-        return opt_result
 
 
 T_OptSeqNDArray = t.Optional[t.Sequence[np.ndarray]]
@@ -151,16 +114,14 @@ class DMCSamplingSpec(dmc_exec.DMCSamplingSpec):
         """
         if self.should_eval_ssf:
             ssf_spec = self.ssf_spec
-            ssf_est = dmc.SSFEstSpec(model_spec,
-                                     ssf_spec.num_modes,
+            ssf_est = dmc.SSFEstSpec(model_spec, ssf_spec.num_modes,
                                      ssf_spec.as_pure_est,
                                      ssf_spec.pfw_num_time_steps)
 
         else:
             ssf_est = None
 
-        sampling = dmc.EstSampling(model_spec,
-                                   self.time_step,
+        sampling = dmc.EstSampling(model_spec, self.time_step,
                                    self.max_num_walkers,
                                    self.target_num_walkers,
                                    self.num_walkers_control_factor,
@@ -202,6 +163,57 @@ class DMC(dmc_exec.DMC):
         """"""
         pass
 
+    @property
+    def dmc_sampling(self) -> dmc.EstSampling:
+        """
+
+        :return:
+        """
+        return self.dmc_spec.build_sampling(self.model_spec)
+
+    @property
+    def vmc_sampling(self) -> t.Union[vmc.Sampling, None]:
+        """
+
+        :return:
+        """
+        vmc_spec = self.vmc_spec
+        if vmc_spec is None:
+            return None
+        return vmc_spec.build_sampling(self.model_spec)
+
+    def exec_wf_opt(self, sys_conf_set: np.ndarray,
+                    ini_wf_abs_log_set: np.ndarray):
+        """
+
+        :param sys_conf_set: he system configurations used for the
+            minimization process.
+        :param ini_wf_abs_log_set: The initial wave function values. Used
+            to calculate the weights.
+        :return:
+        """
+        num_sys_confs = self.wf_opt_spec.num_sys_confs
+
+        exec_logger.info('Starting wave function optimization...')
+        exec_logger.info(f'Using {num_sys_confs} configurations to '
+                         f'minimize the variance...')
+
+        sys_conf_set = sys_conf_set[-num_sys_confs:]
+        ini_wf_abs_log_set = ini_wf_abs_log_set[-num_sys_confs:]
+
+        optimizer = model.CSWFOptimizer(self.model_spec,
+                                        sys_conf_set,
+                                        ini_wf_abs_log_set,
+                                        self.wf_opt_spec.ref_energy,
+                                        self.wf_opt_spec.use_threads,
+                                        self.wf_opt_spec.num_workers,
+                                        self.wf_opt_spec.verbose)
+        opt_result = optimizer.exec()
+
+        exec_logger.info('Wave function optimization completed.')
+
+        return opt_result
+
     def run(self):
         """
 
@@ -209,43 +221,42 @@ class DMC(dmc_exec.DMC):
         """
         wf_abs_log_field = vmc_base.StateProp.WF_ABS_LOG
 
-        vmc_spec = self.vmc_spec
-        wf_opt_spec = self.wf_opt_spec
         dmc_spec = self.dmc_spec
+        should_exec_vmc = self.should_exec_vmc
         should_optimize = self.should_optimize
 
         exec_logger.info('Starting QMC-DMC calculation...')
 
         # The base DMC model spec.
-        dmc_model_spec = self.model_spec
+        # dmc_model_spec = self.model_spec
 
         # This reference to the current task will be modified, so the same
         # task can be executed again without realizing the VMC sampling and
         # the wave function optimization.
         self_evolve = self
 
-        if vmc_spec is None:
+        if not should_exec_vmc:
 
             exec_logger.info('VMC sampling task is not configured.')
             exec_logger.info('Continue to next task...')
 
-            if wf_opt_spec is not None:
+            if should_optimize:
 
                 exec_logger.warning("can't do WF optimization without a "
                                     "previous VMC sampling task "
                                     "specification.")
-                logging.warning("Skipping wave function optimization "
-                                "task...")
+                exec_logger.warning("Skipping wave function optimization "
+                                    "task...")
                 # raise TypeError("can't do WF optimization without a "
                 #                 "previous VMC sampling task specification")
             else:
-                logging.info("Wave function optimization task is not "
-                             "configured.")
+                exec_logger.info("Wave function optimization task is not "
+                                 "configured.")
                 exec_logger.info('Continue to next task...')
 
         else:
 
-            vmc_result, _ = vmc_spec.run(self.model_spec)
+            vmc_result, _ = self.exec_vmc()
             sys_conf_set = vmc_result.confs
             wf_abs_log_set = vmc_result.props[wf_abs_log_field]
 
@@ -260,18 +271,23 @@ class DMC(dmc_exec.DMC):
 
                 # Run optimization task.
                 dmc_model_spec = \
-                    wf_opt_spec.run(dmc_model_spec,
-                                    sys_conf_set=sys_conf_set,
-                                    ini_wf_abs_log_set=wf_abs_log_set)
+                    self.exec_wf_opt(sys_conf_set=sys_conf_set,
+                                     ini_wf_abs_log_set=wf_abs_log_set)
 
-                vmc_result, _ = vmc_spec.run(dmc_model_spec)
+                vmc_result, _ = self.exec_vmc()
                 sys_conf_set = vmc_result.confs
 
                 # In a posterior execution the same task again, we
                 # may skip the optimization stage.
                 self_evolve = attr.evolve(self_evolve,
                                           model_spec=dmc_model_spec,
-                                          wf_opt_spec=wf_opt_spec)
+                                          wf_opt_spec=None)
+
+            else:
+
+                # In a posterior execution the same task again, we
+                # may skip the optimization stage.
+                self_evolve = attr.evolve(self_evolve, wf_opt_spec=None)
 
             # Update the model spec of the VMC sampling, as well
             # as the initial configuration set.
@@ -283,7 +299,7 @@ class DMC(dmc_exec.DMC):
                 attr.evolve(self_evolve, dmc_spec=dmc_spec)
 
         try:
-            dmc_result = dmc_spec.run(dmc_model_spec)
+            dmc_result = self_evolve.exec_dmc()
 
         except dmc_exec.DMCIniSysConfSetError:
             dmc_result = None
