@@ -9,6 +9,7 @@ import tqdm
 from my_research_libs.qmc_base import (
     dmc as dmc_base, model as model_base, vmc as vmc_base
 )
+from my_research_libs.qmc_base.dmc import SSFPartSlot
 from my_research_libs.qmc_data.dmc import (
     EnergyBlocks, NumWalkersBlocks, PropsDataBlocks, PropsDataSeries,
     SSFBlocks, SamplingData, WeightBlocks
@@ -403,12 +404,15 @@ class ProcExecutor(metaclass=ABCMeta):
 
         if should_eval_ssf:
             # The shape of the structure factor array.
-            num_modes = ssf_spec.num_modes
+            ssf_num_modes = ssf_spec.num_modes
+            # noinspection PyTypeChecker
+            ssf_num_parts = len(SSFPartSlot)
 
             if keep_iter_data:
-                ssf_shape = num_batches, nts_batch, num_modes
+                ssf_shape = \
+                    num_batches, nts_batch, ssf_num_modes, ssf_num_parts
             else:
-                ssf_shape = num_batches, num_modes
+                ssf_shape = num_batches, ssf_num_modes, ssf_num_parts
 
             # S(k) batch.
             ssf_blocks_data = np.zeros(ssf_shape, dtype=np.float64)

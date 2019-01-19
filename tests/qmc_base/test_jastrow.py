@@ -309,6 +309,6 @@ def test_sf_funcs():
 
     core_funcs = CoreFuncs()
     kz = 2 * pi / sc_size
-    sf_r1 = core_funcs.structure_factor(kz, sys_conf, cfc_spec)
+    sf_r1 = core_funcs.fourier_density(kz, sys_conf, cfc_spec)
 
-    print(f"* Function <structure_factor>: {sf_r1:.16g}")
+    print(f"* Function <fourier_density>: {sf_r1}")

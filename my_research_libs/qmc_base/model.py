@@ -134,7 +134,7 @@ class CoreFuncs(metaclass=CoreFuncsMeta):
 
     @property
     @abstractmethod
-    def structure_factor(self):
+    def fourier_density(self):
         pass
 
 
@@ -163,7 +163,7 @@ class PhysicalFuncs(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def structure_factor(self):
+    def fourier_density(self):
         pass
 
     @property

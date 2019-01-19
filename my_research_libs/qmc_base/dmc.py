@@ -32,6 +32,7 @@ __all__ = [
     'State',
     'StateProp',
     'SSFEstSpec',
+    'SSFPartSlot',
     'branching_spec_dtype',
     'iter_props_dtype',
     'dummy_pure_est_core_func'
@@ -54,6 +55,20 @@ class IterProp(str, enum.Enum):
     NUM_WALKERS = 'NUM_WALKERS'
     REF_ENERGY = 'REF_ENERGY'
     ACCUM_ENERGY = 'ACCUM_ENERGY'
+
+
+@enum.unique
+class SSFPartSlot(enum.IntEnum):
+    """Contributions to the static structure factor."""
+
+    #: Squared module of the Fourier density component.
+    FDK_SQR_ABS = 0
+
+    #: Real part of the Fourier density component.
+    FDK_REAL = 1
+
+    #: Imaginary part of the Fourier density component.
+    FDK_IMAG = 2
 
 
 @enum.unique
@@ -774,6 +789,8 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
         :return:
         """
         ssf_num_modes = self.ssf_spec_nt.num_modes
+        # noinspection PyTypeChecker
+        ssf_num_parts = len(SSFPartSlot)
 
         iter_energy_field = IterProp.ENERGY.value
         iter_weight_field = IterProp.WEIGHT.value
@@ -809,11 +826,12 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             ipb_shape = nts_batch,
 
             # The shape of the structure factor array.
-            i_ssf_shape = nts_batch, ssf_num_modes  # S(k) batch.
+            i_ssf_shape = nts_batch, ssf_num_modes, ssf_num_parts
 
             # The shape of the auxiliary arrays to store the structure
             # factor of a single state during the forward walking process.
-            pfw_aux_ssf_b_shape = 2, max_num_walkers, ssf_num_modes
+            pfw_aux_ssf_b_shape = \
+                2, max_num_walkers, ssf_num_modes, ssf_num_parts
 
             # Array to store the configuration data of a batch of states.
             iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)

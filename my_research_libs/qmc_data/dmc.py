@@ -6,6 +6,7 @@ import numpy as np
 from cached_property import cached_property
 
 from my_research_libs.qmc_base import dmc as dmc_base
+from my_research_libs.qmc_base.dmc import SSFPartSlot
 from my_research_libs.stats import reblock
 
 
@@ -194,7 +195,7 @@ class EnergyBlocks(PropBlocks):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class SSFBlocks(PropBlocks):
+class SSFPartBlocks(PropBlocks):
     """Structure Factor data in blocks."""
 
     num_blocks: int
@@ -275,6 +276,116 @@ class SSFBlocks(PropBlocks):
             return None
         cross_totals = totals * weight_totals
         return reblock.OTFSet.from_non_obj_data(cross_totals)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class SSFBlocks:
+    """Structure Factor data in blocks."""
+
+    #: Squared module of the Fourier density component.
+    fdk_sqr_abs_part: SSFPartBlocks
+
+    #: Real part of the Fourier density component.
+    fdk_real_part: SSFPartBlocks
+
+    #: Imaginary part of the Fourier density component.
+    fdk_imag_part: SSFPartBlocks
+
+    @classmethod
+    def from_data(cls, num_blocks: int,
+                  num_time_steps_block: int,
+                  sf_data: np.ndarray,
+                  props_data: np.ndarray,
+                  reduce_data: bool = True,
+                  as_pure_est: bool = True,
+                  pure_est_reduce_factor: np.ndarray = None):
+        """
+
+        :param reduce_data:
+        :param num_blocks:
+        :param num_time_steps_block:
+        :param sf_data:
+        :param props_data:
+        :param as_pure_est:
+        :param pure_est_reduce_factor:
+        :return:
+        """
+        nts_block = num_time_steps_block
+        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+
+        if not as_pure_est:
+
+            if reduce_data:
+                totals = sf_data.sum(axis=1)
+                weight_totals = weight_data.sum(axis=1)
+
+            else:
+                totals = sf_data
+                weight_totals = weight_data
+
+        else:
+            # Normalize the pure estimator.
+            if reduce_data:
+
+                # Reductions are not used in pure estimators.
+                # We just take the last element.
+                totals = sf_data[:, nts_block - 1, :]
+                weight_totals = weight_data[:, nts_block - 1]
+
+            else:
+                totals = sf_data
+                weight_totals = weight_data * pure_est_reduce_factor
+
+        # Add an extra dimension.
+        weight_totals = weight_totals[:, np.newaxis]
+
+        # The totals of every part.
+        fdk_sqr_abs_totals = totals[:, :, SSFPartSlot.FDK_SQR_ABS]
+        fdk_real_totals = totals[:, :, SSFPartSlot.FDK_REAL]
+        fdk_imag_totals = totals[:, :, SSFPartSlot.FDK_IMAG]
+
+        fdk_sqr_abs_part_blocks = \
+            SSFPartBlocks(num_blocks, num_time_steps_block,
+                          fdk_sqr_abs_totals, weight_totals, as_pure_est)
+
+        fdk_real_part_blocks = \
+            SSFPartBlocks(num_blocks, num_time_steps_block,
+                          fdk_real_totals, weight_totals, as_pure_est)
+
+        fdk_imag_part_blocks = \
+            SSFPartBlocks(num_blocks, num_time_steps_block,
+                          fdk_imag_totals, weight_totals, as_pure_est)
+
+        return cls(fdk_sqr_abs_part_blocks,
+                   fdk_real_part_blocks,
+                   fdk_imag_part_blocks)
+
+    @property
+    def mean(self):
+        """Mean value of the static structure factor."""
+        fdk_sqr_abs_part = self.fdk_sqr_abs_part
+        fdk_real_part = self.fdk_real_part
+        fdk_imag_part = self.fdk_imag_part
+
+        return (fdk_sqr_abs_part.mean -
+                fdk_real_part.mean ** 2 - fdk_imag_part.mean ** 2)
+
+    @property
+    def mean_error(self):
+        """Error of the mean value of the static structure factor."""
+        fdk_sqr_abs_part = self.fdk_sqr_abs_part
+        fdk_real_part = self.fdk_real_part
+        fdk_imag_part = self.fdk_imag_part
+
+        fdk_real_part_mean = fdk_real_part.mean
+        rdk_real_part_mean_error = fdk_real_part.mean_error
+        fdk_imag_part_mean = fdk_imag_part.mean
+        fdk_imag_part_mean_error = fdk_imag_part.mean_error
+
+        # TODO: Check expressions for the error.
+        return (fdk_sqr_abs_part.mean_error +
+                2 * (fdk_real_part_mean * rdk_real_part_mean_error +
+                     fdk_imag_part_mean * fdk_imag_part_mean_error))
 
 
 @attr.s(auto_attribs=True, frozen=True)

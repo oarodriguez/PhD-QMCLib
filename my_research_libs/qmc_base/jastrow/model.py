@@ -850,7 +850,7 @@ class CoreFuncs(model.CoreFuncs):
         return _one_body_density
 
     @cached_property
-    def structure_factor(self):
+    def fourier_density(self):
         """
 
         :return:
@@ -859,11 +859,13 @@ class CoreFuncs(model.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @jit(nopython=True)
-        def _structure_factor(kz: float,
-                              sys_conf: np.ndarray,
-                              cfc_spec: CFCSpecNT):
-            """Computes the local two-body correlation function for a given
-            configuration of the position of the bodies.
+        def _fourier_density(kz: float,
+                             sys_conf: np.ndarray,
+                             cfc_spec: CFCSpecNT):
+            """Fourier density component with momentum :math:`k`.
+
+            This function corresponds to the Fourier transform of the
+            density operator.
 
             :param kz:
             :param sys_conf:
@@ -879,9 +881,9 @@ class CoreFuncs(model.CoreFuncs):
                 s_cos += cos(kz * z_i)
                 s_sin += sin(kz * z_i)
 
-            return s_cos ** 2 + s_sin ** 2
+            return s_cos + 1j * s_sin
 
-        return _structure_factor
+        return _fourier_density
 
 
 class PhysicalFuncs(model.PhysicalFuncs):
@@ -971,29 +973,35 @@ class PhysicalFuncs(model.PhysicalFuncs):
         return _one_body_density
 
     @cached_property
-    def structure_factor(self):
-        """Static structure factor."""
+    def fourier_density(self):
+        """Fourier density component with momentum :math:`k`.
+
+        This function corresponds to the Fourier transform of the
+        density operator.
+        """
 
         cfc_spec_nt = self.cfc_spec_nt
-        __structure_factor = self.core_funcs.structure_factor
-        types = ['(f8,f8[:,:],f8[:])']
-        signature = '(),(ns,nop) -> ()'
+        __fourier_density = self.core_funcs.fourier_density
+        types = ['(f8,f8[:,:],c16[:])']
+        signature = '(nkz),(ns,nop) -> (nkz)'
 
         # noinspection PyTypeChecker
         @guvectorize(types, signature, nopython=True, target='parallel')
-        def _structure_factor(kz: float,
-                              sys_conf: np.ndarray,
-                              result: np.ndarray) -> np.ndarray:
+        def _fourier_density(kz_set: np.ndarray,
+                             sys_conf: np.ndarray,
+                             result: np.ndarray) -> np.ndarray:
             """
 
-            :param kz:
+            :param kz_set:
             :param sys_conf:
             :param result:
             :return:
             """
-            result[0] = __structure_factor(kz, sys_conf, cfc_spec_nt)
+            for i_ in range(kz_set.shape[0]):
+                kz = kz_set[i_]
+                result[i_] = __fourier_density(kz, sys_conf, cfc_spec_nt)
 
-        return _structure_factor
+        return _fourier_density
 
 
 class CSWFOptimizer(model.WFOptimizer):

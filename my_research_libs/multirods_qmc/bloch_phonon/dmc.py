@@ -9,7 +9,9 @@ from cached_property import cached_property
 from numpy import random
 
 from my_research_libs import qmc_base, utils
-from my_research_libs.qmc_base.dmc import SamplingBatch, branching_spec_dtype
+from my_research_libs.qmc_base.dmc import (
+    SSFPartSlot, SamplingBatch, branching_spec_dtype
+)
 from my_research_libs.qmc_base.jastrow import SysConfSlot
 from my_research_libs.qmc_base.utils import recast_to_supercell
 from . import model
@@ -274,9 +276,9 @@ class SamplingBase(qmc_base.dmc.Sampling):
         total_obd_array = obd_masked_array.sum(axis=1)
         return BatchFuncResult(total_obd_array, iter_data.iter_props)
 
-    def structure_factor_batch(self, momentum: T_Momentum,
-                               batch_data: SamplingBatch,
-                               result: np.ndarray = None) -> BatchFuncResult:
+    def fourier_density_batch(self, momentum: T_Momentum,
+                              batch_data: SamplingBatch,
+                              result: np.ndarray = None) -> BatchFuncResult:
         """Evaluates the static structure factor for a sampling batch.
 
         :param momentum:
@@ -301,19 +303,19 @@ class SamplingBase(qmc_base.dmc.Sampling):
         states_masks_array: np.ndarray = states_props_array[mask_field]
 
         # noinspection PyTypeChecker
-        sf_array = core_funcs.structure_factor(momentum,
+        fdk_array = core_funcs.fourier_density(momentum,
                                                states_confs_array,
                                                states_weights_array,
                                                states_masks_array,
                                                result)
 
         # Mask the resulting array
-        sf_masked_array: ma.MaskedArray = \
-            ma.MaskedArray(sf_array, mask=states_masks_array)
+        fdk_masked_array: ma.MaskedArray = \
+            ma.MaskedArray(fdk_array, mask=states_masks_array)
 
         # Sum over the axis that indexes the walkers.
-        total_sf_array = sf_masked_array.sum(axis=1)
-        return BatchFuncResult(total_sf_array, batch_data.iter_props)
+        total_fdk_array = fdk_masked_array.sum(axis=1)
+        return BatchFuncResult(total_fdk_array, batch_data.iter_props)
 
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':
@@ -578,22 +580,22 @@ class CoreFuncsBase(qmc_base.dmc.CoreFuncs):
         return _one_body_density
 
     @cached_property
-    def structure_factor(self):
+    def fourier_density(self):
         """The weighed structure factor."""
 
-        types = ['void(f8,f8[:,:],f8,b1,f8[:])']
+        types = ['void(f8,f8[:,:],f8,b1,c16[:])']
         signature = '(),(ns,nop),(),() -> ()'
         cfc_spec = self.cfc_spec_nt
 
-        structure_factor = model.core_funcs.structure_factor
+        fourier_density = model.core_funcs.fourier_density
 
         # noinspection PyTypeChecker
         @nb.guvectorize(types, signature, nopython=True, target='parallel')
-        def _structure_factor(momentum: float,
-                              sys_conf: np.ndarray,
-                              sys_weight: float,
-                              sys_mask: bool,
-                              result: np.ndarray) -> np.ndarray:
+        def _fourier_density(momentum: float,
+                             sys_conf: np.ndarray,
+                             sys_weight: float,
+                             sys_mask: bool,
+                             result: np.ndarray) -> np.ndarray:
             """
 
             :param sys_conf:
@@ -604,12 +606,12 @@ class CoreFuncsBase(qmc_base.dmc.CoreFuncs):
             """
             # NOTE: We need if... else... to avoid bugs.
             if not sys_mask:
-                sys_sf = structure_factor(momentum, sys_conf, cfc_spec)
-                result[0] = sys_weight * sys_sf
+                sys_fdk = fourier_density(momentum, sys_conf, cfc_spec)
+                result[0] = sys_weight * sys_fdk
             else:
                 result[0] = 0.
 
-        return _structure_factor
+        return _fourier_density
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -688,7 +690,9 @@ class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
         """
         num_modes = self.num_modes
         supercell_size = self.model_spec.supercell_size
-        return np.arange(1, num_modes + 1) * 2 * pi / supercell_size
+
+        # TODO: Should we exclude the momentum k = 0?
+        return np.arange(num_modes) * 2 * pi / supercell_size
 
     @cached_property
     def core_func(self):
@@ -702,8 +706,13 @@ class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
         pfs_nts = self.pfw_num_time_steps
         momenta = self.momenta
 
+        # Slots to save data to  evaluate S(k).
+        sqr_abs_slot = int(SSFPartSlot.FDK_SQR_ABS)
+        real_slot = int(SSFPartSlot.FDK_REAL)
+        imag_slot = int(SSFPartSlot.FDK_IMAG)
+
         cfc_spec_nt = model_spec.cfc_spec_nt
-        ssf_func = model.core_funcs.structure_factor
+        fourier_density = model.core_funcs.fourier_density
 
         # noinspection PyUnusedLocal
         @nb.jit(nopython=True)
@@ -729,7 +738,8 @@ class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
             prev_state_ssf = aux_states_ssf_array[prev_step_idx]
             actual_state_ssf = aux_states_ssf_array[actual_step_idx]
 
-            prev_sys_sk = prev_state_ssf[clone_ref_idx]
+            prev_sys_ssf = prev_state_ssf[clone_ref_idx]
+            actual_sys_ssf = actual_state_ssf[sys_idx]
             sys_conf = state_confs[sys_idx]
 
             if not as_pure_est:
@@ -737,33 +747,45 @@ class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
 
                 for kz_idx in range(num_modes):
                     momentum = momenta[kz_idx]
-                    sys_sk_idx = \
-                        ssf_func(momentum, sys_conf, cfc_spec_nt)
+                    sys_fdk_idx = \
+                        fourier_density(momentum, sys_conf, cfc_spec_nt)
 
                     # Just update the actual state.
-                    actual_state_ssf[sys_idx, kz_idx] = sys_sk_idx
+                    fdk_sqr_abs = sys_fdk_idx * sys_fdk_idx.conjugate()
+
+                    actual_sys_ssf[kz_idx, sqr_abs_slot] = fdk_sqr_abs.real
+                    actual_sys_ssf[kz_idx, real_slot] = sys_fdk_idx.real
+                    actual_sys_ssf[kz_idx, imag_slot] = sys_fdk_idx.imag
 
                 # Finish.
                 return
 
             # Pure estimator.
             if step_idx >= pfs_nts:
-                # Just "transport" the structure factor of the previous
+                # Just "transport" the structure factor parts of the previous
                 # configuration to the new one.
                 for kz_idx in range(num_modes):
-                    actual_state_ssf[sys_idx, kz_idx] = prev_sys_sk[kz_idx]
+                    actual_state_ssf[sys_idx, kz_idx] = prev_sys_ssf[kz_idx]
 
             else:
                 # Evaluate the structure factor for the actual
                 # system configuration.
                 for kz_idx in range(num_modes):
                     momentum = momenta[kz_idx]
-                    sys_sk_idx = \
-                        ssf_func(momentum, sys_conf, cfc_spec_nt)
+                    sys_fdk_idx = \
+                        fourier_density(momentum, sys_conf, cfc_spec_nt)
+
+                    fdk_sqr_abs = sys_fdk_idx * sys_fdk_idx.conjugate()
 
                     # Update with the previous state ("transport").
-                    actual_state_ssf[sys_idx, kz_idx] = \
-                        sys_sk_idx + prev_sys_sk[kz_idx]
+                    actual_sys_ssf[kz_idx, sqr_abs_slot] = \
+                        fdk_sqr_abs.real + prev_sys_ssf[kz_idx, sqr_abs_slot]
+
+                    actual_sys_ssf[kz_idx, real_slot] = \
+                        sys_fdk_idx.real + prev_sys_ssf[kz_idx, real_slot]
+
+                    actual_sys_ssf[kz_idx, imag_slot] = \
+                        sys_fdk_idx.imag + prev_sys_ssf[kz_idx, imag_slot]
 
         return _core_func
 

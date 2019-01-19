@@ -440,7 +440,7 @@ def test_dmc_batch_func():
     kz = np.arange(1., nop + 1) * 2 * np.pi / sc_size
 
     # Alias.
-    structure_factor_batch = dmc_sampling.structure_factor_batch
+    fourier_density_batch = dmc_sampling.fourier_density_batch
     weight_field = bloch_phonon.dmc.IterProp.WEIGHT.value
 
     ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
@@ -451,12 +451,12 @@ def test_dmc_batch_func():
 
     for iter_data in dmc_sampling_batches:
         #
-        sk_result = structure_factor_batch(kz, iter_data)
-        sk = sk_result.func
-        iter_props = sk_result.iter_props
+        fdk_result = fourier_density_batch(kz, iter_data)
+        fdk = fdk_result.func
+        iter_props = fdk_result.iter_props
         iter_weights = iter_props[weight_field]
-        sk_average = sk.sum(axis=0) / iter_weights.sum(axis=0) / nop
-        print(np.stack((kz, sk_average), axis=-1))
+        fdk_average = fdk.sum(axis=0) / iter_weights.sum(axis=0) / nop
+        print(np.stack((kz, fdk_average), axis=-1))
 
 
 def test_dmc_est_sampling():
