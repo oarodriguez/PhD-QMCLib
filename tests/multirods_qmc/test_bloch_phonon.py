@@ -524,7 +524,7 @@ def test_dmc_est_sampling():
         print('---')
 
 
-def test_dmc_task():
+def test_dmc_proc():
     """Testing the main task to realize a DMC calculation."""
 
     lattice_depth = 0
@@ -547,11 +547,11 @@ def test_dmc_task():
     num_batches = 8
     num_steps_batch = 4096
     # num_steps = num_batches * num_steps_batch
-    vmc_sampling = \
-        bloch_phonon.dmc_exec.VMCProcSpec(move_spread,
-                                          rng_seed=rng_seed,
-                                          num_batches=num_batches,
-                                          num_steps_batch=num_steps_batch)
+    vmc_proc = \
+        bloch_phonon.dmc_exec.VMCProc(model_spec, move_spread,
+                                      rng_seed=rng_seed,
+                                      num_batches=num_batches,
+                                      num_steps_batch=num_steps_batch)
 
     time_step = 1e-3
     num_batches = 4
@@ -559,13 +559,14 @@ def test_dmc_task():
     # ini_sys_conf_set = None
     target_num_walkers = 480
     max_num_walkers = 512
-    ini_ref_energy = None
+    # ini_ref_energy = None
     rng_seed = None
 
     num_modes = 2 * boson_number
     ssf_spec = dmc_exec.SSFEstSpec(num_modes=num_modes)
-    dmc_sampling = \
-        bloch_phonon.dmc_exec.DMCProcSpec(
+    dmc_proc = \
+        bloch_phonon.dmc_exec.DMCProc(
+                model_spec,
                 time_step,
                 max_num_walkers,
                 target_num_walkers,
@@ -575,13 +576,14 @@ def test_dmc_task():
                 ssf_spec=ssf_spec
         )
 
-    dmc_task = dmc_exec.ProcExecutor(model_spec,
-                                     dmc_sampling,
-                                     vmc_sampling)
-    proc_input = dmc_task.build_proc_input(ini_sys_conf)
-    task_result = dmc_task.exec(proc_input)
+    vmc_proc_input = vmc_proc.build_input(ini_sys_conf)
+    vmc_batch, _ = vmc_proc.exec(vmc_proc_input)
+
+    sys_conf_set = vmc_batch.confs
+    dmc_proc_input = dmc_proc.build_input(sys_conf_set)
+    dmc_result = dmc_proc.exec(dmc_proc_input)
 
 
 if __name__ == '__main__':
-    # test_dmc()
-    test_dmc_task()
+    test_dmc()
+    # test_dmc_proc()

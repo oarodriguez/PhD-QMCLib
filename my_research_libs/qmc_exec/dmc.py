@@ -18,16 +18,14 @@ from .data import DMCProcResult
 from .logging import exec_logger
 
 __all__ = [
+    'DMCProc',
     'DMCProcInput',
     'DMCProcInputError',
-    'DMCProcSpec',
-    'ProcExecutor',
-    'ProcExecutorResult',
     'SSFEstSpec',
-    'VMCProcSpec',
+    'VMCProc',
     'VMCProcInput',
     'VMCProcInputError',
-    'WFOptProcSpec'
+    'WFOptProc'
 ]
 
 DMC_TASK_LOG_NAME = f'DMC Sampling'
@@ -37,25 +35,15 @@ VMC_SAMPLING_LOG_NAME = 'VMC Sampling'
 @attr.s(auto_attribs=True)
 class VMCProcInput(metaclass=ABCMeta):
     """Represents the input for the VMC calculation procedure."""
-
+    # The state of the VMC procedure input.
     state: vmc_base.State
 
-    @classmethod
-    def from_sys_conf(cls, sys_conf: np.ndarray,
-                      proc_director: 'ProcExecutor'):
-        """
 
-        :param sys_conf:
-        :param proc_director:
-        :return:
-        """
-        vmc_sampling = proc_director.vmc_sampling
-        state = vmc_sampling.build_state(sys_conf)
-        return cls(state)
-
-
-class VMCProcSpec(metaclass=ABCMeta):
+class VMCProc(metaclass=ABCMeta):
     """VMC Sampling procedure spec."""
+
+    #: The model spec.
+    model_spec: model_base.Spec
 
     #: The spread magnitude of the random moves for the sampling.
     move_spread: float
@@ -63,222 +51,42 @@ class VMCProcSpec(metaclass=ABCMeta):
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: t.Optional[int]
 
-    #: The initial configuration of the sampling.
-    ini_state: t.Optional[vmc_base.State]
-
     #: The number of batches of the sampling.
     num_batches: int
 
     #: Number of steps per batch.
     num_steps_batch: int
 
+    @property
     @abstractmethod
-    def build_sampling(self, model_spec: model_base.Spec) -> \
-            vmc_base.Sampling:
-        """"""
+    def sampling(self) -> vmc_base.Sampling:
         pass
 
-
-class WFOptProcSpec(metaclass=ABCMeta):
-    """Wave function optimization procedure spec."""
-    pass
-
-
-class SSFEstSpec(metaclass=ABCMeta):
-    """Structure factor estimator basic config."""
-    num_modes: int
-    as_pure_est: bool
-    pfw_num_time_steps: t.Optional[int]
-
-
-class VMCProcInputError(ValueError):
-    """Flags an invalid input for a VMC calculation procedure."""
-    pass
-
-
-class DMCProcInputError(ValueError):
-    """Flags an invalid input for a DMC calculation procedure."""
-    pass
-
-
-@attr.s(auto_attribs=True)
-class DMCProcInput(metaclass=ABCMeta):
-    """Represents the input for the DMC calculation procedure."""
-
-    state: dmc_base.State
-
-    @classmethod
-    def from_sys_conf_set(cls, sys_conf_set: np.ndarray,
-                          proc_director: 'ProcExecutor',
-                          ref_energy: float = None):
+    def build_input(self, sys_conf: np.ndarray):
         """
 
-        :param sys_conf_set:
-        :param proc_director:
-        :param ref_energy:
+        :param sys_conf:
         :return:
         """
-        dmc_sampling = proc_director.dmc_sampling
-        state = dmc_sampling.build_state(sys_conf_set, ref_energy)
-        return cls(state)
+        vmc_sampling = self.sampling
+        state = vmc_sampling.build_state(sys_conf)
+        return VMCProcInput(state)
 
-
-class DMCProcSpec(metaclass=ABCMeta):
-    """DMC sampling procedure spec."""
-
-    #: The "time-step" (squared, average move spread) of the sampling.
-    time_step: float
-
-    #: The maximum wight of the population of walkers.
-    max_num_walkers: int
-
-    #: The average total weight of the population of walkers.
-    target_num_walkers: int
-
-    #: Multiplier for the population control during the branching stage.
-    num_walkers_control_factor: t.Optional[float]
-
-    #: The seed of the pseudo-RNG used to realize the sampling.
-    rng_seed: t.Optional[int]
-
-    #: The initial configuration set of the sampling.
-    ini_sys_conf_set: t.Optional[np.ndarray]
-
-    #: The initial energy of reference.
-    ini_ref_energy: t.Optional[float]
-
-    #: The number of batches of the sampling.
-    num_batches: int
-
-    #: Number of time steps per batch.
-    num_time_steps_batch: int
-
-    #: The number of batches to discard.
-    burn_in_batches: t.Optional[int]
-
-    #: Keep the estimator values for all the time steps.
-    keep_iter_data: bool
-
-    #: Remaining batches
-    remaining_batches: t.Optional[int]
-
-    # *** Estimators configuration ***
-    ssf_spec: t.Optional[SSFEstSpec]
-
-    def __attrs_post_init__(self):
-        """Post-initialization stage."""
-        if self.burn_in_batches is None:
-            burn_in_batches = max(1, self.num_batches // 8)
-            object.__setattr__(self, 'burn_in_batches', burn_in_batches)
-
-    @property
-    def should_eval_ssf(self):
-        """"""
-        return False if self.ssf_spec is None else True
-
-    @abstractmethod
-    def build_sampling(self, model_spec: model_base.Spec) -> \
-            dmc_base.EstSampling:
-        """"""
-        pass
-
-    def checkpoint(self):
-        """"""
-        pass
-
-
-T_ProcDirectorInput = t.Union[VMCProcInput, DMCProcInput]
-
-
-@attr.s(auto_attribs=True)
-class ProcExecutorResult(metaclass=ABCMeta):
-    """Result of a complete QMC procedure execution."""
-
-    #: The result of the DMC procedure.
-    dmc_proc_result: DMCProcResult
-
-    #: A modified executor instance.
-    proc_executor: 'ProcExecutor'
-
-
-class ProcExecutor(metaclass=ABCMeta):
-    """Manages a whole DMC calculation."""
-
-    #: The model spec.
-    model_spec: model_base.Spec
-
-    #: The spec of the DMC sampling.
-    dmc_proc_spec: DMCProcSpec
-
-    #: The spec of the VMC sampling.
-    vmc_proc_spec: t.Optional[VMCProcSpec]
-
-    #: The spec of the wave function optimization procedure.
-    wf_opt_proc_spec: t.Optional[WFOptProcSpec]
-
-    #:
-    output_file: t.Optional[str]
-
-    #: Whether or not to skip the optimization procedure.
-    skip_wf_opt_proc: bool
-
-    #:
-    verbose: bool
-
-    @property
-    def should_exec_vmc(self):
-        """"""
-        return False if self.vmc_proc_spec is None else True
-
-    @property
-    def should_optimize(self):
-        """"""
-        if self.skip_wf_opt_proc:
-            return False
-        return False if self.wf_opt_proc_spec is None else True
-
-    @property
-    @abstractmethod
-    def dmc_sampling(self) -> dmc_base.EstSampling:
-        pass
-
-    @property
-    @abstractmethod
-    def vmc_sampling(self) -> vmc_base.Sampling:
-        pass
-
-    @abstractmethod
-    def build_proc_input(self, maybe_sys_conf_set: np.ndarray,
-                         ref_energy: float = None):
-        """
-
-        :param maybe_sys_conf_set:
-        :param ref_energy:
-        :return:
-        """
-        pass
-
-    @abstractmethod
-    def exec(self, proc_input: T_ProcDirectorInput) -> ProcExecutorResult:
-        """"""
-        pass
-
-    def exec_vmc_proc(self, proc_input: VMCProcInput):
+    def exec(self, proc_input: VMCProcInput):
         """
 
         :param proc_input:
         :return:
         """
-        vmc_spec = self.vmc_proc_spec
-        num_batches = vmc_spec.num_batches
-        num_steps_batch = vmc_spec.num_steps_batch
+        num_batches = self.num_batches
+        num_steps_batch = self.num_steps_batch
 
         exec_logger.info('Starting VMC sampling...')
         exec_logger.info(f'Sampling {num_batches} batches of steps...')
         exec_logger.info(f'Sampling {num_steps_batch} steps per batch...')
 
         # New sampling instance
-        sampling = self.vmc_sampling
+        sampling = self.sampling
         if not isinstance(proc_input, VMCProcInput):
             raise VMCProcInputError('the input data for the VMC procedure is '
                                     'not valid')
@@ -318,7 +126,108 @@ class ProcExecutor(metaclass=ABCMeta):
         # TODO: Should we return the sampling object?
         return last_batch, sampling
 
-    def exec_dmc_proc(self, proc_input: DMCProcInput):
+
+class WFOptProc(metaclass=ABCMeta):
+    """Wave function optimization procedure spec."""
+    pass
+
+
+class SSFEstSpec(metaclass=ABCMeta):
+    """Structure factor estimator basic config."""
+    num_modes: int
+    as_pure_est: bool
+    pfw_num_time_steps: t.Optional[int]
+
+
+class VMCProcInputError(ValueError):
+    """Flags an invalid input for a VMC calculation procedure."""
+    pass
+
+
+class DMCProcInputError(ValueError):
+    """Flags an invalid input for a DMC calculation procedure."""
+    pass
+
+
+@attr.s(auto_attribs=True)
+class DMCProcInput(metaclass=ABCMeta):
+    """Represents the input for the DMC calculation procedure."""
+    # The state of the DMC procedure input.
+    state: dmc_base.State
+
+
+class DMCProc(metaclass=ABCMeta):
+    """DMC sampling procedure spec."""
+
+    #: The model spec.
+    model_spec: model_base.Spec
+
+    #: The "time-step" (squared, average move spread) of the sampling.
+    time_step: float
+
+    #: The maximum wight of the population of walkers.
+    max_num_walkers: int
+
+    #: The average total weight of the population of walkers.
+    target_num_walkers: int
+
+    #: Multiplier for the population control during the branching stage.
+    num_walkers_control_factor: t.Optional[float]
+
+    #: The seed of the pseudo-RNG used to realize the sampling.
+    rng_seed: t.Optional[int]
+
+    #: The number of batches of the sampling.
+    num_batches: int
+
+    #: Number of time steps per batch.
+    num_time_steps_batch: int
+
+    #: The number of batches to discard.
+    burn_in_batches: t.Optional[int]
+
+    #: Keep the estimator values for all the time steps.
+    keep_iter_data: bool
+
+    #: Remaining batches
+    remaining_batches: t.Optional[int]
+
+    # *** Estimators configuration ***
+    ssf_spec: t.Optional[SSFEstSpec]
+
+    def __attrs_post_init__(self):
+        """Post-initialization stage."""
+        if self.burn_in_batches is None:
+            burn_in_batches = max(1, self.num_batches // 8)
+            object.__setattr__(self, 'burn_in_batches', burn_in_batches)
+
+    @property
+    def should_eval_ssf(self):
+        """"""
+        return False if self.ssf_spec is None else True
+
+    @property
+    @abstractmethod
+    def sampling(self) -> dmc_base.EstSampling:
+        pass
+
+    def build_input(self, sys_conf_set: np.ndarray,
+                    ref_energy: float = None):
+        """
+
+        :param sys_conf_set:
+        :param ref_energy:
+        :return:
+        """
+        dmc_sampling = self.sampling
+        state = dmc_sampling.build_state(sys_conf_set, ref_energy)
+        return DMCProcInput(state)
+
+    def checkpoint(self):
+        """"""
+        pass
+
+    def exec(self, proc_input: DMCProcInput):
         """
 
         :param proc_input:
@@ -330,19 +239,18 @@ class ProcExecutor(metaclass=ABCMeta):
         ref_energy_field = dmc_base.IterProp.REF_ENERGY
         accum_energy_field = dmc_base.IterProp.ACCUM_ENERGY
 
-        dmc_proc_spec = self.dmc_proc_spec
-        num_batches = dmc_proc_spec.num_batches
-        num_time_steps_batch = dmc_proc_spec.num_time_steps_batch
-        target_num_walkers = dmc_proc_spec.target_num_walkers
-        burn_in_batches = dmc_proc_spec.burn_in_batches
-        keep_iter_data = dmc_proc_spec.keep_iter_data
+        num_batches = self.num_batches
+        num_time_steps_batch = self.num_time_steps_batch
+        target_num_walkers = self.target_num_walkers
+        burn_in_batches = self.burn_in_batches
+        keep_iter_data = self.keep_iter_data
 
         # Alias 😐.
         nts_batch = num_time_steps_batch
 
         # Structure factor configuration.
-        ssf_spec = dmc_proc_spec.ssf_spec
-        should_eval_ssf = dmc_proc_spec.should_eval_ssf
+        ssf_spec = self.ssf_spec
+        should_eval_ssf = self.should_eval_ssf
 
         exec_logger.info('Starting DMC sampling...')
         exec_logger.info(f'Using an average of {target_num_walkers} walkers.')
@@ -356,7 +264,7 @@ class ProcExecutor(metaclass=ABCMeta):
         else:
             burn_in_batches = burn_in_batches
 
-        sampling = self.dmc_sampling
+        sampling = self.sampling
         if not isinstance(proc_input, DMCProcInput):
             raise DMCProcInputError('the input data for the DMC procedure is '
                                     'not valid')
