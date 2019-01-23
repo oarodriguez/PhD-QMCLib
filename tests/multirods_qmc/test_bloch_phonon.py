@@ -8,7 +8,6 @@ from matplotlib import pyplot
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
 from my_research_libs.qmc_base.jastrow import SysConfDistType, SysConfSlot
-from tests.test_cli.multirods_qmc.test_bloch_phonon import test_dmc_proc
 
 LATTICE_DEPTH = 100
 LATTICE_RATIO = 1
@@ -527,4 +526,3 @@ def test_dmc_est_sampling():
 if __name__ == '__main__':
     # test_dmc()
     test_init()
-    test_dmc_proc()
