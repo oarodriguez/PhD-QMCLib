@@ -1,4 +1,4 @@
-from my_research_libs.cli.multirods_qmc.bloch_phonon import dmc
+from my_research_libs.cli.multirods_qmc.bloch_phonon import dmc, vmc
 from my_research_libs.multirods_qmc import bloch_phonon
 
 
@@ -26,7 +26,8 @@ def test_dmc_proc():
     num_steps_batch = 4096
     # num_steps = num_batches * num_steps_batch
     vmc_proc = \
-        dmc.VMCProc(model_spec, move_spread,
+        vmc.VMCProc(model_spec,
+                    move_spread,
                     rng_seed=rng_seed,
                     num_batches=num_batches,
                     num_steps_batch=num_steps_batch)
