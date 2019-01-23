@@ -4,10 +4,8 @@ import attr
 import numpy as np
 from cached_property import cached_property
 
+from my_research_libs.multirods_qmc.bloch_phonon import dmc, model, vmc
 from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
-from .dmc import EstSampling, SSFEstSpec
-from .model import CSWFOptimizer, Spec
-from .vmc import Sampling
 
 __all__ = [
     'DMCProc',
@@ -26,7 +24,7 @@ opt_int_validator = attr.validators.optional(int_validator)
 opt_str_validator = attr.validators.optional(str_validator)
 opt_bool_validator = attr.validators.optional(bool_validator)
 
-model_spec_validator = attr.validators.instance_of(Spec)
+model_spec_validator = attr.validators.instance_of(model.Spec)
 opt_model_spec_validator = attr.validators.optional(model_spec_validator)
 
 
@@ -34,7 +32,7 @@ opt_model_spec_validator = attr.validators.optional(model_spec_validator)
 class VMCProc(dmc_exec.VMCProc):
     """VMC Sampling."""
 
-    model_spec: Spec = attr.ib(validator=model_spec_validator)
+    model_spec: model.Spec = attr.ib()
 
     move_spread: float = attr.ib(converter=float)
 
@@ -57,7 +55,7 @@ class VMCProc(dmc_exec.VMCProc):
         self_config = dict(config)
         # Extract the model spec.
         model_spec_config = self_config.pop('model_spec')
-        model_spec = Spec(**model_spec_config)
+        model_spec = model.Spec(**model_spec_config)
 
         return cls(model_spec, **self_config)
 
@@ -80,14 +78,14 @@ class VMCProc(dmc_exec.VMCProc):
         return attr.evolve(self, model_spec=model_spec, **self_config)
 
     @cached_property
-    def sampling(self) -> Sampling:
+    def sampling(self) -> vmc.Sampling:
         """
 
         :return:
         """
-        return Sampling(self.model_spec,
-                        self.move_spread,
-                        self.rng_seed)
+        return vmc.Sampling(self.model_spec,
+                            self.move_spread,
+                            self.rng_seed)
 
 
 vmc_proc_validator = attr.validators.instance_of(VMCProc)
@@ -116,7 +114,7 @@ class WFOptProc(dmc_exec.WFOptProc):
     #: Display log messages or not.
     verbose: bool = attr.ib(default=False, validator=bool_validator)
 
-    def exec(self, model_spec: Spec,
+    def exec(self, model_spec: model.Spec,
              sys_conf_set: np.ndarray,
              ini_wf_abs_log_set: np.ndarray):
         """
@@ -137,13 +135,13 @@ class WFOptProc(dmc_exec.WFOptProc):
         sys_conf_set = sys_conf_set[-num_sys_confs:]
         ini_wf_abs_log_set = ini_wf_abs_log_set[-num_sys_confs:]
 
-        optimizer = CSWFOptimizer(model_spec,
-                                  sys_conf_set,
-                                  ini_wf_abs_log_set,
-                                  self.ref_energy,
-                                  self.use_threads,
-                                  self.num_workers,
-                                  self.verbose)
+        optimizer = model.CSWFOptimizer(model_spec,
+                                        sys_conf_set,
+                                        ini_wf_abs_log_set,
+                                        self.ref_energy,
+                                        self.use_threads,
+                                        self.num_workers,
+                                        self.verbose)
         opt_result = optimizer.exec()
 
         exec_logger.info('Wave function optimization completed.')
@@ -167,7 +165,7 @@ class DMCSSFEstSpec(dmc_exec.SSFEstSpec):
         attr.ib(default=None, validator=opt_int_validator)
 
 
-ssf_validator = attr.validators.instance_of(dmc_exec.SSFEstSpec)
+ssf_validator = attr.validators.instance_of(DMCSSFEstSpec)
 opt_ssf_validator = attr.validators.optional(ssf_validator)
 
 
@@ -175,7 +173,7 @@ opt_ssf_validator = attr.validators.optional(ssf_validator)
 class DMCProc(dmc_exec.DMCProc):
     """DMC sampling procedure."""
 
-    model_spec: Spec = attr.ib(validator=model_spec_validator)
+    model_spec: model.Spec = attr.ib(validator=None)
 
     time_step: float = attr.ib(converter=float)
 
@@ -208,7 +206,7 @@ class DMCProc(dmc_exec.DMCProc):
 
     # *** Estimators configuration ***
     ssf_spec: t.Optional[DMCSSFEstSpec] = \
-        attr.ib(default=None, validator=opt_ssf_validator)
+        attr.ib(default=None, validator=None)
 
     verbose: bool = attr.ib(default=False, validator=bool_validator)
 
@@ -227,7 +225,7 @@ class DMCProc(dmc_exec.DMCProc):
 
         # Extract the model spec.
         model_spec_config = self_config.pop('model_spec')
-        model_spec = Spec(**model_spec_config)
+        model_spec = model.Spec(**model_spec_config)
 
         # Extract the spec of the static structure factor.
         ssf_est_config = self_config.pop('ssf_spec', None)
@@ -272,28 +270,28 @@ class DMCProc(dmc_exec.DMCProc):
                            **self_config)
 
     @cached_property
-    def sampling(self) -> EstSampling:
+    def sampling(self) -> dmc.EstSampling:
         """
 
         :return:
         """
         if self.should_eval_ssf:
             ssf_spec = self.ssf_spec
-            ssf_est = SSFEstSpec(self.model_spec,
-                                 ssf_spec.num_modes,
-                                 ssf_spec.as_pure_est,
-                                 ssf_spec.pfw_num_time_steps)
+            ssf_est = dmc.SSFEstSpec(self.model_spec,
+                                     ssf_spec.num_modes,
+                                     ssf_spec.as_pure_est,
+                                     ssf_spec.pfw_num_time_steps)
 
         else:
             ssf_est = None
 
-        sampling = EstSampling(self.model_spec,
-                               self.time_step,
-                               self.max_num_walkers,
-                               self.target_num_walkers,
-                               self.num_walkers_control_factor,
-                               self.rng_seed,
-                               ssf_spec=ssf_est)
+        sampling = dmc.EstSampling(self.model_spec,
+                                   self.time_step,
+                                   self.max_num_walkers,
+                                   self.target_num_walkers,
+                                   self.num_walkers_control_factor,
+                                   self.rng_seed,
+                                   ssf_spec=ssf_est)
         return sampling
 
     def checkpoint(self):
