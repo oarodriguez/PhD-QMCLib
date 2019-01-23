@@ -4,14 +4,14 @@ import attr
 import numpy as np
 
 from my_research_libs.multirods_qmc.bloch_phonon import model
-from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
+from my_research_libs.qmc_exec import exec_logger, wf_opt as wf_opt_exec
 from my_research_libs.util.attr import (
     bool_validator, int_validator, opt_int_validator
 )
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class WFOptProc(dmc_exec.WFOptProc):
+class WFOptProc(wf_opt_exec.WFOptProc):
     """Wave function optimization."""
 
     #: The number of configurations used in the process.

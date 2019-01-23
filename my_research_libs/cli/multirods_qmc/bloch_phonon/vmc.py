@@ -4,7 +4,7 @@ import attr
 from cached_property import cached_property
 
 from my_research_libs.multirods_qmc.bloch_phonon import model, vmc
-from my_research_libs.qmc_exec import dmc as dmc_exec
+from my_research_libs.qmc_exec import vmc as vmc_exec
 from my_research_libs.util.attr import int_validator, opt_int_validator
 
 model_spec_validator = attr.validators.instance_of(model.Spec)
@@ -12,7 +12,7 @@ opt_model_spec_validator = attr.validators.optional(model_spec_validator)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class VMCProc(dmc_exec.VMCProc):
+class VMCProc(vmc_exec.VMCProc):
     """VMC Sampling."""
 
     model_spec: model.Spec = attr.ib(validator=model_spec_validator)
