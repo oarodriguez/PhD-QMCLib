@@ -9,15 +9,21 @@ import tqdm
 from my_research_libs.qmc_base import model as model_base, vmc as vmc_base
 from .logging import exec_logger
 
+__all__ = [
+    'Proc',
+    'ProcInput',
+    'ProcInputError'
+]
+
 
 @attr.s(auto_attribs=True)
-class VMCProcInput(metaclass=ABCMeta):
+class ProcInput(metaclass=ABCMeta):
     """Represents the input for the VMC calculation procedure."""
     # The state of the VMC procedure input.
     state: vmc_base.State
 
 
-class VMCProc(metaclass=ABCMeta):
+class Proc(metaclass=ABCMeta):
     """VMC Sampling procedure spec."""
 
     #: The model spec.
@@ -48,9 +54,9 @@ class VMCProc(metaclass=ABCMeta):
         """
         vmc_sampling = self.sampling
         state = vmc_sampling.build_state(sys_conf)
-        return VMCProcInput(state)
+        return ProcInput(state)
 
-    def exec(self, proc_input: VMCProcInput):
+    def exec(self, proc_input: ProcInput):
         """
 
         :param proc_input:
@@ -65,9 +71,9 @@ class VMCProc(metaclass=ABCMeta):
 
         # New sampling instance
         sampling = self.sampling
-        if not isinstance(proc_input, VMCProcInput):
-            raise VMCProcInputError('the input data for the VMC procedure is '
-                                    'not valid')
+        if not isinstance(proc_input, ProcInput):
+            raise ProcInputError('the input data for the VMC procedure is '
+                                 'not valid')
         ini_sys_conf = proc_input.state.sys_conf
         batches = sampling.batches(num_steps_batch, ini_sys_conf)
 
@@ -105,6 +111,6 @@ class VMCProc(metaclass=ABCMeta):
         return last_batch, sampling
 
 
-class VMCProcInputError(ValueError):
+class ProcInputError(ValueError):
     """Flags an invalid input for a VMC calculation procedure."""
     pass

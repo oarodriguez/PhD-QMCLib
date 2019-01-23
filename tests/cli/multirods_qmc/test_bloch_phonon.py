@@ -1,4 +1,6 @@
-from my_research_libs.cli.multirods_qmc.bloch_phonon import dmc, vmc
+from my_research_libs.cli.multirods_qmc.bloch_phonon import (
+    dmc as dmc_cli, vmc as vmc_cli
+)
 from my_research_libs.multirods_qmc import bloch_phonon
 
 
@@ -25,12 +27,11 @@ def test_dmc_proc():
     num_batches = 8
     num_steps_batch = 4096
     # num_steps = num_batches * num_steps_batch
-    vmc_proc = \
-        vmc.VMCProc(model_spec,
-                    move_spread,
-                    rng_seed=rng_seed,
-                    num_batches=num_batches,
-                    num_steps_batch=num_steps_batch)
+    vmc_proc = vmc_cli.Proc(model_spec,
+                            move_spread,
+                            rng_seed=rng_seed,
+                            num_batches=num_batches,
+                            num_steps_batch=num_steps_batch)
 
     time_step = 1e-3
     num_batches = 4
@@ -42,18 +43,16 @@ def test_dmc_proc():
     rng_seed = None
 
     num_modes = 2 * boson_number
-    ssf_spec = dmc.DMCSSFEstSpec(num_modes=num_modes)
+    ssf_spec = dmc_cli.SSFEstSpec(num_modes=num_modes)
     dmc_proc = \
-        dmc.DMCProc(
-                model_spec,
-                time_step,
-                max_num_walkers,
-                target_num_walkers,
-                rng_seed=rng_seed,
-                num_batches=num_batches,
-                num_time_steps_batch=num_time_steps_batch,
-                ssf_spec=ssf_spec
-        )
+        dmc_cli.Proc(model_spec,
+                     time_step,
+                     max_num_walkers,
+                     target_num_walkers,
+                     rng_seed=rng_seed,
+                     num_batches=num_batches,
+                     num_time_steps_batch=num_time_steps_batch,
+                     ssf_spec=ssf_spec)
 
     vmc_proc_input = vmc_proc.build_input(ini_sys_conf)
     vmc_batch, _ = vmc_proc.exec(vmc_proc_input)

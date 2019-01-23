@@ -18,9 +18,9 @@ from .data import DMCProcResult
 from .logging import exec_logger
 
 __all__ = [
-    'DMCProc',
-    'DMCProcInput',
-    'DMCProcInputError',
+    'Proc',
+    'ProcInput',
+    'ProcInputError',
     'SSFEstSpec'
 ]
 
@@ -35,19 +35,19 @@ class SSFEstSpec(metaclass=ABCMeta):
     pfw_num_time_steps: t.Optional[int]
 
 
-class DMCProcInputError(ValueError):
+class ProcInputError(ValueError):
     """Flags an invalid input for a DMC calculation procedure."""
     pass
 
 
 @attr.s(auto_attribs=True)
-class DMCProcInput(metaclass=ABCMeta):
+class ProcInput(metaclass=ABCMeta):
     """Represents the input for the DMC calculation procedure."""
     # The state of the DMC procedure input.
     state: dmc_base.State
 
 
-class DMCProc(metaclass=ABCMeta):
+class Proc(metaclass=ABCMeta):
     """DMC sampling procedure spec."""
 
     #: The model spec.
@@ -122,13 +122,13 @@ class DMCProc(metaclass=ABCMeta):
         """
         dmc_sampling = self.sampling
         state = dmc_sampling.build_state(sys_conf_set, ref_energy)
-        return DMCProcInput(state)
+        return ProcInput(state)
 
     def checkpoint(self):
         """"""
         pass
 
-    def exec(self, proc_input: DMCProcInput):
+    def exec(self, proc_input: ProcInput):
         """
 
         :param proc_input:
@@ -166,9 +166,9 @@ class DMCProc(metaclass=ABCMeta):
             burn_in_batches = burn_in_batches
 
         sampling = self.sampling
-        if not isinstance(proc_input, DMCProcInput):
-            raise DMCProcInputError('the input data for the DMC procedure is '
-                                    'not valid')
+        if not isinstance(proc_input, ProcInput):
+            raise ProcInputError('the input data for the DMC procedure is '
+                                 'not valid')
 
         # The estimator sampling iterator.
         ini_state = proc_input.state

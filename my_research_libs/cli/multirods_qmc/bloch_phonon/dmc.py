@@ -4,14 +4,14 @@ import attr
 from cached_property import cached_property
 
 from my_research_libs.multirods_qmc.bloch_phonon import dmc, model
-from my_research_libs.qmc_exec import dmc as dmc_exec
+from my_research_libs.qmc_exec import dmc as dmc_exec_base
 from my_research_libs.util.attr import (
     bool_validator, int_validator, opt_int_validator
 )
 
 __all__ = [
-    'DMCProc',
-    'DMCSSFEstSpec'
+    'Proc',
+    'SSFEstSpec'
 ]
 
 model_spec_validator = attr.validators.instance_of(model.Spec)
@@ -19,7 +19,7 @@ opt_model_spec_validator = attr.validators.optional(model_spec_validator)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCSSFEstSpec(dmc_exec.SSFEstSpec):
+class SSFEstSpec(dmc_exec_base.SSFEstSpec):
     """Structure factor estimator basic config."""
 
     num_modes: int = attr.ib(validator=int_validator)
@@ -30,12 +30,12 @@ class DMCSSFEstSpec(dmc_exec.SSFEstSpec):
         attr.ib(default=None, validator=opt_int_validator)
 
 
-ssf_validator = attr.validators.instance_of(DMCSSFEstSpec)
+ssf_validator = attr.validators.instance_of(SSFEstSpec)
 opt_ssf_validator = attr.validators.optional(ssf_validator)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCProc(dmc_exec.DMCProc):
+class Proc(dmc_exec_base.Proc):
     """DMC sampling procedure."""
 
     model_spec: model.Spec = attr.ib(validator=None)
@@ -70,7 +70,7 @@ class DMCProc(dmc_exec.DMCProc):
     remaining_batches: t.Optional[int] = attr.ib(default=None, init=False)
 
     # *** Estimators configuration ***
-    ssf_spec: t.Optional[DMCSSFEstSpec] = \
+    ssf_spec: t.Optional[SSFEstSpec] = \
         attr.ib(default=None, validator=None)
 
     verbose: bool = attr.ib(default=False, validator=bool_validator)
@@ -95,7 +95,7 @@ class DMCProc(dmc_exec.DMCProc):
         # Extract the spec of the static structure factor.
         ssf_est_config = self_config.pop('ssf_spec', None)
         if ssf_est_config is not None:
-            ssf_est_spec = DMCSSFEstSpec(**ssf_est_config)
+            ssf_est_spec = SSFEstSpec(**ssf_est_config)
         else:
             ssf_est_spec = None
 
@@ -128,7 +128,7 @@ class DMCProc(dmc_exec.DMCProc):
                 ssf_est_spec = attr.evolve(ssf_est_spec, **ssf_est_config)
 
             else:
-                ssf_est_spec = DMCSSFEstSpec(**ssf_est_config)
+                ssf_est_spec = SSFEstSpec(**ssf_est_config)
 
         return attr.evolve(self, model_spec=model_spec,
                            ssf_spec=ssf_est_spec,
@@ -164,5 +164,5 @@ class DMCProc(dmc_exec.DMCProc):
         pass
 
 
-dmc_proc_validator = attr.validators.instance_of(DMCProc)
+dmc_proc_validator = attr.validators.instance_of(Proc)
 opt_dmc_proc_validator = attr.validators.optional(dmc_proc_validator)
