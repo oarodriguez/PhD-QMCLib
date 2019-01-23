@@ -14,7 +14,7 @@ from my_research_libs.qmc_data.dmc import (
     EnergyBlocks, NumWalkersBlocks, PropsDataBlocks, PropsDataSeries,
     SSFBlocks, SamplingData, WeightBlocks
 )
-from .data import DMCProcResult
+from my_research_libs.util.attr import bool_validator, str_validator
 from .logging import exec_logger
 
 __all__ = [
@@ -44,7 +44,102 @@ class ProcInputError(ValueError):
 class ProcInput(metaclass=ABCMeta):
     """Represents the input for the DMC calculation procedure."""
     # The state of the DMC procedure input.
+    # NOTE: Is this class necessary? 🤔
     state: dmc_base.State
+
+
+class IOHandler(metaclass=ABCMeta):
+    """"""
+
+    @abstractmethod
+    def load(self):
+        pass
+
+    @abstractmethod
+    def save(self, data: 'ProcResult'):
+        pass
+
+
+class ModelSysConfHandler(IOHandler, metaclass=ABCMeta):
+    """"""
+
+    dist_type: str
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class NpyFileHandler(IOHandler, metaclass=ABCMeta):
+    """"""
+    # NOTE: It could be useful in the future...
+
+    location: str = attr.ib(validator=str_validator)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
+    """"""
+
+    location: str = attr.ib(validator=str_validator)
+
+    group: str = attr.ib(validator=str_validator)
+
+    dataset: str = attr.ib(validator=str_validator)
+
+    is_state: bool = attr.ib(default=True, validator=bool_validator)
+
+
+class IOHandlerSpec(metaclass=ABCMeta):
+    """"""
+
+    type: str
+
+    spec: IOHandler
+
+    @classmethod
+    @abstractmethod
+    def from_config(cls, config: t.Mapping):
+        pass
+
+    def load(self):
+        """"""
+        return self.spec.load()
+
+    def save(self, data: 'ProcResult'):
+        """"""
+        return self.spec.save(data)
+
+
+@attr.s(auto_attribs=True)
+class ProcIO:
+    """"""
+    #:
+    input: IOHandlerSpec
+
+    #:
+    output: t.Optional[IOHandlerSpec] = None
+
+    @classmethod
+    @abstractmethod
+    def from_config(cls, config: t.Mapping):
+        """
+
+        :param config:
+        :return:
+        """
+        # Extract the input spec.
+        pass
+
+
+class ProcResult:
+    """Result of the DMC estimator sampling."""
+
+    #: The last state of the sampling.
+    state: dmc_base.State
+
+    #: The data generated during the sampling.
+    data: t.Optional[SamplingData] = None
+
+    #: The sampling object used to generate the results.
+    sampling: t.Optional[dmc_base.EstSampling] = None
 
 
 class Proc(metaclass=ABCMeta):
@@ -112,17 +207,27 @@ class Proc(metaclass=ABCMeta):
     def sampling(self) -> dmc_base.EstSampling:
         pass
 
-    def build_input(self, sys_conf_set: np.ndarray,
-                    ref_energy: float = None):
+    @abstractmethod
+    def build_input(self, proc_io_input: IOHandlerSpec):
         """
 
-        :param sys_conf_set:
-        :param ref_energy:
+        :param proc_io_input:
         :return:
         """
-        dmc_sampling = self.sampling
-        state = dmc_sampling.build_state(sys_conf_set, ref_energy)
-        return ProcInput(state)
+        pass
+
+    @abstractmethod
+    def build_result(self, state: dmc_base.State,
+                     sampling: dmc_base.EstSampling,
+                     data: SamplingData = None):
+        """
+
+        :param state: The last state of the sampling.
+        :param data: The data generated during the sampling.
+        :param sampling: The sampling object used to generate the results.
+        :return:
+        """
+        pass
 
     def checkpoint(self):
         """"""
@@ -361,6 +466,6 @@ class Proc(metaclass=ABCMeta):
         # NOTE: Should we return a new instance?
         # sampling = attr.evolve(sampling)
 
-        return DMCProcResult(last_state,
-                             data=sampling_data,
-                             sampling=sampling)
+        return self.build_result(last_state,
+                                 sampling=sampling,
+                                 data=sampling_data)
