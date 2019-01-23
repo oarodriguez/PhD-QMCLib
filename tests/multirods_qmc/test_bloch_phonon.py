@@ -7,6 +7,7 @@ from matplotlib import pyplot
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
+from my_research_libs.multirods_qmc.bloch_phonon import dmc_exec
 from my_research_libs.qmc_base.jastrow import SysConfDistType, SysConfSlot
 
 LATTICE_DEPTH = 100
@@ -547,10 +548,10 @@ def test_dmc_proc():
     num_steps_batch = 4096
     # num_steps = num_batches * num_steps_batch
     vmc_proc = \
-        bloch_phonon.dmc_exec.VMCProc(model_spec, move_spread,
-                                      rng_seed=rng_seed,
-                                      num_batches=num_batches,
-                                      num_steps_batch=num_steps_batch)
+        dmc_exec.VMCProc(model_spec, move_spread,
+                         rng_seed=rng_seed,
+                         num_batches=num_batches,
+                         num_steps_batch=num_steps_batch)
 
     time_step = 1e-3
     num_batches = 4
@@ -562,9 +563,9 @@ def test_dmc_proc():
     rng_seed = None
 
     num_modes = 2 * boson_number
-    ssf_spec = bloch_phonon.dmc_exec.SSFEstSpec(num_modes=num_modes)
+    ssf_spec = dmc_exec.DMCSSFEstSpec(num_modes=num_modes)
     dmc_proc = \
-        bloch_phonon.dmc_exec.DMCProc(
+        dmc_exec.DMCProc(
                 model_spec,
                 time_step,
                 max_num_walkers,
