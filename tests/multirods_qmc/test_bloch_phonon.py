@@ -7,7 +7,6 @@ from matplotlib import pyplot
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
-from my_research_libs.multirods_qmc.bloch_phonon import dmc_exec
 from my_research_libs.qmc_base.jastrow import SysConfDistType, SysConfSlot
 
 LATTICE_DEPTH = 100
@@ -563,7 +562,7 @@ def test_dmc_proc():
     rng_seed = None
 
     num_modes = 2 * boson_number
-    ssf_spec = dmc_exec.SSFEstSpec(num_modes=num_modes)
+    ssf_spec = bloch_phonon.dmc_exec.SSFEstSpec(num_modes=num_modes)
     dmc_proc = \
         bloch_phonon.dmc_exec.DMCProc(
                 model_spec,

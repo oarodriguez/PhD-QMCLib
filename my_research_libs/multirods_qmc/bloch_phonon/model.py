@@ -1,6 +1,6 @@
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from os import cpu_count
-from typing import NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple, Optional, Tuple
 
 import attr
 import dask
@@ -74,6 +74,29 @@ class CFCSpecNT(qmc_base.jastrow.CFCSpecNT, NamedTuple):
     tbf_spec: TBFSpecNT
 
 
+float_validator = attr.validators.instance_of((float, int))
+int_validator = attr.validators.instance_of(int)
+
+opt_float_validator = attr.validators.optional(float_validator)
+opt_int_validator = attr.validators.optional(int_validator)
+
+
+# noinspection PyUnusedLocal
+def tbf_contact_cutoff_validator(model_inst: 'Spec',
+                                 attribute: str,
+                                 value: Any):
+    """Validator for the ``tbf_contact_cutoff`` attribute.
+
+    :param model_inst: The model instance.
+    :param attribute: The validated attribute.
+    :param value: The value of the attribute.
+    :return:
+    """
+    sc_size = model_inst.supercell_size
+    if not fabs(value) <= fabs(sc_size / 2):
+        raise ValueError("parameter value 'rm' out of domain")
+
+
 # NOTE: slots=True avoids adding more attributes
 # NOTE: Use repr=False if we want instances that can be serialized (pickle)
 @attr.s(auto_attribs=True, frozen=True)
@@ -85,23 +108,24 @@ class Spec(qmc_base.jastrow.Spec):
     with a trial wave function of the Bijl-Jastrow type.
     """
     #: The lattice depth of the potential.
-    lattice_depth: float
+    lattice_depth: float = attr.ib(converter=float)
 
     #: The ratio of the barriers width between the wells width.
-    lattice_ratio: float
+    lattice_ratio: float = attr.ib(converter=float)
 
     #: The magnitude of the interaction strength between two bosons.
-    interaction_strength: float
+    interaction_strength: float = attr.ib(converter=float)
 
     #: The number of bosons.
-    boson_number: int
+    boson_number: int = attr.ib(validator=int_validator)
 
     #: The size of the QMC simulation box.
-    supercell_size: float
+    supercell_size: float = attr.ib(converter=float)
 
     # TODO: We need a better documentation for this attribute.
     #: The variational parameter of the two-body functions.
-    tbf_contact_cutoff: float
+    tbf_contact_cutoff: float = \
+        attr.ib(converter=float, validator=tbf_contact_cutoff_validator)
 
     # TODO: Implement improved __init__.
 
