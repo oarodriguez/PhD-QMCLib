@@ -281,7 +281,13 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         :return:
         """
         group_name = self.group
-        base_group = h5_file.get(group_name)
+        base_group = h5_file.get(group_name, None)
+        if base_group is None:
+            raise HDF5FileHandlerGroupError(
+                    f"unable to read '{group_name}' group (name "
+                    f"does not exists)"
+            )
+
         state_group = base_group.require_group('dmc/state')
 
         branching_spec = state_group.get('branching_spec').value
