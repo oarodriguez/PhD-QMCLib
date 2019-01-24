@@ -334,6 +334,9 @@ class SSFEstSpec(dmc_exec_base.SSFEstSpec):
 ssf_validator = attr.validators.instance_of(SSFEstSpec)
 opt_ssf_validator = attr.validators.optional(ssf_validator)
 
+T_IOHandler = \
+    t.Union[ModelSysConfHandler, HDF5FileHandler]
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class ProcResult(dmc_exec_base.ProcResult):
@@ -482,18 +485,17 @@ class Proc(dmc_exec_base.Proc):
         """"""
         pass
 
-    def build_input(self, proc_io_input: IOHandlerSpec):
+    def build_input(self, io_handler: T_IOHandler):
         """
 
-        :param proc_io_input:
+        :param io_handler:
         :return:
         """
         model_spec = self.model_spec
-        io_input_spec = proc_io_input.spec
 
-        if isinstance(io_input_spec, ModelSysConfHandler):
+        if isinstance(io_handler, ModelSysConfHandler):
 
-            dist_type = io_input_spec.get_dist_type()
+            dist_type = io_handler.get_dist_type()
             sys_conf_set = []
             for _ in range(self.target_num_walkers):
                 sys_conf = model_spec.init_get_sys_conf(dist_type=dist_type)
@@ -503,9 +505,9 @@ class Proc(dmc_exec_base.Proc):
             state = self.sampling.build_state(sys_conf_set)
             return ProcInput(state)
 
-        elif isinstance(io_input_spec, HDF5FileHandler):
+        elif isinstance(io_handler, HDF5FileHandler):
 
-            proc_result = io_input_spec.load()
+            proc_result = io_handler.load()
             input_state = proc_result.state
             # input_proc = proc_result.proc
 
