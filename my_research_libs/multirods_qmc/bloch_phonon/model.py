@@ -13,6 +13,7 @@ from scipy.optimize import brentq, differential_evolution
 
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
+from my_research_libs.util.attr import int_converter, int_validator
 
 __all__ = [
     'CFCSpecNT',
@@ -74,13 +75,6 @@ class CFCSpecNT(qmc_base.jastrow.CFCSpecNT, NamedTuple):
     tbf_spec: TBFSpecNT
 
 
-float_validator = attr.validators.instance_of((float, int))
-int_validator = attr.validators.instance_of(int)
-
-opt_float_validator = attr.validators.optional(float_validator)
-opt_int_validator = attr.validators.optional(int_validator)
-
-
 # noinspection PyUnusedLocal
 def tbf_contact_cutoff_validator(model_inst: 'Spec',
                                  attribute: str,
@@ -117,7 +111,8 @@ class Spec(qmc_base.jastrow.Spec):
     interaction_strength: float = attr.ib(converter=float)
 
     #: The number of bosons.
-    boson_number: int = attr.ib(validator=int_validator)
+    boson_number: int = \
+        attr.ib(converter=int_converter, validator=int_validator)
 
     #: The size of the QMC simulation box.
     supercell_size: float = attr.ib(converter=float)

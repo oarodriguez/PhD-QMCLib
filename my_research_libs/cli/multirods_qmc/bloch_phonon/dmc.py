@@ -1,6 +1,7 @@
 import typing as t
 
 import attr
+import h5py
 import numpy as np
 from cached_property import cached_property
 
@@ -11,12 +12,12 @@ from my_research_libs.qmc_data.dmc import SamplingData
 from my_research_libs.qmc_exec import dmc as dmc_exec_base
 from my_research_libs.qmc_exec.dmc import ProcInput
 from my_research_libs.util.attr import (
-    bool_validator, int_validator, opt_int_validator,
-    str_validator
+    bool_converter, bool_validator, int_converter, int_validator,
+    opt_int_converter, opt_int_validator, str_validator
 )
 
 __all__ = [
-    'HDF5FileHandler',
+    'RawHDF5FileHandler',
     'IOHandlerSpec',
     'ModelSysConfHandler',
     'Proc',
@@ -58,8 +59,8 @@ class ModelSysConfHandler(dmc_exec_base.ModelSysConfHandler):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
-    """"""
+class RawHDF5FileHandler(dmc_exec_base.RawHDF5FileHandler):
+    """ handler for HDF5 files without a specific structure."""
 
     location: str = attr.ib(validator=str_validator)
 
@@ -67,14 +68,74 @@ class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
 
     dataset: str = attr.ib(validator=str_validator)
 
-    is_state: bool = attr.ib(default=True, validator=bool_validator)
-
+    # TODO: Implement load and save...
     def load(self):
-        """"""
+        pass
 
     def save(self, data: 'ProcResult'):
-        """"""
         pass
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
+    """A handler for structured HDF5 files to save DMC procedure results."""
+
+    #: Path to the file.
+    location: str = attr.ib(validator=str_validator)
+
+    #: The HDF5 group in the file to read and/or write data.
+    group: str = attr.ib(validator=str_validator)
+
+    def load(self):
+        """Load a pro
+
+        :return:
+        """
+        h5_file = h5py.File(self.location, 'r')
+        with h5_file:
+            state = self.load_state(h5_file)
+            proc = self.load_proc(h5_file)
+            data_blocks = self.load_data_blocks(h5_file)
+
+        data_series = None  # For now...
+        sampling_data = SamplingData(data_blocks, series=data_series)
+        return ProcResult(state, proc, sampling_data)
+
+    def get_proc_config(self, proc: 'Proc'):
+        """Converts the procedure to a dictionary / mapping object.
+
+        :param proc:
+        :return:
+        """
+        return attr.asdict(proc, filter=attr.filters.exclude(type(None)))
+
+    def load_proc(self, h5_file: h5py.File):
+        """Load the procedure results from the file.
+
+        :param h5_file:
+        :return:
+        """
+        group_name = self.group
+        base_group = h5_file.require_group(group_name)
+        proc_group = base_group.require_group('dmc/proc_spec')
+
+        model_spec_group = proc_group.require_group('model_spec')
+        model_spec_config = dict(model_spec_group.attrs.items())
+
+        ssf_spec_group: h5py.Group = proc_group.get('ssf_spec')
+        if ssf_spec_group is not None:
+            ssf_spec_config = dict(ssf_spec_group.attrs.items())
+        else:
+            ssf_spec_config = None
+
+        # Build a config object.
+        proc_config = {
+            'model_spec': model_spec_config,
+            'ssf_spec': ssf_spec_config
+        }
+        proc_config.update(proc_group.attrs.items())
+
+        return Proc.from_config(proc_config)
 
 
 T_IOHandlerSpec = \
@@ -152,12 +213,16 @@ opt_model_spec_validator = attr.validators.optional(model_spec_validator)
 class SSFEstSpec(dmc_exec_base.SSFEstSpec):
     """Structure factor estimator basic config."""
 
-    num_modes: int = attr.ib(validator=int_validator)
+    num_modes: int = \
+        attr.ib(converter=int_converter, validator=int_validator)
 
-    as_pure_est: bool = attr.ib(default=True, validator=bool_validator)
+    as_pure_est: bool = attr.ib(default=True,
+                                converter=bool_converter,
+                                validator=bool_validator)
 
-    pfw_num_time_steps: t.Optional[int] = \
-        attr.ib(default=None, validator=opt_int_validator)
+    pfw_num_time_steps: int = attr.ib(default=99999999,
+                                      converter=int_converter,
+                                      validator=int_validator)
 
 
 ssf_validator = attr.validators.instance_of(SSFEstSpec)
@@ -165,17 +230,17 @@ opt_ssf_validator = attr.validators.optional(ssf_validator)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class ProcResult:
+class ProcResult(dmc_exec_base.ProcResult):
     """Result of the DMC estimator sampling."""
 
     #: The last state of the sampling.
     state: dmc_base.State
 
     #: The sampling object used to generate the results.
-    sampling: dmc.EstSampling
+    proc: 'Proc'
 
     #: The data generated during the sampling.
-    data: t.Optional[SamplingData] = None
+    data: SamplingData
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -187,37 +252,41 @@ class Proc(dmc_exec_base.Proc):
     time_step: float = attr.ib(converter=float)
 
     max_num_walkers: int = \
-        attr.ib(default=512, validator=int_validator)
+        attr.ib(default=512, converter=int_converter, validator=int_validator)
 
     target_num_walkers: int = \
-        attr.ib(default=480, validator=int_validator)
+        attr.ib(default=480, converter=int_converter, validator=int_validator)
 
     num_walkers_control_factor: t.Optional[float] = \
         attr.ib(default=0.5, converter=float)
 
-    rng_seed: t.Optional[int] = \
-        attr.ib(default=None, validator=opt_int_validator)
+    rng_seed: t.Optional[int] = attr.ib(default=None,
+                                        converter=opt_int_converter,
+                                        validator=opt_int_validator)
 
-    num_batches: int = \
-        attr.ib(default=512, validator=int_validator)  # 2^9
+    num_batches: int = attr.ib(default=512,
+                               converter=int_converter,
+                               validator=int_validator)  # 2^9
 
-    num_time_steps_batch: int = \
-        attr.ib(default=512, validator=int_validator)  # 2^9
+    num_time_steps_batch: int = attr.ib(default=512,
+                                        converter=int_converter,
+                                        validator=int_validator)  # 2^9
 
-    burn_in_batches: t.Optional[int] = \
-        attr.ib(default=None, validator=opt_int_validator)
+    burn_in_batches: t.Optional[int] = attr.ib(default=None,
+                                               converter=opt_int_converter,
+                                               validator=opt_int_validator)
 
-    keep_iter_data: bool = \
-        attr.ib(default=False, validator=bool_validator)
-
-    #: Remaining batches
-    remaining_batches: t.Optional[int] = attr.ib(default=None, init=False)
+    keep_iter_data: bool = attr.ib(default=False,
+                                   converter=bool_converter,
+                                   validator=bool_validator)
 
     # *** Estimators configuration ***
     ssf_spec: t.Optional[SSFEstSpec] = \
         attr.ib(default=None, validator=None)
 
-    verbose: bool = attr.ib(default=False, validator=bool_validator)
+    verbose: bool = attr.ib(default=False,
+                            converter=bool_converter,
+                            validator=bool_validator)
 
     def __attrs_post_init__(self):
         """"""
@@ -314,11 +383,11 @@ class Proc(dmc_exec_base.Proc):
         :return:
         """
         model_spec = self.model_spec
-        io_input = proc_io_input.spec
+        io_input_spec = proc_io_input.spec
 
-        if isinstance(io_input, ModelSysConfHandler):
+        if isinstance(io_input_spec, ModelSysConfHandler):
 
-            dist_type = io_input.get_dist_type()
+            dist_type = io_input_spec.get_dist_type()
             sys_conf_set = []
             for _ in range(self.target_num_walkers):
                 sys_conf = model_spec.init_get_sys_conf(dist_type=dist_type)
@@ -328,15 +397,23 @@ class Proc(dmc_exec_base.Proc):
             state = self.sampling.build_state(sys_conf_set)
             return ProcInput(state)
 
-        elif isinstance(io_input, HDF5FileHandler):
-            pass
+        elif isinstance(io_input_spec, HDF5FileHandler):
+
+            proc_result = io_input_spec.load()
+            input_state = proc_result.state
+            # input_proc = proc_result.proc
+
+            # TODO: We need a reasonable check for the input_state.
+            # assert self == input_proc
+
+            return ProcInput(input_state)
 
         else:
             raise TypeError
 
     def build_result(self, state: dmc_base.State,
                      sampling: dmc.EstSampling,
-                     data: SamplingData = None):
+                     data: SamplingData):
         """
 
         :param state:
@@ -344,7 +421,8 @@ class Proc(dmc_exec_base.Proc):
         :param data:
         :return:
         """
-        return ProcResult(state, sampling, data)
+        proc = self
+        return ProcResult(state, proc, data)
 
 
 dmc_proc_validator = attr.validators.instance_of(Proc)
