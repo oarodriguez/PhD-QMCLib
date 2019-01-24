@@ -100,7 +100,7 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
     #: The HDF5 group in the file to read and/or write data.
     group: str
 
-    def init_main_groups(self, h5_file):
+    def init_main_groups(self, h5_file: h5py.File):
         """Initialize sub-groups to store the data.
 
         :param h5_file:
@@ -262,7 +262,7 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         group.create_dataset('totals', data=blocks.totals)
 
         if has_weight_totals:
-            group.create_dataset('weight_totals', data=blocks.totals)
+            group.create_dataset('weight_totals', data=blocks.weight_totals)
 
         group.attrs.update({
             'num_blocks': blocks.num_blocks,
