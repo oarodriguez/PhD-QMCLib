@@ -52,6 +52,19 @@ class ProcInput(metaclass=ABCMeta):
 class IOHandler(metaclass=ABCMeta):
     """"""
 
+    #: A tag to identify this handler.
+    type: str
+
+    @classmethod
+    @abstractmethod
+    def from_config(cls, config: t.Mapping):
+        """
+
+        :param config:
+        :return:
+        """
+        pass
+
     @abstractmethod
     def load(self):
         pass
@@ -74,6 +87,9 @@ class NpyFileHandler(IOHandler, metaclass=ABCMeta):
 
     location: str = attr.ib(validator=str_validator)
 
+    #: A tag to identify this handler.
+    type: str
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class RawHDF5FileHandler(IOHandler, metaclass=ABCMeta):
@@ -84,6 +100,9 @@ class RawHDF5FileHandler(IOHandler, metaclass=ABCMeta):
     group: str = attr.ib(validator=str_validator)
 
     dataset: str = attr.ib(validator=str_validator)
+
+    #: A tag to identify this handler.
+    type: str
 
 
 class HDF5FileHandlerGroupError(ValueError):
@@ -99,6 +118,9 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
 
     #: The HDF5 group in the file to read and/or write data.
     group: str
+
+    #: A tag to identify this handler.
+    type: str
 
     def init_main_groups(self, h5_file: h5py.File):
         """Initialize sub-groups to store the data.

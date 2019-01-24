@@ -32,6 +32,23 @@ class ModelSysConfHandler(dmc_exec_base.ModelSysConfHandler):
 
     dist_type: str = attr.ib(validator=str_validator)
 
+    #: A tag to identify this handler.
+    type: str = attr.ib(validator=str_validator)
+
+    def __attrs_post_init__(self):
+        """Post initialization stage."""
+        # This is the type tag, and must be fixed.
+        object.__setattr__(self, 'type', 'MODEL_SYS_CONF')
+
+    @classmethod
+    def from_config(cls, config: t.Mapping):
+        """
+
+        :param config:
+        :return:
+        """
+        return cls(**config)
+
     def load(self):
         """"""
         raise NotImplementedError
@@ -68,7 +85,23 @@ class RawHDF5FileHandler(dmc_exec_base.RawHDF5FileHandler):
 
     dataset: str = attr.ib(validator=str_validator)
 
-    # TODO: Implement load and save...
+    #: A tag to identify this handler.
+    type: str = attr.ib(validator=str_validator)
+
+    def __attrs_post_init__(self):
+        """Post initialization stage."""
+        # This is the type tag, and must be fixed.
+        object.__setattr__(self, 'type', 'RAW_HDF5_FILE')
+
+    @classmethod
+    def from_config(cls, config: t.Mapping):
+        """
+
+        :param config:
+        :return:
+        """
+        return cls(**config)
+
     def load(self):
         pass
 
@@ -85,6 +118,23 @@ class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
 
     #: The HDF5 group in the file to read and/or write data.
     group: str = attr.ib(validator=str_validator)
+
+    #: A tag to identify this handler.
+    type: str = attr.ib(validator=str_validator)
+
+    def __attrs_post_init__(self):
+        """Post initialization stage."""
+        # This is the type tag, and must be fixed.
+        object.__setattr__(self, 'type', 'HDF5_FILE')
+
+    @classmethod
+    def from_config(cls, config: t.Mapping):
+        """
+
+        :param config:
+        :return:
+        """
+        return cls(**config)
 
     def load(self):
         """Load a pro
