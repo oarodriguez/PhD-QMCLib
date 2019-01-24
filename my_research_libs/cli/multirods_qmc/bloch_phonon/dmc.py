@@ -9,7 +9,7 @@ from my_research_libs.multirods_qmc.bloch_phonon import dmc, model
 from my_research_libs.qmc_base import dmc as dmc_base
 from my_research_libs.qmc_base.jastrow import SysConfDistType
 from my_research_libs.qmc_data.dmc import SamplingData
-from my_research_libs.qmc_exec import dmc as dmc_exec_base
+from my_research_libs.qmc_exec import dmc as dmc_exec_base, exec_logger
 from my_research_libs.qmc_exec.dmc import ProcInput
 from my_research_libs.util.attr import (
     bool_converter, bool_validator, int_converter, int_validator,
@@ -535,3 +535,291 @@ class Proc(dmc_exec_base.Proc):
 
 dmc_proc_validator = attr.validators.instance_of(Proc)
 opt_dmc_proc_validator = attr.validators.optional(dmc_proc_validator)
+
+
+def get_io_handler(config: t.Mapping):
+    """
+
+    :param config:
+    :return:
+    """
+    handler_spec = dict(config)
+    handler_type = handler_spec['type']
+
+    if handler_type == 'MODEL_SYS_CONF':
+        return ModelSysConfHandler(**handler_spec)
+
+    elif handler_type == 'HDF5_FILE':
+        return HDF5FileHandler(**handler_spec)
+
+    else:
+        raise TypeError(f"unknown handler type {handler_type}")
+
+
+@attr.s(auto_attribs=True)
+class ProcSpec:
+    """"""
+
+    #: Procedure spec.
+    proc: Proc
+
+    #: Input spec.
+    input: T_IOHandler
+
+    #: Output spec.
+    output: T_IOHandler = None
+
+    #: Procedure id.
+    proc_id: t.Optional[int] = \
+        attr.ib(default=None, validator=opt_int_validator)
+
+    #: Tag the input.
+    tag_input: bool = attr.ib(default=False, validator=bool_validator)
+
+    #: Tag the output.
+    tag_output: bool = attr.ib(default=True, validator=bool_validator)
+
+    def __attrs_post_init__(self):
+        """"""
+        # Tag the input and output handlers.
+        if self.tag_input:
+            input_ = self.tag_io_handler(self.input)
+            object.__setattr__(self, 'input', input_)
+
+        if self.output is not None:
+            if self.tag_output:
+                output = self.tag_io_handler(self.output)
+                object.__setattr__(self, 'output', output)
+
+        # Reset attributes to None.
+        object.__setattr__(self, 'tag_input', False)
+        object.__setattr__(self, 'tag_output', False)
+
+    @classmethod
+    def from_config(cls, config: t.Mapping):
+        """
+
+        :param config:
+        :return:
+        """
+        proc_config = config['proc']
+        proc = Proc.from_config(proc_config)
+
+        # Procedure id...
+        proc_id = config.get('proc_id', 0)
+        tag_output = config.get('tag_output', True)
+
+        input_handler_config = config['input']
+        input_handler = get_io_handler(input_handler_config)
+
+        # Extract the output spec.
+        output_handler_config = config['output']
+        output_handler = get_io_handler(output_handler_config)
+
+        if not isinstance(output_handler, HDF5FileHandler):
+            raise TypeError('only the HDF5_FILE is supported as '
+                            'output handler')
+
+        return cls(proc=proc, input=input_handler,
+                   output=output_handler, proc_id=proc_id,
+                   tag_output=tag_output)
+
+    def tag_io_handler(self, io_handler: T_IOHandler):
+        """
+
+        :param io_handler:
+        :return:
+        """
+        proc_id = self.proc_id
+        if isinstance(io_handler, HDF5FileHandler):
+            spec_group = io_handler.group
+            group_suffix = 'proc-ID' + str(proc_id)
+            spec_group = '_'.join([spec_group, group_suffix])
+            return attr.evolve(io_handler, group=spec_group)
+
+    def evolve(self, config: t.Mapping):
+        """
+
+        :param config:
+        :return:
+        """
+        evolve_config = dict(config)
+
+        proc_config = evolve_config.pop('proc')
+        proc = self.proc.evolve(proc_config)
+
+        # IO configuration is never evolved directly.
+        input_config = evolve_config.pop('input', None)
+        if input_config is None:
+            input_handler = attr.evolve(self.input)
+        else:
+            input_handler = get_io_handler(input_config)
+
+        # Extract the output spec.
+        output_config = evolve_config.pop('output', None)
+        if output_config is None:
+            output_handler = attr.evolve(self.output)
+        else:
+            output_handler = get_io_handler(output_config)
+
+        return attr.evolve(self, proc=proc, input=input_handler,
+                           output=output_handler, **evolve_config)
+
+    def exec(self):
+        """
+
+        :return:
+        """
+        proc_input = self.proc.build_input(self.input)
+        return self.proc.exec(proc_input)
+
+
+proc_spec_validator = attr.validators.instance_of(ProcSpec)
+
+
+def proc_cli_tags_converter(tag_or_tags: t.Union[str, t.Sequence[str]]):
+    """
+
+    :param tag_or_tags:
+    :return:
+    """
+    if isinstance(tag_or_tags, str):
+        return tag_or_tags
+
+    hashed_tags = ['#' + str(tag) for tag in tag_or_tags]
+    return ' - '.join(hashed_tags)
+
+
+@attr.s(auto_attribs=True)
+class ProcCLI:
+    """Entry point for the CLI."""
+
+    #:
+    name: str = attr.ib(validator=str_validator)
+
+    #:
+    description: str = attr.ib(validator=str_validator)
+
+    #:
+    author: str = attr.ib(validator=str_validator)
+
+    #:
+    author_email: str = attr.ib(validator=str_validator)
+
+    #:
+    institution: str = attr.ib(validator=str_validator)
+
+    #:
+    category: str = attr.ib(validator=str_validator)
+
+    #:
+    tags: str = attr.ib(converter=proc_cli_tags_converter,
+                        validator=str_validator)
+
+    #:
+    main: ProcSpec = attr.ib(validator=proc_spec_validator)
+
+    #:
+    main_post_exec: t.Optional[t.Sequence[ProcSpec]] = None
+
+    #:
+    process_proc_id: bool = attr.ib(default=True, validator=bool_validator)
+
+    @classmethod
+    def from_config(cls, config: t.Mapping):
+        """Initializes a ProcCLI instance from a mapping object.
+
+        :param config:
+        :return:
+        """
+        self_config = dict(config.items())
+
+        # Get the main config.
+        main_config = self_config.pop('main')
+        tag_input = main_config.pop('tag_input', None)
+        tag_output = main_config.pop('tag_output', None)
+        main_proc_id = main_config.pop('proc_id', None)
+
+        # These attributes override any other specified in
+        # main_post_exec_config.
+        tag_input = False if tag_input is None else tag_input
+        tag_output = True if tag_output is None else tag_output
+        main_proc_id = 0 if main_proc_id is None else main_proc_id
+
+        # The reference spec should not be tagged.
+        main_config['tag_input'] = False
+        main_config['tag_output'] = False
+        main_config['proc_id'] = main_proc_id
+
+        # The reference procedure spec.
+        proc_spec_ref = ProcSpec.from_config(main_config)
+
+        # The main procedure spec.
+        proc_spec = attr.evolve(proc_spec_ref, tag_input=tag_input,
+                                tag_output=tag_output)
+
+        main_post_exec_config = self_config.pop('main_post_exec', None)
+        if main_post_exec_config is not None:
+            #
+            main_post_proc_set = []
+
+            for post_id, post_config in enumerate(main_post_exec_config, 1):
+
+                post_proc_id = main_proc_id + post_id
+
+                # Extended config.
+                ext_config = {'tag_input': tag_input,
+                              'tag_output': tag_output,
+                              'proc_id': post_proc_id}
+                ext_config.update(post_config)
+
+                # Update the reference spec to reflect the current spec.
+                post_proc = proc_spec_ref.evolve(ext_config)
+
+                # Append...
+                main_post_proc_set.append(post_proc)
+
+        else:
+
+            main_post_proc_set = None
+
+        proc_cli = cls(main=proc_spec,
+                       main_post_exec=main_post_proc_set,
+                       **self_config)
+
+        return proc_cli
+
+    def exec(self):
+        """
+
+        :return:
+        """
+        main_post_exec = self.main_post_exec or []
+        len_self = 1 + len(main_post_exec)
+
+        exec_logger.info(f'Starting the QMC calculations...')
+        exec_logger.info(f'Starting the execution of a set of '
+                         f'{len_self} QMC calculations...')
+
+        main_proc = self.main
+
+        proc_proc_id = main_proc.proc_id
+        exec_logger.info(f'*** *** ->> Starting procedure '
+                         f'ID{proc_proc_id}...')
+
+        result = main_proc.exec()
+        main_proc.output.save(result)
+
+        exec_logger.info(f'Procedure ID{proc_proc_id} completed. <<- *** ***')
+
+        for proc_id, proc in enumerate(main_post_exec, 1):
+
+            exec_logger.info(f'*** *** ->> Starting procedure '
+                             f'ID{proc_id}...')
+
+            result = proc.exec()
+            proc.output.save(result)
+
+            exec_logger.info(f'Procedure ID{proc_id} completed. <<- *** ***')
+
+        exec_logger.info(f'All the QMC calculations have completed.')

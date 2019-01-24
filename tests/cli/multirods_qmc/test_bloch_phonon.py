@@ -1,3 +1,6 @@
+import attr
+import yaml
+
 from my_research_libs.cli.multirods_qmc.bloch_phonon import (
     dmc as dmc_cli, vmc as vmc_cli
 )
@@ -60,6 +63,21 @@ def test_dmc_proc():
     sys_conf_set = vmc_batch.confs
     dmc_proc_input = dmc_proc.build_input(sys_conf_set)
     dmc_result = dmc_proc.exec(dmc_proc_input)
+
+
+def test_dmc_proc_cli():
+    """Testing the DMCProcCLI."""
+
+    with open('./dmc-conf.tpl.yml', 'r') as fp:
+        data = yaml.safe_load(fp)
+
+    proc_cli = dmc_cli.ProcCLI.from_config(data)
+    proc_cli_conf = attr.asdict(proc_cli)
+
+    proc_cli_clone = dmc_cli.ProcCLI.from_config(proc_cli_conf)
+    assert proc_cli == proc_cli_clone
+
+    print(yaml.dump(proc_cli_conf, indent=4))
 
 
 if __name__ == '__main__':
