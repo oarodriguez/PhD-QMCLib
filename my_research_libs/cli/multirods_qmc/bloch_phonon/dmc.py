@@ -161,6 +161,31 @@ class IOHandlerSpec(dmc_exec_base.IOHandlerSpec):
 
     spec: T_IOHandlerSpec = attr.ib(validator=io_handler_spec_validator)
 
+    proc_id: t.Optional[int] = \
+        attr.ib(default=None, validator=opt_int_validator)
+
+    def __attrs_post_init__(self):
+        """
+
+        :return:
+        """
+        self_spec = self.spec
+
+        if isinstance(self_spec, HDF5FileHandler):
+
+            proc_id = self.proc_id
+            spec_group = self_spec.group
+
+            if proc_id is not None:
+                group_suffix = 'proc-id-#' + str(proc_id)
+                spec_group = '_'.join([spec_group, group_suffix])
+
+            self_spec = attr.evolve(self_spec, group=spec_group)
+            object.__setattr__(self, 'spec', self_spec)
+
+        # Reset proc_id to None.
+        object.__setattr__(self, 'proc_id', None)
+
     @classmethod
     def from_config(cls, config: t.Mapping):
         """
@@ -170,6 +195,7 @@ class IOHandlerSpec(dmc_exec_base.IOHandlerSpec):
         """
         io_handler_type = config['type']
         io_handler = config['spec']
+        proc_id = config.get('proc_id', None)
 
         if io_handler_type == 'MODEL_SYS_CONF':
             io_handler = ModelSysConfHandler(**io_handler)
@@ -180,7 +206,7 @@ class IOHandlerSpec(dmc_exec_base.IOHandlerSpec):
         else:
             raise ValueError
 
-        return cls(io_handler_type, io_handler)
+        return cls(io_handler_type, io_handler, proc_id)
 
 
 @attr.s(auto_attribs=True)
@@ -192,17 +218,47 @@ class ProcIO(dmc_exec_base.ProcIO):
     #:
     output: t.Optional[IOHandlerSpec] = None
 
+    #: The procedure id.
+    #: Used to store a ProcResult in different HDF5 groups.
+    proc_id: t.Optional[int] = \
+        attr.ib(default=None, validator=opt_int_validator)
+
+    def __attrs_post_init__(self):
+        """"""
+        proc_id = self.proc_id
+
+        if proc_id is not None:
+            self_input = attr.evolve(self.input, proc_id=proc_id)
+            object.__setattr__(self, 'input', self_input)
+
+            if self.output is not None:
+                self_output = attr.evolve(self.output, proc_id=proc_id)
+                object.__setattr__(self, 'output', self_output)
+
+            # Reset proc_id to None.
+            object.__setattr__(self, 'proc_id', None)
+
     @classmethod
     def from_config(cls, config: t.Mapping):
-        """"""
-        input_spec_config = config['input']
-        input_spec = IOHandlerSpec.from_config(input_spec_config)
+        """
+
+        :param config:
+        :return:
+        """
+
+        input_spec_config = dict(config['input'])
+        input_handler = IOHandlerSpec.from_config(input_spec_config)
 
         # Extract the output spec.
-        output_spec_config = config['output']
-        output_spec = IOHandlerSpec.from_config(output_spec_config)
+        output_spec_config = dict(config['output'])
+        output_handler = IOHandlerSpec.from_config(output_spec_config)
 
-        return cls(input_spec, output_spec)
+        if not isinstance(output_handler.spec, HDF5FileHandler):
+            raise TypeError('only the HDF5_FILE is supported as '
+                            'output handler')
+
+        proc_id = config.get('proc_id', None)
+        return cls(input_handler, output_handler, proc_id)
 
 
 model_spec_validator = attr.validators.instance_of(model.Spec)
