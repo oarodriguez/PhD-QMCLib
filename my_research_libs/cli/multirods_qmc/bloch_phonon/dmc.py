@@ -813,6 +813,12 @@ class ProcCLI:
         exec_logger.info(f'Starting procedure ID{proc_proc_id}...')
 
         result = main_proc.exec()
+
+        # Create the necessary directories.
+        output_dir = \
+            os.path.abspath(os.path.dirname(main_proc.output.location))
+        os.makedirs(output_dir, exist_ok=True)
+
         main_proc.output.save(result)
 
         exec_logger.info(f'Procedure ID{proc_proc_id} completed.')
@@ -822,6 +828,11 @@ class ProcCLI:
 
             exec_logger.info("*** *** ->> ")
             exec_logger.info(f'Starting procedure ID{proc_id}...')
+
+            # Create the necessary directories.
+            output_dir = \
+                os.path.abspath(os.path.dirname(proc.output.location))
+            os.makedirs(output_dir, exist_ok=True)
 
             result = proc.exec()
             proc.output.save(result)
