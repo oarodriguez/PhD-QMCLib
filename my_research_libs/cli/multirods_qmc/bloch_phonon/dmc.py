@@ -1,3 +1,4 @@
+import os
 import typing as t
 
 import attr
@@ -126,6 +127,10 @@ class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
         """Post initialization stage."""
         # This is the type tag, and must be fixed.
         object.__setattr__(self, 'type', 'HDF5_FILE')
+
+        # Get an absolute location for the file.
+        abs_location = os.path.abspath(os.path.expandvars(self.location))
+        object.__setattr__(self, 'location', abs_location)
 
     @classmethod
     def from_config(cls, config: t.Mapping):
