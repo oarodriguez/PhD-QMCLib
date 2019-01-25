@@ -735,7 +735,7 @@ class ProcCLI:
         self_config = dict(config.items())
 
         # Get the main config.
-        main_config = self_config.pop('main')
+        main_config = dict(self_config.pop('main'))
         tag_input = main_config.pop('tag_input', None)
         tag_output = main_config.pop('tag_output', None)
         main_proc_id = main_config.pop('proc_id', None)
@@ -802,24 +802,26 @@ class ProcCLI:
                          f'{len_self} QMC calculations...')
 
         main_proc = self.main
-
         proc_proc_id = main_proc.proc_id
-        exec_logger.info(f'*** *** ->> Starting procedure '
-                         f'ID{proc_proc_id}...')
+
+        exec_logger.info("*** *** ->> ")
+        exec_logger.info(f'Starting procedure ID{proc_proc_id}...')
 
         result = main_proc.exec()
         main_proc.output.save(result)
 
-        exec_logger.info(f'Procedure ID{proc_proc_id} completed. <<- *** ***')
+        exec_logger.info(f'Procedure ID{proc_proc_id} completed.')
+        exec_logger.info("<<- *** ***")
 
         for proc_id, proc in enumerate(main_post_exec, 1):
 
-            exec_logger.info(f'*** *** ->> Starting procedure '
-                             f'ID{proc_id}...')
+            exec_logger.info("*** *** ->> ")
+            exec_logger.info(f'Starting procedure ID{proc_id}...')
 
             result = proc.exec()
             proc.output.save(result)
 
-            exec_logger.info(f'Procedure ID{proc_id} completed. <<- *** ***')
+            exec_logger.info(f'Procedure ID{proc_id} completed.')
+            exec_logger.info("<<- *** ***")
 
         exec_logger.info(f'All the QMC calculations have completed.')
