@@ -14,7 +14,8 @@ from my_research_libs.qmc_exec import dmc as dmc_exec_base, exec_logger
 from my_research_libs.qmc_exec.dmc import ProcInput
 from my_research_libs.util.attr import (
     bool_converter, bool_validator, int_converter, int_validator,
-    opt_int_converter, opt_int_validator, str_validator
+    opt_int_converter, opt_int_validator, str_validator,
+    opt_str_validator
 )
 
 __all__ = [
@@ -121,7 +122,7 @@ class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
     group: str = attr.ib(validator=str_validator)
 
     #: A tag to identify this handler.
-    type: str = attr.ib(validator=str_validator)
+    type: t.Optional[str] = attr.ib(default=None, validator=opt_str_validator)
 
     def __attrs_post_init__(self):
         """Post initialization stage."""
