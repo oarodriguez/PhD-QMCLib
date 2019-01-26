@@ -66,9 +66,9 @@ class PropBlocks(metaclass=ABCMeta):
         err_w = w_var / w_mean ** 2
         err_oww = (oww_mean - ow_mean * w_mean) / (ow_mean * w_mean)
 
-        return mean * np.sqrt(err_ow / ow_eff_size +
-                              err_w / w_eff_size -
-                              2 * err_oww / oww_eff_size)
+        return np.abs(mean) * np.sqrt(err_ow / ow_eff_size +
+                                      err_w / w_eff_size -
+                                      2 * err_oww / oww_eff_size)
 
     @property
     def reblock(self):
