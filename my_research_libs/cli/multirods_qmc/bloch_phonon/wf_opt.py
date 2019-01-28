@@ -6,7 +6,7 @@ import numpy as np
 from my_research_libs.multirods_qmc.bloch_phonon import model
 from my_research_libs.qmc_exec import exec_logger, wf_opt as wf_opt_exec
 from my_research_libs.util.attr import (
-    bool_validator, int_validator, opt_int_validator
+    bool_validator, int_validator, opt_float_converter, opt_int_validator
 )
 
 
@@ -20,7 +20,7 @@ class WFOptProc(wf_opt_exec.WFOptProc):
 
     #: The energy of reference to minimize the variance of the local energy.
     ref_energy: t.Optional[float] = \
-        attr.ib(default=None, converter=float)
+        attr.ib(default=None, converter=opt_float_converter)
 
     #: Use threads or multiple process.
     use_threads: bool = attr.ib(default=True, validator=bool_validator)

@@ -64,4 +64,5 @@ def bool_converter(value: Any):
 
 
 opt_int_converter = attr.converters.optional(int_converter)
+opt_float_converter = attr.converters.optional(float)
 opt_bool_converter = attr.converters.optional(bool_converter)
