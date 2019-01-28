@@ -1,5 +1,6 @@
-import os
 import typing as t
+from collections import Sequence
+from pathlib import Path
 
 import attr
 import h5py
@@ -14,8 +15,8 @@ from my_research_libs.qmc_exec import dmc as dmc_exec_base, exec_logger
 from my_research_libs.qmc_exec.dmc import ProcInput
 from my_research_libs.util.attr import (
     bool_converter, bool_validator, int_converter, int_validator,
-    opt_int_converter, opt_int_validator, str_validator,
-    opt_str_validator
+    opt_int_converter, opt_int_validator, opt_path_validator,
+    opt_str_validator, path_validator, str_validator
 )
 
 __all__ = [
@@ -51,15 +52,17 @@ class ModelSysConfHandler(dmc_exec_base.ModelSysConfHandler):
         """
         return cls(**config)
 
-    def load(self):
+    def load(self, base_path: Path = None):
         """"""
         raise NotImplementedError
 
-    def save(self, data: 'ProcResult'):
+    def save(self, data: 'ProcResult',
+             base_path: Path = None):
         """"""
         raise NotImplementedError
 
-    def get_dist_type(self):
+    @property
+    def dist_type_enum(self) -> SysConfDistType:
         """
 
         :return:
@@ -67,14 +70,14 @@ class ModelSysConfHandler(dmc_exec_base.ModelSysConfHandler):
         dist_type = self.dist_type
 
         if dist_type is None:
-            dist_type = SysConfDistType.RANDOM
+            dist_type_enum = SysConfDistType.RANDOM
         else:
             if dist_type not in SysConfDistType.__members__:
                 raise ValueError
 
-            dist_type = SysConfDistType[dist_type]
+            dist_type_enum = SysConfDistType[dist_type]
 
-        return dist_type
+        return dist_type_enum
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -104,10 +107,11 @@ class RawHDF5FileHandler(dmc_exec_base.RawHDF5FileHandler):
         """
         return cls(**config)
 
-    def load(self):
+    def load(self, base_path: Path = None):
         pass
 
-    def save(self, data: 'ProcResult'):
+    def save(self, data: 'ProcResult',
+             base_path: Path = None):
         pass
 
 
@@ -116,7 +120,7 @@ class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
     """A handler for structured HDF5 files to save DMC procedure results."""
 
     #: Path to the file.
-    location: str = attr.ib(validator=str_validator)
+    location: Path = attr.ib(validator=path_validator)
 
     #: The HDF5 group in the file to read and/or write data.
     group: str = attr.ib(validator=str_validator)
@@ -129,9 +133,10 @@ class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
         # This is the type tag, and must be fixed.
         object.__setattr__(self, 'type', 'HDF5_FILE')
 
-        # Get an absolute location for the file.
-        abs_location = os.path.abspath(os.path.expandvars(self.location))
-        object.__setattr__(self, 'location', abs_location)
+        location = self.location
+        if location.is_dir():
+            raise ValueError(f"location {location} is a directory, not a "
+                             f"file")
 
     @classmethod
     def from_config(cls, config: t.Mapping):
@@ -140,14 +145,22 @@ class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
         :param config:
         :return:
         """
-        return cls(**config)
+        config = dict(config)
+        location = Path(config.pop('location'))
+        return cls(location=location, **config)
 
-    def load(self):
-        """Load a pro
+    def load(self, base_path: Path = None):
+        """Load the contents of the file.
 
         :return:
         """
-        h5_file = h5py.File(self.location, 'r')
+        location = self.location
+        if location.is_absolute():
+            file_path = location
+        else:
+            file_path = base_path / location
+
+        h5_file = h5py.File(file_path, 'r')
         with h5_file:
             state = self.load_state(h5_file)
             proc = self.load_proc(h5_file)
@@ -491,39 +504,33 @@ class Proc(dmc_exec_base.Proc):
         """"""
         pass
 
-    def build_input(self, io_handler: T_IOHandler):
+    def build_input_from_model(self, sys_conf_dist_type: SysConfDistType):
         """
 
-        :param io_handler:
+        :param sys_conf_dist_type:
         :return:
         """
         model_spec = self.model_spec
 
-        if isinstance(io_handler, ModelSysConfHandler):
+        sys_conf_set = []
+        for _ in range(self.target_num_walkers):
+            sys_conf = \
+                model_spec.init_get_sys_conf(dist_type=sys_conf_dist_type)
+            sys_conf_set.append(sys_conf)
 
-            dist_type = io_handler.get_dist_type()
-            sys_conf_set = []
-            for _ in range(self.target_num_walkers):
-                sys_conf = model_spec.init_get_sys_conf(dist_type=dist_type)
-                sys_conf_set.append(sys_conf)
+        sys_conf_set = np.asarray(sys_conf_set)
+        state = self.sampling.build_state(sys_conf_set)
+        return ProcInput(state)
 
-            sys_conf_set = np.asarray(sys_conf_set)
-            state = self.sampling.build_state(sys_conf_set)
-            return ProcInput(state)
+    def build_input_from_result(self, proc_result: ProcResult):
+        """
 
-        elif isinstance(io_handler, HDF5FileHandler):
-
-            proc_result = io_handler.load()
-            input_state = proc_result.state
-            # input_proc = proc_result.proc
-
-            # TODO: We need a reasonable check for the input_state.
-            # assert self == input_proc
-
-            return ProcInput(input_state)
-
-        else:
-            raise TypeError
+        :param proc_result:
+        :return:
+        """
+        state = proc_result.state
+        assert self.model_spec == proc_result.proc.model_spec
+        return ProcInput(state)
 
     def build_result(self, state: dmc_base.State,
                      sampling: dmc.EstSampling,
@@ -539,8 +546,8 @@ class Proc(dmc_exec_base.Proc):
         return ProcResult(state, proc, data)
 
 
-dmc_proc_validator = attr.validators.instance_of(Proc)
-opt_dmc_proc_validator = attr.validators.optional(dmc_proc_validator)
+proc_validator = attr.validators.instance_of(Proc)
+opt_proc_validator = attr.validators.optional(proc_validator)
 
 
 def get_io_handler(config: t.Mapping):
@@ -549,57 +556,43 @@ def get_io_handler(config: t.Mapping):
     :param config:
     :return:
     """
-    handler_spec = dict(config)
-    handler_type = handler_spec['type']
+    handler_config = dict(config)
+    handler_type = handler_config['type']
 
     if handler_type == 'MODEL_SYS_CONF':
-        return ModelSysConfHandler(**handler_spec)
+        return ModelSysConfHandler(**handler_config)
 
     elif handler_type == 'HDF5_FILE':
-        return HDF5FileHandler(**handler_spec)
+        return HDF5FileHandler.from_config(handler_config)
 
     else:
         raise TypeError(f"unknown handler type {handler_type}")
 
 
+# TODO: We need a better name for this class.
 @attr.s(auto_attribs=True)
 class ProcSpec:
     """"""
 
     #: Procedure spec.
-    proc: Proc
+    proc: Proc = attr.ib(validator=proc_validator)
 
     #: Input spec.
-    input: T_IOHandler
+    input: T_IOHandler = attr.ib(validator=io_handler_spec_validator)
 
     #: Output spec.
-    output: T_IOHandler = None
+    # TODO: Update the accepted output handlers.
+    output: T_IOHandler = attr.ib(default=None,
+                                  validator=io_handler_spec_validator)
 
     #: Procedure id.
     proc_id: t.Optional[int] = \
         attr.ib(default=None, validator=opt_int_validator)
 
-    #: Tag the input.
-    tag_input: bool = attr.ib(default=False, validator=bool_validator)
-
-    #: Tag the output.
-    tag_output: bool = attr.ib(default=True, validator=bool_validator)
-
     def __attrs_post_init__(self):
         """"""
         # Tag the input and output handlers.
-        if self.tag_input:
-            input_ = self.tag_io_handler(self.input)
-            object.__setattr__(self, 'input', input_)
-
-        if self.output is not None:
-            if self.tag_output:
-                output = self.tag_io_handler(self.output)
-                object.__setattr__(self, 'output', output)
-
-        # Reset attributes to None.
-        object.__setattr__(self, 'tag_input', False)
-        object.__setattr__(self, 'tag_output', False)
+        pass
 
     @classmethod
     def from_config(cls, config: t.Mapping):
@@ -613,7 +606,6 @@ class ProcSpec:
 
         # Procedure id...
         proc_id = config.get('proc_id', 0)
-        tag_output = config.get('tag_output', True)
 
         input_handler_config = config['input']
         input_handler = get_io_handler(input_handler_config)
@@ -627,8 +619,7 @@ class ProcSpec:
                             'output handler')
 
         return cls(proc=proc, input=input_handler,
-                   output=output_handler, proc_id=proc_id,
-                   tag_output=tag_output)
+                   output=output_handler, proc_id=proc_id)
 
     def tag_io_handler(self, io_handler: T_IOHandler):
         """
@@ -671,16 +662,44 @@ class ProcSpec:
         return attr.evolve(self, proc=proc, input=input_handler,
                            output=output_handler, **evolve_config)
 
-    def exec(self):
+    def build_input(self, base_path: Path = None):
+        """
+
+        :param base_path:
+        :return:
+        """
+        input_handler = self.input
+
+        if isinstance(input_handler, ModelSysConfHandler):
+            sys_conf_dist_type = input_handler.dist_type_enum
+            return self.proc.build_input_from_model(sys_conf_dist_type)
+
+        if isinstance(input_handler, HDF5FileHandler):
+            proc_result = input_handler.load(base_path)
+            return self.proc.build_input_from_result(proc_result)
+
+        raise TypeError
+
+    def save_output(self, proc_result: ProcResult,
+                    base_path: Path = None):
+        """
+
+        :param proc_result:
+        :param base_path:
+        :return:
+        """
+        self.output.save(proc_result, base_path)
+
+    def exec(self, proc_input: ProcInput):
         """
 
         :return:
         """
-        proc_input = self.proc.build_input(self.input)
         return self.proc.exec(proc_input)
 
 
 proc_spec_validator = attr.validators.instance_of(ProcSpec)
+seq_validator = attr.validators.instance_of(Sequence)
 
 
 def proc_cli_tags_converter(tag_or_tags: t.Union[str, t.Sequence[str]]):
@@ -723,13 +742,17 @@ class ProcCLI:
                         validator=str_validator)
 
     #:
-    main: ProcSpec = attr.ib(validator=proc_spec_validator)
+    main_proc_set: t.Sequence[ProcSpec] = attr.ib(validator=seq_validator)
 
     #:
-    main_post_exec: t.Optional[t.Sequence[ProcSpec]] = None
+    base_path: t.Optional[Path] = \
+        attr.ib(default=None, validator=opt_path_validator)
 
-    #:
-    process_proc_id: bool = attr.ib(default=True, validator=bool_validator)
+    def __attrs_post_init__(self):
+        """"""
+        if self.base_path is None:
+            base_path = Path('.')
+            object.__setattr__(self, 'base_path', base_path)
 
     @classmethod
     def from_config(cls, config: t.Mapping):
@@ -741,102 +764,50 @@ class ProcCLI:
         self_config = dict(config.items())
 
         # Get the main config.
-        main_config = dict(self_config.pop('main'))
-        tag_input = main_config.pop('tag_input', None)
-        tag_output = main_config.pop('tag_output', None)
-        main_proc_id = main_config.pop('proc_id', None)
+        main_proc_set = self_config.pop('main_proc_set')
 
-        # These attributes override any other specified in
-        # main_post_exec_config.
-        tag_input = False if tag_input is None else tag_input
-        tag_output = True if tag_output is None else tag_output
-        main_proc_id = 0 if main_proc_id is None else main_proc_id
+        main_proc_spec_set = []
+        for proc_num, proc_config in enumerate(main_proc_set):
 
-        # The reference spec should not be tagged.
-        main_config['tag_input'] = False
-        main_config['tag_output'] = False
-        main_config['proc_id'] = main_proc_id
+            proc_id = proc_config.get('proc_id', None)
+            proc_id = proc_num if proc_id is None else proc_id
 
-        # The reference procedure spec.
-        proc_spec_ref = ProcSpec.from_config(main_config)
+            # The reference spec should not be tagged.
+            proc_config = dict(proc_config)
+            proc_config['proc_id'] = proc_id
 
-        # The main procedure spec.
-        proc_spec = attr.evolve(proc_spec_ref, tag_input=tag_input,
-                                tag_output=tag_output)
+            proc_spec = ProcSpec.from_config(proc_config)
 
-        main_post_exec_config = self_config.pop('main_post_exec', None)
-        if main_post_exec_config is not None:
-            #
-            main_post_proc_set = []
+            # Append...
+            main_proc_spec_set.append(proc_spec)
 
-            for post_id, post_config in enumerate(main_post_exec_config, 1):
+        base_path = self_config.pop('base_path', None)
+        if base_path is not None:
+            base_path = Path(base_path)
 
-                post_proc_id = main_proc_id + post_id
-
-                # Extended config.
-                ext_config = {'tag_input': tag_input,
-                              'tag_output': tag_output,
-                              'proc_id': post_proc_id}
-                ext_config.update(post_config)
-
-                # Update the reference spec to reflect the current spec.
-                post_proc = proc_spec_ref.evolve(ext_config)
-
-                # Append...
-                main_post_proc_set.append(post_proc)
-
-        else:
-
-            main_post_proc_set = None
-
-        proc_cli = cls(main=proc_spec,
-                       main_post_exec=main_post_proc_set,
-                       **self_config)
-
-        return proc_cli
+        return cls(main_proc_set=main_proc_spec_set,
+                   base_path=base_path, **self_config)
 
     def exec(self):
         """
 
         :return:
         """
-        main_post_exec = self.main_post_exec or []
-        len_self = 1 + len(main_post_exec)
+        main_proc_set = self.main_proc_set
+        len_self = len(main_proc_set)
 
         exec_logger.info(f'Starting the QMC calculations...')
         exec_logger.info(f'Starting the execution of a set of '
                          f'{len_self} QMC calculations...')
 
-        main_proc = self.main
-        proc_proc_id = main_proc.proc_id
-
-        exec_logger.info("*** *** ->> ")
-        exec_logger.info(f'Starting procedure ID{proc_proc_id}...')
-
-        result = main_proc.exec()
-
-        # Create the necessary directories.
-        output_dir = \
-            os.path.abspath(os.path.dirname(main_proc.output.location))
-        os.makedirs(output_dir, exist_ok=True)
-
-        main_proc.output.save(result)
-
-        exec_logger.info(f'Procedure ID{proc_proc_id} completed.')
-        exec_logger.info("<<- *** ***")
-
-        for proc_id, proc in enumerate(main_post_exec, 1):
+        for proc_id, proc_spec in enumerate(main_proc_set, 1):
 
             exec_logger.info("*** *** ->> ")
             exec_logger.info(f'Starting procedure ID{proc_id}...')
 
-            # Create the necessary directories.
-            output_dir = \
-                os.path.abspath(os.path.dirname(proc.output.location))
-            os.makedirs(output_dir, exist_ok=True)
-
-            result = proc.exec()
-            proc.output.save(result)
+            proc_input = proc_spec.build_input(self.base_path)
+            result = proc_spec.exec(proc_input)
+            proc_spec.save_output(result, self.base_path)
 
             exec_logger.info(f'Procedure ID{proc_id} completed.')
             exec_logger.info("<<- *** ***")

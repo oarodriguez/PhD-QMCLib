@@ -4,6 +4,7 @@
 
     Module with symbols and routines used with the attrs library.
 """
+from pathlib import Path
 from typing import Any
 
 import attr
@@ -20,6 +21,9 @@ opt_float_validator = attr.validators.optional(float_validator)
 opt_int_validator = attr.validators.optional(int_validator)
 opt_str_validator = attr.validators.optional(str_validator)
 opt_bool_validator = attr.validators.optional(bool_validator)
+
+path_validator = attr.validators.instance_of(Path)
+opt_path_validator = attr.validators.optional(path_validator)
 
 # These are the possible types of the data read from HDF5 files.
 _valid_int_types = \

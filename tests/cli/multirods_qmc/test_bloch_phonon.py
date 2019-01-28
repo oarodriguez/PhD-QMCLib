@@ -61,7 +61,7 @@ def test_dmc_proc():
     vmc_batch, _ = vmc_proc.exec(vmc_proc_input)
 
     sys_conf_set = vmc_batch.confs
-    dmc_proc_input = dmc_proc.build_input(sys_conf_set)
+    dmc_proc_input = dmc_proc.build_input_from_model(sys_conf_set)
     dmc_result = dmc_proc.exec(dmc_proc_input)
 
 

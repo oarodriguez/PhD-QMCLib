@@ -1,6 +1,7 @@
 import typing as t
 from abc import ABCMeta, abstractmethod
 from itertools import islice
+from pathlib import Path
 
 import attr
 import h5py
@@ -22,6 +23,7 @@ __all__ = [
     'Proc',
     'ProcInput',
     'ProcInputError',
+    'ProcResult',
     'SSFEstSpec'
 ]
 
@@ -66,11 +68,12 @@ class IOHandler(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def load(self):
+    def load(self, base_path: Path = None):
         pass
 
     @abstractmethod
-    def save(self, data: 'ProcResult'):
+    def save(self, data: 'ProcResult',
+             base_path: Path = None):
         pass
 
 
@@ -114,7 +117,7 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
     """A handler for properly structured HDF5 files."""
 
     #: Path to the file.
-    location: str
+    location: Path
 
     #: The HDF5 group in the file to read and/or write data.
     group: str
@@ -144,27 +147,30 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         blocks_group.require_group('weight')
         blocks_group.require_group('num_walkers')
 
-    def save(self, proc_result: 'ProcResult'):
+    def save(self, proc_result: 'ProcResult',
+             base_path: Path = None):
         """Save a DMC procedure result to file.
 
         :param proc_result:
+        :param base_path:
         :return:
         """
-        h5_file = h5py.File(self.location)
+        location = self.location
+        if location.is_absolute():
+            file_path = location
+        else:
+            file_path = base_path / location
 
-        sampling = proc_result.proc
-        state = proc_result.state
-        data = proc_result.data
-
+        h5_file = h5py.File(file_path)
         with h5_file:
             #
             self.init_main_groups(h5_file)
 
-            self.save_proc(sampling, h5_file)
+            self.save_proc(proc_result.proc, h5_file)
 
-            self.save_state(state, h5_file)
+            self.save_state(proc_result.state, h5_file)
 
-            self.save_data_blocks(data, h5_file)
+            self.save_data_blocks(proc_result.data, h5_file)
 
             h5_file.flush()
 
@@ -177,7 +183,8 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         """
         pass
 
-    def save_state(self, state, h5_file):
+    def save_state(self, state: dmc_base.State,
+                   h5_file: h5py.File):
         """
 
         :param state:
@@ -225,7 +232,8 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
 
         proc_group.attrs.update(proc_config)
 
-    def save_data_blocks(self, data: SamplingData, h5_file: h5py.File):
+    def save_data_blocks(self, data: SamplingData,
+                         h5_file: h5py.File):
         """
 
         :param data:
@@ -517,12 +525,16 @@ class Proc(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def build_input(self, proc_io_input: IOHandlerSpec):
+    def build_input_from_model(self, proc_io_input: IOHandlerSpec):
         """
 
         :param proc_io_input:
         :return:
         """
+        pass
+
+    @abstractmethod
+    def build_input_from_result(self, proc_result: ProcResult):
         pass
 
     @abstractmethod
