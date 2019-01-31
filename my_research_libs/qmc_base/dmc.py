@@ -802,7 +802,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
         eval_estimators = self.eval_estimators
         states_generator = self.states_generator
 
-        @nb.jit(nopython=True, nogil=True)
+        @nb.jit(nopython=True, nogil=True, fastmath=True)
         def _batches(time_step: float,
                      ini_state: State,
                      num_time_steps_batch: int,
@@ -937,7 +937,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
         should_eval_ssf_est = self.should_eval_ssf_est
 
         # noinspection PyUnusedLocal
-        @nb.jit(nopython=True, parallel=True)
+        @nb.jit(nopython=True, parallel=True, fastmath=True)
         def _eval_estimators(step_idx: int,
                              state_confs: np.ndarray,
                              num_walkers: int,
