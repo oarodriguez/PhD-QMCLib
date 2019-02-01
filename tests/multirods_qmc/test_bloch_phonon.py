@@ -8,6 +8,7 @@ from matplotlib import pyplot
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
 from my_research_libs.qmc_base.jastrow import SysConfDistType, SysConfSlot
+from my_research_libs.qmc_exec import exec_logger
 
 LATTICE_DEPTH = 100
 LATTICE_RATIO = 1
@@ -328,8 +329,10 @@ def test_dmc_batches():
                                   rng_seed=rng_seed)
 
     ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
-    sampling_batches = dmc_sampling.batches(ini_state, num_time_steps_batch)
-    dmc_sampling_batches: dmc_base.T_SBatchesIter = \
+    sampling_batches = \
+        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
+
+    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
         islice(sampling_batches, num_batches)
 
     for batch in dmc_sampling_batches:
@@ -380,9 +383,10 @@ def test_dmc_energy():
     energy_field = bloch_phonon.dmc.IterProp.ENERGY
 
     ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
-    sampling_batches = dmc_sampling.batches(ini_state,
-                                            num_time_steps_batch)
-    dmc_sampling_batches: dmc_base.T_SBatchesIter = \
+    sampling_batches = \
+        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
+
+    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
         islice(sampling_batches, num_batches)
 
     for iter_data in dmc_sampling_batches:
@@ -443,9 +447,10 @@ def test_dmc_batch_func():
     weight_field = bloch_phonon.dmc.IterProp.WEIGHT.value
 
     ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
-    sampling_batches = dmc_sampling.batches(ini_state, num_time_steps_batch)
+    sampling_batches = \
+        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
 
-    dmc_sampling_batches: dmc_base.T_SBatchesIter = \
+    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
         islice(sampling_batches, num_batches)
 
     for iter_data in dmc_sampling_batches:
@@ -468,6 +473,8 @@ def test_dmc_est_sampling():
     supercell_size = 30
     tbf_contact_cutoff = 0.25 * supercell_size
 
+    exec_logger.info('Init sampling...')
+
     # TODO: Improve this test.
     model_spec = bloch_phonon.Spec(lattice_depth=lattice_depth,
                                    lattice_ratio=lattice_ratio,
@@ -475,6 +482,8 @@ def test_dmc_est_sampling():
                                    boson_number=boson_number,
                                    supercell_size=supercell_size,
                                    tbf_contact_cutoff=tbf_contact_cutoff)
+
+    exec_logger.info('Init VMC sampling...')
 
     move_spread = 0.25 * model_spec.well_width
     num_steps = 1024 * 1
@@ -488,6 +497,8 @@ def test_dmc_est_sampling():
     ar_ = vmc_chain_data.accept_rate
     print(f"Acceptance ratio: {ar_:.5g}")
 
+    exec_logger.info('Finished sampling...')
+
     time_step = 1e-3
     num_batches = 16
     num_time_steps_batch = 32
@@ -499,30 +510,36 @@ def test_dmc_est_sampling():
 
     ssf_est_spec = bloch_phonon.dmc.SSFEstSpec(model_spec, num_modes=100)
     dmc_sampling = \
-        bloch_phonon.dmc.EstSampling(model_spec,
-                                     time_step,
-                                     max_num_walkers=max_num_walkers,
-                                     target_num_walkers=target_num_walkers,
-                                     rng_seed=rng_seed,
-                                     ssf_spec=ssf_est_spec)
+        bloch_phonon.dmc.Sampling(model_spec,
+                                  time_step,
+                                  max_num_walkers=max_num_walkers,
+                                  target_num_walkers=target_num_walkers,
+                                  rng_seed=rng_seed,
+                                  ssf_est_spec=ssf_est_spec,
+                                  fastmath=False,
+                                  parallel=False)
 
     ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
     dmc_es_batches = dmc_sampling.batches(ini_state, num_time_steps_batch)
 
-    es_batches: dmc_base.T_ESBatchesIter = \
+    es_batches: dmc_base.T_SBatchesIter = \
         islice(dmc_es_batches, num_batches)
+
+    exec_logger.info('Init DMC sampling...')
 
     for batch in es_batches:
         state_props = batch.iter_props
         nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
         iter_ssf = batch.iter_ssf
         # print(state_props)
-        ssf_batch_data = iter_ssf / nw_iter[:, np.newaxis]
-        print(ssf_batch_data)
-        print(nw_iter)
+        ssf_batch_data = iter_ssf / nw_iter[:, np.newaxis, np.newaxis]
+        # print(ssf_batch_data)
+        # print(nw_iter)
         print('---')
+
+    exec_logger.info('Finish DMC sampling.')
 
 
 if __name__ == '__main__':
     # test_dmc()
-    test_init()
+    test_dmc_est_sampling()

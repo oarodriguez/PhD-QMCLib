@@ -21,4 +21,4 @@ class DMCProcResult:
     data: t.Optional[SamplingData] = None
 
     #: The sampling object used to generate the results.
-    sampling: t.Optional[dmc_base.EstSampling] = None
+    sampling: t.Optional[dmc_base.Sampling] = None

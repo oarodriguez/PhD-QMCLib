@@ -22,13 +22,10 @@ __all__ = [
     'BranchingSpecField',
     'CoreFuncs',
     'EstAuxData',
-    'EstSampling',
-    'EstSamplingBatch',
-    'EstSamplingCoreFuncs',
-    'EvoStateResult',
+    'SamplingBatch',
     'IterProp',
     'Sampling',
-    'SamplingBatch',
+    'SamplingConfsPropsBatch',
     'State',
     'StateProp',
     'SSFEstSpec',
@@ -92,14 +89,7 @@ class State(t.NamedTuple):
     branching_spec: t.Optional[np.ndarray] = None
 
 
-class EvoStateResult(t.NamedTuple):
-    """"""
-    energy: float
-    weight: float
-    num_walkers: int
-
-
-class SamplingBatch(t.NamedTuple):
+class SamplingConfsPropsBatch(t.NamedTuple):
     """"""
     states_confs: np.ndarray
     states_props: np.ndarray
@@ -108,11 +98,11 @@ class SamplingBatch(t.NamedTuple):
 
 T_SIter = t.Iterator[State]
 T_E_SIter = t.Iterator[t.Tuple[int, State]]
-T_SBatchesIter = t.Iterator[SamplingBatch]
-T_E_SBatchesIter = t.Iterator[t.Tuple[int, SamplingBatch]]
+T_SCPBatchesIter = t.Iterator[SamplingConfsPropsBatch]
+T_E_SCPBatchesIter = t.Iterator[t.Tuple[int, SamplingConfsPropsBatch]]
 
 
-class EstSamplingBatch(t.NamedTuple):
+class SamplingBatch(t.NamedTuple):
     """"""
     #: Properties data.
     iter_props: np.ndarray
@@ -127,15 +117,64 @@ class EstAuxData(t.NamedTuple):
 
 
 # Variables for type-hints.
-T_ESBatchesIter = t.Iterator[EstSamplingBatch]
-T_E_ESBatchesIter = t.Iterator[t.Tuple[int, EstSamplingBatch]]
+T_SBatchesIter = t.Iterator[SamplingBatch]
+T_E_SBatchesIter = t.Iterator[t.Tuple[int, SamplingBatch]]
+
+
+# noinspection PyUnusedLocal
+@nb.jit(nopython=True)
+def dummy_pure_est_core_func(step_idx: int,
+                             sys_idx: int,
+                             clone_ref_idx: int,
+                             state_confs: np.ndarray,
+                             iter_sf_array: np.ndarray,
+                             aux_states_sf_array: np.ndarray):
+    """Dummy pure estimator core function."""
+    return
+
+
+class SSFEstSpecNT(t.NamedTuple):
+    """"""
+
+    #: Number of modes to evaluate the structure factor S(k).
+    num_modes: int
+    as_pure_est: bool = True
+    pfw_num_time_steps: int = None
+    core_func: t.Callable = dummy_pure_est_core_func
+
+
+class SSFEstSpec(metaclass=ABCMeta):
+    """Structure factor estimator."""
+
+    #: Number of modes to evaluate the structure factor S(k).
+    num_modes: int
+
+    #: Number of steps for the forward sampling of the pure estimator.
+    as_pure_est: bool = False
+
+    #: Number of time steps of the forward walking to accumulate the pure
+    # estimator of S(k).
+    pfw_num_time_steps: int = 512
+
+    @property
+    @abstractmethod
+    def momenta(self, *args, **kwargs):
+        """"""
+        pass
+
+    @property
+    @abstractmethod
+    def core_func(self, *args, **kwargs):
+        """"""
+        pass
 
 
 class Sampling(metaclass=ABCMeta):
     """Realizes a DMC sampling.
 
     Defines the parameters and related properties of a Diffusion Monte
-    Carlo calculation.
+    Carlo calculation, as well as the evaluation of expected values
+    (estimators).
     """
     __slots__ = ()
 
@@ -153,6 +192,18 @@ class Sampling(metaclass=ABCMeta):
 
     #: The seed of the pseudo-RNG used to realize the sampling.
     rng_seed: int
+
+    # *** *** Configuration of the estimators. *** ***
+
+    #: Spec of the static structure factor estimator.
+    ssf_est_spec: t.Optional[SSFEstSpec]
+
+    #: Parallel execution where possible.
+    # NOTE: Not sure how useful it could be.
+    parallel: bool
+
+    #: Use fastmath compiler directive.
+    fastmath: bool
 
     @property
     @abstractmethod
@@ -202,6 +253,24 @@ class Sampling(metaclass=ABCMeta):
                                        target_num_walkers,
                                        rng_seed)
 
+    def confs_props_batches(self, ini_state: State,
+                            num_time_steps_batch: int) -> T_SCPBatchesIter:
+        """Generator of batches of states.
+
+        :param ini_state: The initial state of the sampling.
+        :param num_time_steps_batch:
+        :return:
+        """
+        time_step = self.time_step
+        target_num_walkers = self.target_num_walkers
+        rng_seed = self.rng_seed
+
+        return self.core_funcs.confs_props_batches(time_step,
+                                                   ini_state,
+                                                   num_time_steps_batch,
+                                                   target_num_walkers,
+                                                   rng_seed)
+
     def states(self, ini_state: State) -> T_SIter:
         """Generator object that yields DMC states.
 
@@ -237,6 +306,15 @@ class CoreFuncs(metaclass=ABCMeta):
 
     __slots__ = ()
 
+    #:
+    ssf_est_spec_nt: t.Optional[SSFEstSpecNT]
+
+    #: Parallel the execution where possible.
+    parallel: bool
+
+    #: Use fastmath compiler directive.
+    fastmath: bool
+
     @property
     @abstractmethod
     def evolve_system(self):
@@ -249,10 +327,11 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
+        fastmath = self.fastmath
         props_weight_field = StateProp.WEIGHT.value
         clone_ref_field = BranchingSpecField.CLONING_REF.value
 
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, fastmath=fastmath)
         def _sync_branching_spec(prev_state_props: np.ndarray,
                                  prev_num_walkers: int,
                                  max_num_walkers: int,
@@ -299,9 +378,10 @@ class CoreFuncs(metaclass=ABCMeta):
         branch_ref_field = BranchingSpecField.CLONING_REF.value
 
         # JIT methods.
+        fastmath = self.fastmath
         evolve_system = self.evolve_system
 
-        @nb.jit(nopython=True, parallel=True, fastmath=False)
+        @nb.jit(nopython=True, parallel=True, fastmath=fastmath)
         def _evolve_state(prev_state_confs: np.ndarray,
                           prev_state_props: np.ndarray,
                           actual_state_confs: np.ndarray,
@@ -407,6 +487,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
+        fastmath = self.fastmath
         props_energy_field = StateProp.ENERGY.value
         props_weight_field = StateProp.WEIGHT.value
 
@@ -414,7 +495,7 @@ class CoreFuncs(metaclass=ABCMeta):
         evolve_state = self.evolve_state
         sync_branching_spec = self.sync_branching_spec
 
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, fastmath=fastmath)
         def _states_generator(time_step: float,
                               ini_state: State,
                               target_num_walkers: int,
@@ -537,250 +618,10 @@ class CoreFuncs(metaclass=ABCMeta):
         """"""
         pass
 
-    @cached_property
-    def prepare_ini_iter_data(self):
-        """Gets the initial state data as a one-element sampling batch."""
-
-        props_energy_field = StateProp.ENERGY.value
-        props_weight_field = StateProp.WEIGHT.value
-
-        iter_energy_field = IterProp.ENERGY.value
-        iter_weight_field = IterProp.WEIGHT.value
-        iter_num_walkers_field = IterProp.NUM_WALKERS.value
-        iter_ref_energy_field = IterProp.REF_ENERGY.value
-
-        @nb.jit(nopython=True)
-        def _prepare_ini_iter_data(ini_state: State,
-                                   ini_ref_energy: float):
-            """Gets the initial state data as a one-element sampling batch.
-
-            :param ini_state: The initial state.
-            :param ini_ref_energy: The initial energy of reference.
-            :return: the initial state data as a one-element sampling batch.
-            """
-            # Initial state iter properties.
-            ini_state_confs = ini_state.confs
-            ini_state_props = ini_state.props
-            ini_num_walkers = ini_state.num_walkers
-
-            # The initial iter properties.
-            ini_ipb_shape = (1,)
-
-            # NOTE: We may use the data of the initial state directly, and
-            #  return only views of the arrays. However, we use copies.
-            ini_states_confs_array = ini_state_confs.copy()
-            ini_states_props_array = ini_state_props.copy()
-            ini_iter_props_array = \
-                np.zeros(ini_ipb_shape, dtype=iter_props_dtype)
-
-            is_energies = ini_state_props[props_energy_field]
-            is_weights = ini_state_props[props_weight_field]
-
-            iter_energies = ini_iter_props_array[iter_energy_field]
-            iter_weights = ini_iter_props_array[iter_weight_field]
-            iter_num_walkers = ini_iter_props_array[iter_num_walkers_field]
-            iter_ref_energies = ini_iter_props_array[iter_ref_energy_field]
-
-            inw = ini_num_walkers
-            ini_energy = (is_energies[:inw] * is_weights[:inw]).sum()
-            ini_weight = is_weights[:inw].sum()
-
-            iter_energies[0] = ini_energy
-            iter_weights[0] = ini_weight
-            iter_num_walkers[0] = ini_num_walkers
-            iter_ref_energies[0] = ini_ref_energy
-
-            # The one-element batch.
-            ini_scb_shape = ini_ipb_shape + ini_state_confs.shape
-            ini_spb_shape = ini_ipb_shape + ini_state_props.shape
-
-            ini_states_confs_array = \
-                ini_states_confs_array.reshape(ini_scb_shape)
-            ini_states_props_array = \
-                ini_states_props_array.reshape(ini_spb_shape)
-
-            return SamplingBatch(ini_states_confs_array,
-                                 ini_states_props_array,
-                                 ini_iter_props_array)
-
-        return _prepare_ini_iter_data
-
-    @cached_property
-    def batches(self):
-        """
-
-        :return:
-        """
-        iter_energy_field = IterProp.ENERGY.value
-        iter_weight_field = IterProp.WEIGHT.value
-        iter_num_walkers_field = IterProp.NUM_WALKERS.value
-        ref_energy_field = IterProp.REF_ENERGY.value
-        accum_energy_field = IterProp.ACCUM_ENERGY.value
-
-        states_generator = self.states_generator
-
-        @nb.jit(nopython=True, nogil=True)
-        def _batches(time_step: float,
-                     ini_state: State,
-                     num_time_steps_batch: int,
-                     target_num_walkers: int,
-                     rng_seed: int = None):
-            """The DMC sampling generator.
-
-            :param time_step:
-            :param num_time_steps_batch:
-            :param ini_state:
-            :param target_num_walkers:
-            :param rng_seed:
-            :return:
-            """
-            # Initial state properties.
-            ini_state_confs = ini_state.confs
-            ini_state_props = ini_state.props
-
-            # Alias 🙂
-            nts_batch = num_time_steps_batch
-            isc_shape = ini_state_confs.shape
-            isp_shape = ini_state_props.shape
-
-            # The shape of the batches.
-            scb_shape = (nts_batch,) + isc_shape
-            spb_shape = (nts_batch,) + isp_shape
-            ipb_shape = nts_batch,
-
-            # Array dtypes.
-            state_confs_dtype = ini_state_confs.dtype
-            state_props_dtype = ini_state_props.dtype
-
-            # Array for the states configurations data.
-            states_confs_array = np.zeros(scb_shape, dtype=state_confs_dtype)
-
-            # Array for the states properties data.
-            states_props_array = np.zeros(spb_shape, dtype=state_props_dtype)
-
-            # Array to store the configuration data of a batch of states.
-            iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
-
-            iter_energies = iter_props_array[iter_energy_field]
-            iter_weights = iter_props_array[iter_weight_field]
-            iter_num_walkers = iter_props_array[iter_num_walkers_field]
-            iter_ref_energies = iter_props_array[ref_energy_field]
-            iter_accum_energies = iter_props_array[accum_energy_field]
-
-            # Create a new sampling generator.
-            generator = states_generator(time_step, ini_state,
-                                         target_num_walkers, rng_seed)
-
-            # Yield batches indefinitely.
-            while True:
-
-                enum_generator: T_E_SIter = enumerate(generator)
-
-                for sj_, state in enum_generator:
-
-                    # Copy the data to the batch.
-                    states_confs_array[sj_] = state.confs[:]
-                    states_props_array[sj_] = state.props[:]
-
-                    # Copy other data to keep track of the evolution.
-                    iter_energies[sj_] = state.energy
-                    iter_weights[sj_] = state.weight
-                    iter_num_walkers[sj_] = state.num_walkers
-                    iter_ref_energies[sj_] = state.ref_energy
-                    iter_accum_energies[sj_] = state.accum_energy
-
-                    # Stop/pause the iteration.
-                    if sj_ + 1 >= nts_batch:
-                        break
-
-                iter_data = SamplingBatch(states_confs_array,
-                                          states_props_array,
-                                          iter_props_array)
-                yield iter_data
-
-        return _batches
-
-
-# noinspection PyUnusedLocal
-@nb.jit(nopython=True)
-def dummy_pure_est_core_func(step_idx: int,
-                             sys_idx: int,
-                             clone_ref_idx: int,
-                             state_confs: np.ndarray,
-                             iter_sf_array: np.ndarray,
-                             aux_states_sf_array: np.ndarray):
-    """Dummy pure estimator core function."""
-    return
-
-
-class SSFEstSpecNT(t.NamedTuple):
-    """"""
-    #: Number of modes to evaluate the structure factor S(k).
-    num_modes: int
-    as_pure_est: bool = True
-    pfw_num_time_steps: int = None
-    core_func: t.Callable = dummy_pure_est_core_func
-
-
-class SSFEstSpec(metaclass=ABCMeta):
-    """Structure factor estimator."""
-
-    #: Number of modes to evaluate the structure factor S(k).
-    num_modes: int
-
-    #: Number of steps for the forward sampling of the pure estimator.
-    as_pure_est: bool = False
-
-    #: Number of time steps of the forward walking to accumulate the pure
-    # estimator of S(k).
-    pfw_num_time_steps: int = 512
-
-    @property
-    @abstractmethod
-    def momenta(self, *args, **kwargs):
-        """"""
-        pass
-
-    @property
-    @abstractmethod
-    def core_func(self, *args, **kwargs):
-        """"""
-        pass
-
-
-class EstSampling(Sampling):
-    """Evaluates expected values (estimators) using a DMC sampling."""
-
-    # Inherited fields...
-    time_step: float
-    max_num_walkers: int
-    target_num_walkers: int
-    num_walkers_control_factor: t.Optional[float]
-    rng_seed: t.Optional[int] = None
-
-    # *** *** Configuration of the estimators. *** ***
-
-    #: Structure factor estimator.
-    ssf_spec: t.Optional[SSFEstSpec] = None
-
-    @property
-    @abstractmethod
-    def core_funcs(self) -> 'EstSamplingCoreFuncs':
-        """"""
-        pass
-
-
-class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
-    """The DMC core functions for the Bloch-Phonon model."""
-    __slots__ = ()
-
-    #:
-    ssf_spec_nt: t.Optional[SSFEstSpecNT]
-
     @property
     def should_eval_ssf_est(self):
         """"""
-        return self.ssf_spec_nt is not dummy_pure_est_core_func
+        return self.ssf_est_spec_nt is not dummy_pure_est_core_func
 
     @cached_property
     def batches(self):
@@ -788,7 +629,9 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
 
         :return:
         """
-        ssf_num_modes = self.ssf_spec_nt.num_modes
+        fastmath = self.fastmath
+        ssf_num_modes = self.ssf_est_spec_nt.num_modes
+
         # noinspection PyTypeChecker
         ssf_num_parts = len(SSFPartSlot)
 
@@ -802,7 +645,7 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
         eval_estimators = self.eval_estimators
         states_generator = self.states_generator
 
-        @nb.jit(nopython=True, nogil=True, fastmath=True)
+        @nb.jit(nopython=True, nogil=True, fastmath=fastmath)
         def _batches(time_step: float,
                      ini_state: State,
                      num_time_steps_batch: int,
@@ -836,7 +679,8 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
             # Array to store the configuration data of a batch of states.
             iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
             iter_ssf_array = np.zeros(i_ssf_shape, dtype=np.float64)
-            pfw_aux_ssf_array = np.zeros(pfw_aux_ssf_b_shape, dtype=np.float64)
+            pfw_aux_ssf_array = np.zeros(pfw_aux_ssf_b_shape,
+                                         dtype=np.float64)
 
             # Extract fields.
             iter_energies = iter_props_array[iter_energy_field]
@@ -914,9 +758,9 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                                    state.max_num_walkers,
                                    state.branching_spec)
 
-                batch_data = EstSamplingBatch(iter_props_array,
-                                              iter_ssf_array,
-                                              last_state)
+                batch_data = SamplingBatch(iter_props_array,
+                                           iter_ssf_array,
+                                           last_state)
                 yield batch_data
 
         return _batches
@@ -927,17 +771,19 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
 
         :return:
         """
+        fastmath = self.fastmath
+        parallel = self.parallel
         branch_ref_field = BranchingSpecField.CLONING_REF.value
 
         # Structure factor
         # Flag to evaluate structure factor.
-        ssf_as_pure_est = self.ssf_spec_nt.as_pure_est
-        ssf_pfw_nts = self.ssf_spec_nt.pfw_num_time_steps
-        ssf_est_core_func = self.ssf_spec_nt.core_func
+        ssf_as_pure_est = self.ssf_est_spec_nt.as_pure_est
+        ssf_pfw_nts = self.ssf_est_spec_nt.pfw_num_time_steps
+        ssf_est_core_func = self.ssf_est_spec_nt.core_func
         should_eval_ssf_est = self.should_eval_ssf_est
 
         # noinspection PyUnusedLocal
-        @nb.jit(nopython=True, parallel=True, fastmath=True)
+        @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
         def _eval_estimators(step_idx: int,
                              state_confs: np.ndarray,
                              num_walkers: int,
@@ -1002,3 +848,99 @@ class EstSamplingCoreFuncs(CoreFuncs, metaclass=ABCMeta):
                         iter_ssf_array[step_idx] /= ssf_pfw_nts
 
         return _eval_estimators
+
+    @cached_property
+    def confs_props_batches(self):
+        """
+
+        :return:
+        """
+        fastmath = self.fastmath
+        iter_energy_field = IterProp.ENERGY.value
+        iter_weight_field = IterProp.WEIGHT.value
+        iter_num_walkers_field = IterProp.NUM_WALKERS.value
+        ref_energy_field = IterProp.REF_ENERGY.value
+        accum_energy_field = IterProp.ACCUM_ENERGY.value
+
+        states_generator = self.states_generator
+
+        @nb.jit(nopython=True, nogil=True, fastmath=fastmath)
+        def _batches(time_step: float,
+                     ini_state: State,
+                     num_time_steps_batch: int,
+                     target_num_walkers: int,
+                     rng_seed: int = None):
+            """The DMC sampling generator.
+
+            :param time_step:
+            :param num_time_steps_batch:
+            :param ini_state:
+            :param target_num_walkers:
+            :param rng_seed:
+            :return:
+            """
+            # Initial state properties.
+            ini_state_confs = ini_state.confs
+            ini_state_props = ini_state.props
+
+            # Alias 🙂
+            nts_batch = num_time_steps_batch
+            isc_shape = ini_state_confs.shape
+            isp_shape = ini_state_props.shape
+
+            # The shape of the batches.
+            scb_shape = (nts_batch,) + isc_shape
+            spb_shape = (nts_batch,) + isp_shape
+            ipb_shape = nts_batch,
+
+            # Array dtypes.
+            state_confs_dtype = ini_state_confs.dtype
+            state_props_dtype = ini_state_props.dtype
+
+            # Array for the states configurations data.
+            states_confs_array = np.zeros(scb_shape, dtype=state_confs_dtype)
+
+            # Array for the states properties data.
+            states_props_array = np.zeros(spb_shape, dtype=state_props_dtype)
+
+            # Array to store the configuration data of a batch of states.
+            iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
+
+            iter_energies = iter_props_array[iter_energy_field]
+            iter_weights = iter_props_array[iter_weight_field]
+            iter_num_walkers = iter_props_array[iter_num_walkers_field]
+            iter_ref_energies = iter_props_array[ref_energy_field]
+            iter_accum_energies = iter_props_array[accum_energy_field]
+
+            # Create a new sampling generator.
+            generator = states_generator(time_step, ini_state,
+                                         target_num_walkers, rng_seed)
+
+            # Yield batches indefinitely.
+            while True:
+
+                enum_generator: T_E_SIter = enumerate(generator)
+
+                for sj_, state in enum_generator:
+
+                    # Copy the data to the batch.
+                    states_confs_array[sj_] = state.confs[:]
+                    states_props_array[sj_] = state.props[:]
+
+                    # Copy other data to keep track of the evolution.
+                    iter_energies[sj_] = state.energy
+                    iter_weights[sj_] = state.weight
+                    iter_num_walkers[sj_] = state.num_walkers
+                    iter_ref_energies[sj_] = state.ref_energy
+                    iter_accum_energies[sj_] = state.accum_energy
+
+                    # Stop/pause the iteration.
+                    if sj_ + 1 >= nts_batch:
+                        break
+
+                iter_data = SamplingConfsPropsBatch(states_confs_array,
+                                                    states_props_array,
+                                                    iter_props_array)
+                yield iter_data
+
+        return _batches

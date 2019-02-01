@@ -412,6 +412,16 @@ class Proc(dmc_exec_base.Proc):
     ssf_spec: t.Optional[SSFEstSpec] = \
         attr.ib(default=None, validator=None)
 
+    #: Parallel execution where possible.
+    parallel: bool = attr.ib(default=True,
+                             converter=bool_converter,
+                             validator=bool_validator)
+
+    #: Use fastmath compiler directive.
+    fastmath: bool = attr.ib(default=False,
+                             converter=bool_converter,
+                             validator=bool_validator)
+
     verbose: bool = attr.ib(default=False,
                             converter=bool_converter,
                             validator=bool_validator)
@@ -476,28 +486,28 @@ class Proc(dmc_exec_base.Proc):
                            **self_config)
 
     @cached_property
-    def sampling(self) -> dmc.EstSampling:
+    def sampling(self) -> dmc.Sampling:
         """
 
         :return:
         """
         if self.should_eval_ssf:
             ssf_spec = self.ssf_spec
-            ssf_est = dmc.SSFEstSpec(self.model_spec,
-                                     ssf_spec.num_modes,
-                                     ssf_spec.as_pure_est,
-                                     ssf_spec.pfw_num_time_steps)
+            ssf_est_spec = dmc.SSFEstSpec(self.model_spec,
+                                          ssf_spec.num_modes,
+                                          ssf_spec.as_pure_est,
+                                          ssf_spec.pfw_num_time_steps)
 
         else:
-            ssf_est = None
+            ssf_est_spec = None
 
-        sampling = dmc.EstSampling(self.model_spec,
-                                   self.time_step,
-                                   self.max_num_walkers,
-                                   self.target_num_walkers,
-                                   self.num_walkers_control_factor,
-                                   self.rng_seed,
-                                   ssf_spec=ssf_est)
+        sampling = dmc.Sampling(self.model_spec,
+                                self.time_step,
+                                self.max_num_walkers,
+                                self.target_num_walkers,
+                                self.num_walkers_control_factor,
+                                self.rng_seed,
+                                ssf_est_spec=ssf_est_spec)
         return sampling
 
     def checkpoint(self):
@@ -533,7 +543,7 @@ class Proc(dmc_exec_base.Proc):
         return ProcInput(state)
 
     def build_result(self, state: dmc_base.State,
-                     sampling: dmc.EstSampling,
+                     sampling: dmc.Sampling,
                      data: SamplingData):
         """
 

@@ -521,7 +521,7 @@ class Proc(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def sampling(self) -> dmc_base.EstSampling:
+    def sampling(self) -> dmc_base.Sampling:
         pass
 
     @abstractmethod
@@ -539,7 +539,7 @@ class Proc(metaclass=ABCMeta):
 
     @abstractmethod
     def build_result(self, state: dmc_base.State,
-                     sampling: dmc_base.EstSampling,
+                     sampling: dmc_base.Sampling,
                      data: SamplingData):
         """
 
@@ -659,11 +659,11 @@ class Proc(metaclass=ABCMeta):
         pure_est_reduce_factor = np.ones(num_batches, dtype=np.float64)
 
         # The effective batches to calculate the estimators.
-        eff_batches: dmc_base.T_ESBatchesIter = \
+        eff_batches: dmc_base.T_SBatchesIter = \
             islice(batches_iter, num_batches)
 
         # Enumerated effective batches.
-        enum_eff_batches: dmc_base.T_E_ESBatchesIter \
+        enum_eff_batches: dmc_base.T_E_SBatchesIter \
             = enumerate(eff_batches)
 
         exec_logger.info('Starting the evaluation of estimators...')
