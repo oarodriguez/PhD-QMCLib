@@ -4,6 +4,7 @@ import attr
 import numpy as np
 import pytest
 from matplotlib import pyplot
+from numba.runtime import rtsys
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
@@ -517,7 +518,7 @@ def test_dmc_est_sampling():
                                   rng_seed=rng_seed,
                                   ssf_est_spec=ssf_est_spec,
                                   fastmath=False,
-                                  parallel=False)
+                                  parallel=True)
 
     ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
     dmc_es_batches = dmc_sampling.batches(ini_state, num_time_steps_batch)
@@ -535,6 +536,8 @@ def test_dmc_est_sampling():
         ssf_batch_data = iter_ssf / nw_iter[:, np.newaxis, np.newaxis]
         # print(ssf_batch_data)
         # print(nw_iter)
+        # This helps to catch memory leaks in numba compiled functions.
+        print(rtsys.get_allocation_stats())
         print('---')
 
     exec_logger.info('Finish DMC sampling.')

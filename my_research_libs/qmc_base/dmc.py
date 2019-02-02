@@ -778,6 +778,7 @@ class CoreFuncs(metaclass=ABCMeta):
         # Structure factor
         # Flag to evaluate structure factor.
         ssf_as_pure_est = self.ssf_est_spec_nt.as_pure_est
+        ssf_num_modes = self.ssf_est_spec_nt.num_modes
         ssf_pfw_nts = self.ssf_est_spec_nt.pfw_num_time_steps
         ssf_est_core_func = self.ssf_est_spec_nt.core_func
         should_eval_ssf_est = self.should_eval_ssf_est
@@ -834,18 +835,37 @@ class CoreFuncs(metaclass=ABCMeta):
             # Accumulate the totals of the estimators.
             # NOTE: Fix up a memory leak using range instead numba.prange.
             # TODO: Compare speed of range vs numba.prange.
-            for sys_idx in range(num_walkers):
-                # Accumulate S(k).
-                actual_iter_ssf += actual_state_ssf[sys_idx]
+            # for sys_idx in range(num_walkers):
+            #     # Accumulate S(k).
+            #     actual_iter_ssf += actual_state_ssf[sys_idx]
 
             if should_eval_ssf_est:
-                # Calculate structure factor pure estimator after the
-                # forward sampling stage.
+                #
                 if ssf_as_pure_est:
                     if step_idx < ssf_pfw_nts:
-                        iter_ssf_array[step_idx] /= step_idx + 1
+                        est_divisor = step_idx + 1
                     else:
-                        iter_ssf_array[step_idx] /= ssf_pfw_nts
+                        est_divisor = ssf_pfw_nts
+                else:
+                    est_divisor = 1
+
+                for kz_idx in nb.prange(ssf_num_modes):
+                    #
+                    actual_iter_ssf[kz_idx] = \
+                        actual_state_ssf[:num_walkers, kz_idx].sum(axis=0)
+
+                    # Calculate structure factor pure estimator after the
+                    # forward sampling stage.
+                    if ssf_as_pure_est:
+                        actual_iter_ssf[kz_idx] /= est_divisor
+
+                # # Calculate structure factor pure estimator after the
+                # # forward sampling stage.
+                # if ssf_as_pure_est:
+                #     if step_idx < ssf_pfw_nts:
+                #         iter_ssf_array[step_idx] /= step_idx + 1
+                #     else:
+                #         iter_ssf_array[step_idx] /= ssf_pfw_nts
 
         return _eval_estimators
 
