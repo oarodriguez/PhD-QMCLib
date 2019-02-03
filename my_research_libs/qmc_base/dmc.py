@@ -621,7 +621,7 @@ class CoreFuncs(metaclass=ABCMeta):
     @property
     def should_eval_ssf_est(self):
         """"""
-        return self.ssf_est_spec_nt is not dummy_pure_est_core_func
+        return self.ssf_est_spec_nt.core_func is not dummy_pure_est_core_func
 
     @cached_property
     def batches(self):

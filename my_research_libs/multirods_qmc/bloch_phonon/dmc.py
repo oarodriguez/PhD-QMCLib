@@ -10,7 +10,8 @@ from numpy import random
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base.dmc import (
-    SSFPartSlot, SamplingConfsPropsBatch, branching_spec_dtype
+    SSFPartSlot, SamplingConfsPropsBatch, branching_spec_dtype,
+    dummy_pure_est_core_func
 )
 from my_research_libs.qmc_base.jastrow import SysConfSlot
 from my_research_libs.qmc_base.utils import recast_to_supercell
@@ -476,7 +477,7 @@ class Sampling(qmc_base.dmc.Sampling):
             ssf_num_modes = 1
             ssf_as_pure_est = False
             ssf_pfw_nts = 512
-            ssf_core_func = None
+            ssf_core_func = dummy_pure_est_core_func
 
         ssf_est_spec_nt = SSFEstSpecNT(ssf_num_modes,
                                        ssf_as_pure_est,
