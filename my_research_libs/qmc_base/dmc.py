@@ -553,23 +553,29 @@ class CoreFuncs(metaclass=ABCMeta):
             aux_prev_state_props[:] = ini_state.props[:]
             prev_num_walkers = ini_state.num_walkers
 
+            prev_state_confs, prev_state_props = \
+                aux_prev_state_confs, aux_prev_state_props
+
+            next_state_confs, next_state_props = \
+                aux_next_state_confs, aux_next_state_props
+
             # The philosophy of the generator is simple: keep sampling
             # new states until the loop is broken from an outer scope.
             while True:
 
                 # We now have the effective number of walkers after branching.
                 state_num_walkers = \
-                    sync_branching_spec(aux_prev_state_props,
+                    sync_branching_spec(prev_state_props,
                                         prev_num_walkers,
                                         max_num_walkers,
                                         state_branching_spec)
 
-                evolve_state(aux_prev_state_confs,
-                             aux_prev_state_props,
+                evolve_state(prev_state_confs,
+                             prev_state_props,
                              state_confs,
                              state_props,
-                             aux_next_state_confs,
-                             aux_next_state_props,
+                             next_state_confs,
+                             next_state_props,
                              state_num_walkers,
                              max_num_walkers,
                              time_step,
@@ -603,11 +609,13 @@ class CoreFuncs(metaclass=ABCMeta):
                             branching_spec=state_branching_spec)
 
                 # Exchange previous and next states arrays.
-                aux_prev_state_confs, aux_next_state_confs = \
-                    aux_next_state_confs, aux_prev_state_confs
+                # NOTE: I'm not sure if Numba is copying the data from one
+                #  array to the other.
+                prev_state_confs, next_state_confs = \
+                    next_state_confs, prev_state_confs
 
-                aux_prev_state_props, aux_next_state_props = \
-                    aux_next_state_props, aux_prev_state_props
+                prev_state_props, next_state_props = \
+                    next_state_props, prev_state_props
 
                 prev_num_walkers = state_num_walkers
 
