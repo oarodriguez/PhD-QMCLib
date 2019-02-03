@@ -413,14 +413,14 @@ class Proc(dmc_exec_base.Proc):
         attr.ib(default=None, validator=None)
 
     #: Parallel execution where possible.
-    parallel: bool = attr.ib(default=True,
-                             converter=bool_converter,
-                             validator=bool_validator)
+    jit_parallel: bool = attr.ib(default=True,
+                                 converter=bool_converter,
+                                 validator=bool_validator)
 
     #: Use fastmath compiler directive.
-    fastmath: bool = attr.ib(default=False,
-                             converter=bool_converter,
-                             validator=bool_validator)
+    jit_fastmath: bool = attr.ib(default=False,
+                                 converter=bool_converter,
+                                 validator=bool_validator)
 
     verbose: bool = attr.ib(default=False,
                             converter=bool_converter,

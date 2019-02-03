@@ -517,8 +517,8 @@ def test_dmc_est_sampling():
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed,
                                   ssf_est_spec=ssf_est_spec,
-                                  fastmath=False,
-                                  parallel=True)
+                                  jit_fastmath=False,
+                                  jit_parallel=True)
 
     ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
     dmc_es_batches = dmc_sampling.batches(ini_state, num_time_steps_batch)

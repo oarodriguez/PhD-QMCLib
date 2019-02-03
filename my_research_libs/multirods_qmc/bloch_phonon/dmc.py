@@ -216,8 +216,8 @@ class Sampling(qmc_base.dmc.Sampling):
 
     # *** Estimators configuration ***
     ssf_est_spec: t.Optional[SSFEstSpec] = None
-    parallel: bool = True
-    fastmath: bool = False
+    jit_parallel: bool = True
+    jit_fastmath: bool = False
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
@@ -487,8 +487,8 @@ class Sampling(qmc_base.dmc.Sampling):
         return CoreFuncs(boundaries,
                          cfc_spec_nt,
                          ssf_est_spec_nt,
-                         self.parallel,
-                         self.fastmath)
+                         self.jit_parallel,
+                         self.jit_fastmath)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -505,17 +505,18 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     ssf_est_spec_nt: SSFEstSpecNT = None
 
     #: Parallel the execution where possible.
-    parallel: bool = True
+    jit_parallel: bool = True
 
     #: Use fastmath compiler directive.
-    fastmath: bool = True
+    jit_fastmath: bool = True
 
     @cached_property
     def recast(self):
         """Apply the periodic boundary conditions on a configuration."""
+        fastmath = self.jit_fastmath
         z_min, z_max = self.boundaries
 
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, fastmath=fastmath)
         def _recast(z: float):
             """Apply the periodic boundary conditions on a configuration.
 
@@ -532,11 +533,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         :return:
         """
+        fastmath = self.jit_fastmath
         pos_slot = int(SysConfSlot.pos)
         drift_slot = int(SysConfSlot.drift)
         recast = self.recast
 
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, fastmath=fastmath)
         def _ith_diffuse(i_: int, time_step: float, sys_conf: np.ndarray):
             """
 
@@ -568,7 +570,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         :return:
         """
-        fastmath = self.fastmath
+        fastmath = self.jit_fastmath
         cfc_spec = self.cfc_spec_nt
         pos_slot = int(SysConfSlot.pos)
         drift_slot = int(SysConfSlot.drift)
@@ -641,7 +643,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     def prepare_ini_ith_system(self):
         """Prepare a system of the initial state of the sampling."""
 
-        fastmath = self.fastmath
+        fastmath = self.jit_fastmath
         cfc_spec = self.cfc_spec_nt
         nop = cfc_spec.model_spec.boson_number
         pos_slot = int(SysConfSlot.pos)
@@ -688,8 +690,8 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     def prepare_ini_state(self):
         """Prepare the initial state of the sampling. """
 
-        parallel = self.parallel
-        fastmath = self.fastmath
+        parallel = self.jit_parallel
+        fastmath = self.jit_fastmath
 
         # Fields
         state_props_fields = qmc_base.dmc.StateProp

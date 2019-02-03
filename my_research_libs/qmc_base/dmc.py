@@ -199,11 +199,11 @@ class Sampling(metaclass=ABCMeta):
     ssf_est_spec: t.Optional[SSFEstSpec]
 
     #: Parallel execution where possible.
-    # NOTE: Not sure how useful it could be.
-    parallel: bool
+    jit_parallel: bool
 
     #: Use fastmath compiler directive.
-    fastmath: bool
+    # NOTE: Not sure how useful it could be.
+    jit_fastmath: bool
 
     @property
     @abstractmethod
@@ -310,10 +310,10 @@ class CoreFuncs(metaclass=ABCMeta):
     ssf_est_spec_nt: t.Optional[SSFEstSpecNT]
 
     #: Parallel the execution where possible.
-    parallel: bool
+    jit_parallel: bool
 
     #: Use fastmath compiler directive.
-    fastmath: bool
+    jit_fastmath: bool
 
     @property
     @abstractmethod
@@ -327,7 +327,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
-        fastmath = self.fastmath
+        fastmath = self.jit_fastmath
         props_weight_field = StateProp.WEIGHT.value
         clone_ref_field = BranchingSpecField.CLONING_REF.value
 
@@ -372,16 +372,17 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
+        parallel = self.jit_parallel
+        fastmath = self.jit_fastmath
         props_energy_field = StateProp.ENERGY.value
         props_weight_field = StateProp.WEIGHT.value
         props_mask_field = StateProp.MASK.value
         branch_ref_field = BranchingSpecField.CLONING_REF.value
 
         # JIT methods.
-        fastmath = self.fastmath
         evolve_system = self.evolve_system
 
-        @nb.jit(nopython=True, parallel=True, fastmath=fastmath)
+        @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
         def _evolve_state(prev_state_confs: np.ndarray,
                           prev_state_props: np.ndarray,
                           actual_state_confs: np.ndarray,
@@ -487,7 +488,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
-        fastmath = self.fastmath
+        fastmath = self.jit_fastmath
         props_energy_field = StateProp.ENERGY.value
         props_weight_field = StateProp.WEIGHT.value
 
@@ -629,7 +630,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
-        fastmath = self.fastmath
+        fastmath = self.jit_fastmath
         ssf_num_modes = self.ssf_est_spec_nt.num_modes
 
         # noinspection PyTypeChecker
@@ -771,8 +772,8 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
-        fastmath = self.fastmath
-        parallel = self.parallel
+        fastmath = self.jit_fastmath
+        parallel = self.jit_parallel
         branch_ref_field = BranchingSpecField.CLONING_REF.value
 
         # Structure factor
@@ -875,7 +876,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
         :return:
         """
-        fastmath = self.fastmath
+        fastmath = self.jit_fastmath
         iter_energy_field = IterProp.ENERGY.value
         iter_weight_field = IterProp.WEIGHT.value
         iter_num_walkers_field = IterProp.NUM_WALKERS.value
