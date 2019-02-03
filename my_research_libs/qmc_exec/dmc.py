@@ -353,7 +353,7 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
                                                  has_weight_totals=False)
         num_walkers_blocks = NumWalkersBlocks(**blocks_data)
 
-        ss_factor_group = blocks_group.require_group('ss_factor')
+        ss_factor_group = blocks_group.get('ss_factor', None)
         if ss_factor_group is not None:
             #
             fdk_sqr_abs_group = \
