@@ -450,6 +450,15 @@ class Proc(dmc_exec_base.Proc):
         else:
             ssf_est_spec = None
 
+        # Aliases for jit_parallel and jit_fastmath.
+        if 'parallel' in self_config:
+            parallel = self_config.pop('parallel')
+            self_config['jit_parallel'] = parallel
+
+        if 'fastmath' in self_config:
+            fastmath = self_config.pop('fastmath')
+            self_config['jit_fastmath'] = fastmath
+
         dmc_proc = cls(model_spec=model_spec,
                        ssf_spec=ssf_est_spec,
                        **self_config)
