@@ -21,7 +21,7 @@ def numba_seed(seed):
     random.seed(seed)
 
 
-@jit(['f8(f8)'], nopython=True, cache=True)
+@jit(nopython=True)
 def sign(v):
     """Retrieves the sign of a floating point number.
 
@@ -31,7 +31,7 @@ def sign(v):
     return copysign(1., v)
 
 
-@jit(['f8(f8,f8,f8)'], nopython=True, cache=True)
+@jit(nopython=True)
 def min_distance(z_i, z_j, sc_size):
     """Calculates the minimum distance between the particle at
     ``z_i`` and all of the images of the particle at ``z_j``,
@@ -51,7 +51,7 @@ def min_distance(z_i, z_j, sc_size):
     return z_ij
 
 
-@jit(['f8(f8,f8,f8)'], nopython=True, cache=True)
+@jit(nopython=True)
 def recast_to_supercell(z, z_min, z_max):
     """Gets the position of the particle at ``z`` within the simulation
     supercell with boundaries ``z_min`` y ``z_max``. If the particle is

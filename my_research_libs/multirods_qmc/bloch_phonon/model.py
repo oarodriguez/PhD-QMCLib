@@ -1,6 +1,6 @@
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from os import cpu_count
-from typing import NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple, Optional, Tuple
 
 import attr
 import dask
@@ -13,6 +13,7 @@ from scipy.optimize import brentq, differential_evolution
 
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
+from my_research_libs.util.attr import int_converter, int_validator
 
 __all__ = [
     'CFCSpecNT',
@@ -74,6 +75,22 @@ class CFCSpecNT(qmc_base.jastrow.CFCSpecNT, NamedTuple):
     tbf_spec: TBFSpecNT
 
 
+# noinspection PyUnusedLocal
+def tbf_contact_cutoff_validator(model_inst: 'Spec',
+                                 attribute: str,
+                                 value: Any):
+    """Validator for the ``tbf_contact_cutoff`` attribute.
+
+    :param model_inst: The model instance.
+    :param attribute: The validated attribute.
+    :param value: The value of the attribute.
+    :return:
+    """
+    sc_size = model_inst.supercell_size
+    if not fabs(value) <= fabs(sc_size / 2):
+        raise ValueError("parameter value 'rm' out of domain")
+
+
 # NOTE: slots=True avoids adding more attributes
 # NOTE: Use repr=False if we want instances that can be serialized (pickle)
 @attr.s(auto_attribs=True, frozen=True)
@@ -85,23 +102,25 @@ class Spec(qmc_base.jastrow.Spec):
     with a trial wave function of the Bijl-Jastrow type.
     """
     #: The lattice depth of the potential.
-    lattice_depth: float
+    lattice_depth: float = attr.ib(converter=float)
 
     #: The ratio of the barriers width between the wells width.
-    lattice_ratio: float
+    lattice_ratio: float = attr.ib(converter=float)
 
     #: The magnitude of the interaction strength between two bosons.
-    interaction_strength: float
+    interaction_strength: float = attr.ib(converter=float)
 
     #: The number of bosons.
-    boson_number: int
+    boson_number: int = \
+        attr.ib(converter=int_converter, validator=int_validator)
 
     #: The size of the QMC simulation box.
-    supercell_size: float
+    supercell_size: float = attr.ib(converter=float)
 
     # TODO: We need a better documentation for this attribute.
     #: The variational parameter of the two-body functions.
-    tbf_contact_cutoff: float
+    tbf_contact_cutoff: float = \
+        attr.ib(converter=float, validator=tbf_contact_cutoff_validator)
 
     # TODO: Implement improved __init__.
 
@@ -152,7 +171,8 @@ class Spec(qmc_base.jastrow.Spec):
         # NOTE: Should we allocate space for the DRIFT_SLOT?
         # TODO: Fix NUM_SLOTS if DRIFT_SLOT becomes really unnecessary.
         nop = self.boson_number
-        return len(self.sys_conf_slots), nop
+        # noinspection PyTypeChecker
+        return len(qmc_base.jastrow.SysConfSlot), nop
 
     def init_get_sys_conf(self, dist_type=DIST_RAND, offset=None):
         """Creates and initializes a system configuration with the
@@ -305,7 +325,7 @@ class Spec(qmc_base.jastrow.Spec):
     def phys_funcs(self):
         """Functions to calculate the main physical properties of a model."""
         # NOTE: Should we use a new PhysicalFuncs instance?
-        return PhysicalFuncs(self)
+        return PhysicalFuncs.from_model_spec(self)
 
 
 @jit(nopython=True)
@@ -525,7 +545,12 @@ core_funcs = CoreFuncs()
 class PhysicalFuncs(qmc_base.jastrow.PhysicalFuncs):
     """Functions to calculate the main physical properties of the model."""
 
-    spec: Spec
+    cfc_spec_nt: CFCSpecNT
+
+    @classmethod
+    def from_model_spec(cls, model_spec: Spec):
+        """Builds the core functions for the given model Spec."""
+        return cls(model_spec.cfc_spec_nt)
 
     @cached_property
     def core_funcs(self):
@@ -562,14 +587,11 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
     #: Display log messages or not.
     verbose: bool = attr.ib(default=False, cmp=False)
 
-    #: The system configurations as a dak bag.
-    sys_conf_set_db: db.Bag = attr.ib(init=False, cmp=False, repr=False)
-
-    def __attrs_post_init__(self):
-        """Por-initialization process."""
+    @cached_property
+    def sys_conf_set_db(self):
+        """"""
         sys_conf_set = [sys_conf for sys_conf in self.sys_conf_set]
-        sys_conf_set_db = db.from_sequence(sys_conf_set)
-        super().__setattr__('sys_conf_set_db', sys_conf_set_db)
+        return db.from_sequence(sys_conf_set)
 
     def update_spec(self, tbf_contact_cutoff: float):
         """Updates the model spec.

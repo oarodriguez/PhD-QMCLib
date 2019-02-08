@@ -1,13 +1,15 @@
 from itertools import islice
-from typing import Iterator, Tuple
 
 import attr
 import numpy as np
 import pytest
 from matplotlib import pyplot
+from numba.runtime import rtsys
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs.multirods_qmc import bloch_phonon
+from my_research_libs.qmc_base.jastrow import SysConfDistType, SysConfSlot
+from my_research_libs.qmc_exec import exec_logger
 
 LATTICE_DEPTH = 100
 LATTICE_RATIO = 1
@@ -67,19 +69,19 @@ def test_qmc_funcs():
     epp = energy_v / BOSON_NUMBER
     print("The energy per particle is: {:.6g}".format(epp))
 
-    drift_values = out_sys_conf[model_spec.sys_conf_slots.drift, :]
+    drift_values = out_sys_conf[SysConfSlot.drift, :]
     print("The drift is: {}".format(drift_values))
 
     # Testing that the array function do not modify its inputs
-    in_pos_values = sys_conf[model_spec.sys_conf_slots.pos, :]
-    out_pos_values = out_sys_conf[model_spec.sys_conf_slots.pos, :]
+    in_pos_values = sys_conf[SysConfSlot.pos, :]
+    out_pos_values = out_sys_conf[SysConfSlot.pos, :]
     assert np.alltrue(out_pos_values == in_pos_values)
 
     with pytest.raises(AssertionError):
         # Testing that the array function modified the output array
         # where expected.
-        in_pos_values = sys_conf[model_spec.sys_conf_slots.drift, :]
-        out_pos_values = out_sys_conf[model_spec.sys_conf_slots.drift, :]
+        in_pos_values = sys_conf[SysConfSlot.drift, :]
+        out_pos_values = out_sys_conf[SysConfSlot.drift, :]
         assert np.alltrue(out_pos_values == in_pos_values)
 
 
@@ -104,29 +106,32 @@ def test_vmc():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
     ar = 0
-    for cj_, data in enumerate(vmc_sampling):
+    sampling_states = vmc_sampling.states(ini_sys_conf)
+    for cj_, data in enumerate(sampling_states):
         sys_conf, wfv, stat = data
         ar += stat
         if cj_ + 1 >= num_steps:
             break
     ar /= num_steps
 
-    states_data = vmc_sampling.as_chain(num_steps)
-    sys_confs_set, sys_props_set, ar_ = states_data
+    states_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    sys_confs_set = states_data.confs
+    sys_props_set = states_data.props
+    ar_ = states_data.accept_rate
 
     move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
     accepted = np.count_nonzero(sys_props_set[move_stat_field])
     assert (accepted / num_steps) == ar_
 
-    num_slots = len(model_spec.sys_conf_slots)
+    # noinspection PyTypeChecker
+    num_slots = len(SysConfSlot)
     assert sys_confs_set.shape == (num_steps, num_slots, boson_number)
     assert ar == ar_
 
     print(f"Sampling acceptance rate: {ar:.5g}")
-    pos_slot = model_spec.sys_conf_slots.pos
+    pos_slot = SysConfSlot.pos
 
     ax = pyplot.gca()
     pos = sys_confs_set[:, pos_slot]
@@ -157,7 +162,6 @@ def test_vmc_batches():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
     # Both samplings (in batches and as_chain) have a total number
@@ -167,7 +171,7 @@ def test_vmc_batches():
     num_steps = num_batches * num_steps_batch
     eff_num_steps = (num_batches - 1) * num_steps_batch
 
-    sampling_batches = vmc_sampling.batches(num_steps_batch)
+    sampling_batches = vmc_sampling.batches(num_steps_batch, ini_sys_conf)
     accepted = 0.
     for states_batch in islice(sampling_batches, 1, num_batches):
         accept_rate = states_batch.accept_rate
@@ -175,7 +179,7 @@ def test_vmc_batches():
     batches_accept_rate = accepted / eff_num_steps
 
     move_stat_field = bloch_phonon.vmc.StateProp.MOVE_STAT
-    states_data = vmc_sampling.as_chain(num_steps)
+    states_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_props_set = states_data.props[num_steps_batch:]
     accepted = np.count_nonzero(sys_props_set[move_stat_field])
     chain_accept_rate = accepted / eff_num_steps
@@ -200,17 +204,16 @@ def test_wf_optimize():
                                    tbf_contact_cutoff=tbf_contact_cutoff)
     move_spread = 0.25 * model_spec.well_width
     num_steps = 4096 * 1
-    dist_type_regular = model_spec.sys_conf_dist_type.REGULAR
+    dist_type_regular = SysConfDistType.REGULAR
     offset = model_spec.well_width / 2
     ini_sys_conf = model_spec.init_get_sys_conf(dist_type=dist_type_regular,
                                                 offset=offset)
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
     wf_abs_log_field = bloch_phonon.vmc.StateProp.WF_ABS_LOG
-    vmc_chain = vmc_sampling.as_chain(num_steps)
+    vmc_chain = vmc_sampling.as_chain(num_steps, ini_sys_conf)
     sys_conf_set = vmc_chain.confs[:1000]
     wf_abs_log_set = vmc_chain.props[wf_abs_log_field][:1000]
 
@@ -228,8 +231,8 @@ def test_dmc():
     lattice_depth = 0
     lattice_ratio = 1
     interaction_strength = 40
-    boson_number = 50
-    supercell_size = 50
+    boson_number = 16
+    supercell_size = 16
     tbf_contact_cutoff = 0.25 * supercell_size
 
     # TODO: Improve this test.
@@ -241,20 +244,20 @@ def test_dmc():
                                    tbf_contact_cutoff=tbf_contact_cutoff)
 
     move_spread = 0.25 * model_spec.well_width
-    num_steps = 4096 * 2
+    num_steps = 4906 * 1
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
-    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    sys_conf_set = vmc_chain_data.confs
+    ar_ = vmc_chain_data.accept_rate
     print(f"Acceptance ratio: {ar_:.5g}")
 
     time_step = 1e-3
-    num_batches = 8
-    num_time_steps_batch = 128
+    num_batches = 96
+    num_time_steps_batch = 512
     ini_sys_conf_set = sys_conf_set[-100:]
     target_num_walkers = 480
     max_num_walkers = 512
@@ -263,17 +266,17 @@ def test_dmc():
     dmc_sampling = \
         bloch_phonon.dmc.Sampling(model_spec,
                                   time_step,
-                                  ini_sys_conf_set,
-                                  ini_ref_energy=ini_ref_energy,
                                   max_num_walkers=max_num_walkers,
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
 
-    t_enum_dmc_sampling = Iterator[Tuple[int, dmc_base.State]]
-
     num_time_steps = num_batches * num_time_steps_batch
-    dmc_sampling_slice = islice(dmc_sampling, num_time_steps)
-    iter_enum: t_enum_dmc_sampling = enumerate(dmc_sampling_slice)
+    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+
+    states = dmc_sampling.states(ini_state)
+    dmc_sampling_slice = islice(states, num_time_steps)
+    iter_enum: dmc_base.T_E_SIter = enumerate(dmc_sampling_slice)
+
     for i_, state in iter_enum:
         state_data = \
             (state.energy, state.weight, state.num_walkers,
@@ -304,15 +307,15 @@ def test_dmc_batches():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
 
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
-    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    sys_conf_set = vmc_chain_data.confs
+    ar_ = vmc_chain_data.accept_rate
     print(f"Acceptance ratio: {ar_:.5g}")
 
     time_step = 1e-3
-    num_batches = 64
+    num_batches = 8
     num_time_steps_batch = 128
     ini_sys_conf_set = sys_conf_set[-100:]
     target_num_walkers = 480
@@ -322,14 +325,17 @@ def test_dmc_batches():
     dmc_sampling = \
         bloch_phonon.dmc.Sampling(model_spec,
                                   time_step,
-                                  ini_sys_conf_set,
-                                  ini_ref_energy=ini_ref_energy,
                                   max_num_walkers=max_num_walkers,
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
 
-    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
-        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+    sampling_batches = \
+        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
+
+    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
+        islice(sampling_batches, num_batches)
+
     for batch in dmc_sampling_batches:
         state_props = batch.iter_props
         print(state_props)
@@ -354,15 +360,14 @@ def test_dmc_energy():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
-    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    sys_conf_set = vmc_chain_data.confs
 
     time_step = 1e-2
     num_batches = 4
     num_time_steps_batch = 128
-    ini_sys_conf_set = sys_conf_set[-768:]
+    ini_sys_conf_set = sys_conf_set[-128:]
     target_num_walkers = 480
     max_num_walkers = 512
     ini_ref_energy = None
@@ -370,8 +375,6 @@ def test_dmc_energy():
     dmc_sampling = \
         bloch_phonon.dmc.Sampling(model_spec,
                                   time_step,
-                                  ini_sys_conf_set,
-                                  ini_ref_energy=ini_ref_energy,
                                   max_num_walkers=max_num_walkers,
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
@@ -380,8 +383,13 @@ def test_dmc_energy():
     energy_batch = dmc_sampling.energy_batch
     energy_field = bloch_phonon.dmc.IterProp.ENERGY
 
-    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
-        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+    sampling_batches = \
+        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
+
+    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
+        islice(sampling_batches, num_batches)
+
     for iter_data in dmc_sampling_batches:
         #
         energy_result = energy_batch(iter_data)
@@ -411,13 +419,12 @@ def test_dmc_batch_func():
     ini_sys_conf = model_spec.init_get_sys_conf()
     vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
                                              move_spread=move_spread,
-                                             ini_sys_conf=ini_sys_conf,
                                              rng_seed=1)
-    vmc_chain_data = vmc_sampling.as_chain(num_steps)
-    sys_conf_set, sys_props_set, ar_ = vmc_chain_data
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    sys_conf_set = vmc_chain_data.confs
 
     time_step = 1e-2
-    num_batches = 8
+    num_batches = 2
     num_time_steps_batch = 256
     ini_sys_conf_set = sys_conf_set[-128:]
     target_num_walkers = 480
@@ -427,8 +434,6 @@ def test_dmc_batch_func():
     dmc_sampling = \
         bloch_phonon.dmc.Sampling(model_spec,
                                   time_step,
-                                  ini_sys_conf_set,
-                                  ini_ref_energy=ini_ref_energy,
                                   max_num_walkers=max_num_walkers,
                                   target_num_walkers=target_num_walkers,
                                   rng_seed=rng_seed)
@@ -439,20 +444,105 @@ def test_dmc_batch_func():
     kz = np.arange(1., nop + 1) * 2 * np.pi / sc_size
 
     # Alias.
-    structure_factor_batch = dmc_sampling.structure_factor_batch
+    fourier_density_batch = dmc_sampling.fourier_density_batch
     weight_field = bloch_phonon.dmc.IterProp.WEIGHT.value
 
-    dmc_sampling_batches: dmc_base.T_BatchesGenerator = \
-        islice(dmc_sampling.batches(num_time_steps_batch), num_batches)
+    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+    sampling_batches = \
+        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
+
+    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
+        islice(sampling_batches, num_batches)
+
     for iter_data in dmc_sampling_batches:
         #
-        sk_result = structure_factor_batch(kz, iter_data)
-        sk = sk_result.func
-        iter_props = sk_result.iter_props
+        fdk_result = fourier_density_batch(kz, iter_data)
+        fdk = fdk_result.func
+        iter_props = fdk_result.iter_props
         iter_weights = iter_props[weight_field]
-        sk_average = sk.sum(axis=0) / iter_weights.sum(axis=0) / nop
-        print(np.stack((kz, sk_average), axis=-1))
+        fdk_average = fdk.sum(axis=0) / iter_weights.sum(axis=0) / nop
+        print(np.stack((kz, fdk_average), axis=-1))
+
+
+def test_dmc_est_sampling():
+    """Testing the DMC sampling to evaluate several estimators."""
+
+    lattice_depth = 0
+    lattice_ratio = 1
+    interaction_strength = 4
+    boson_number = 30
+    supercell_size = 30
+    tbf_contact_cutoff = 0.25 * supercell_size
+
+    exec_logger.info('Init sampling...')
+
+    # TODO: Improve this test.
+    model_spec = bloch_phonon.Spec(lattice_depth=lattice_depth,
+                                   lattice_ratio=lattice_ratio,
+                                   interaction_strength=interaction_strength,
+                                   boson_number=boson_number,
+                                   supercell_size=supercell_size,
+                                   tbf_contact_cutoff=tbf_contact_cutoff)
+
+    exec_logger.info('Init VMC sampling...')
+
+    move_spread = 0.25 * model_spec.well_width
+    num_steps = 1024 * 1
+    ini_sys_conf = model_spec.init_get_sys_conf()
+    vmc_sampling = bloch_phonon.vmc.Sampling(model_spec=model_spec,
+                                             move_spread=move_spread,
+                                             rng_seed=1)
+
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    sys_conf_set = vmc_chain_data.confs
+    ar_ = vmc_chain_data.accept_rate
+    print(f"Acceptance ratio: {ar_:.5g}")
+
+    exec_logger.info('Finished sampling...')
+
+    time_step = 1e-3
+    num_batches = 16
+    num_time_steps_batch = 32
+    ini_sys_conf_set = sys_conf_set[-128:]
+    target_num_walkers = 480
+    max_num_walkers = 512
+    ini_ref_energy = None
+    rng_seed = None
+
+    ssf_est_spec = bloch_phonon.dmc.SSFEstSpec(model_spec, num_modes=100)
+    dmc_sampling = \
+        bloch_phonon.dmc.Sampling(model_spec,
+                                  time_step,
+                                  max_num_walkers=max_num_walkers,
+                                  target_num_walkers=target_num_walkers,
+                                  rng_seed=rng_seed,
+                                  ssf_est_spec=ssf_est_spec,
+                                  jit_fastmath=False,
+                                  jit_parallel=True)
+
+    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+    dmc_es_batches = dmc_sampling.batches(ini_state, num_time_steps_batch)
+
+    es_batches: dmc_base.T_SBatchesIter = \
+        islice(dmc_es_batches, num_batches)
+
+    exec_logger.info('Init DMC sampling...')
+
+    for batch in es_batches:
+        state_props = batch.iter_props
+        nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
+        iter_ssf = batch.iter_ssf
+        # print(state_props)
+        ssf_batch_data = iter_ssf / nw_iter[:, np.newaxis, np.newaxis]
+        # print(ssf_batch_data)
+        # print(nw_iter)
+        # This helps to catch memory leaks in numba compiled functions.
+        print(rtsys.get_allocation_stats())
+        print('---')
+
+    exec_logger.info('Finish DMC sampling.')
 
 
 if __name__ == '__main__':
-    test_dmc()
+    # test_dmc()
+    test_dmc_est_sampling()

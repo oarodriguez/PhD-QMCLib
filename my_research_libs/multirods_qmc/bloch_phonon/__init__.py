@@ -3,7 +3,7 @@
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 #
-from . import vmc, dmc
+from . import dmc, vmc
 
 #
 from .model import *

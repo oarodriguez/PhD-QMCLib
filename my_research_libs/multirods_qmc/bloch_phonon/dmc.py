@@ -1,5 +1,5 @@
 import typing as t
-from math import exp, sqrt
+from math import exp, pi, sqrt
 
 import attr
 import numba as nb
@@ -9,7 +9,11 @@ from cached_property import cached_property
 from numpy import random
 
 from my_research_libs import qmc_base, utils
-from my_research_libs.qmc_base.dmc import SamplingIterData
+from my_research_libs.qmc_base.dmc import (
+    SSFPartSlot, SamplingConfsPropsBatch, branching_spec_dtype,
+    dummy_pure_est_core_func
+)
+from my_research_libs.qmc_base.jastrow import SysConfSlot
 from my_research_libs.qmc_base.utils import recast_to_supercell
 from . import model
 
@@ -18,10 +22,26 @@ __all__ = [
     'CoreFuncs',
     'IterProp',
     'Sampling',
-    'SamplingIterData',
     'State',
-    'StateProp'
+    'StateError',
+    'StateProp',
+    'SSFEstSpec'
 ]
+
+StateProp = qmc_base.dmc.StateProp
+IterProp = qmc_base.dmc.IterProp
+
+state_confs_dtype = np.float64
+
+state_props_dtype = np.dtype([
+    (StateProp.ENERGY.value, np.float64),
+    (StateProp.WEIGHT.value, np.float64),
+    (StateProp.MASK.value, np.bool)
+])
+
+T_ExtArrays = t.Tuple[np.ndarray, ...]
+T_RelDist = t.Union[t.SupportsFloat, np.ndarray]
+T_Momentum = t.Union[t.SupportsFloat, np.ndarray]
 
 
 class State(qmc_base.dmc.State, t.NamedTuple):
@@ -43,20 +63,142 @@ class BatchFuncResult(t.NamedTuple):
     iter_props: np.ndarray
 
 
-StateProp = qmc_base.dmc.StateProp
-IterProp = qmc_base.dmc.IterProp
+class StateError(ValueError):
+    """Flags errors related to the handling of a DMC state."""
+    pass
 
-state_confs_dtype = np.float64
 
-state_props_dtype = np.dtype([
-    (StateProp.ENERGY.value, np.float64),
-    (StateProp.WEIGHT.value, np.float64),
-    (StateProp.MASK.value, np.bool)
-])
+class SSFEstSpecNT(qmc_base.dmc.SSFEstSpecNT, t.NamedTuple):
+    """"""
+    num_modes: int
+    as_pure_est: bool = True
+    pfw_num_time_steps: int = None
+    core_func: t.Callable = qmc_base.dmc.dummy_pure_est_core_func
 
-T_ExtArrays = t.Tuple[np.ndarray, ...]
-T_RelDist = t.Union[t.SupportsFloat, np.ndarray]
-T_Momentum = t.Union[t.SupportsFloat, np.ndarray]
+
+@attr.s(auto_attribs=True, frozen=True)
+class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
+    """Structure factor estimator."""
+
+    model_spec: model.Spec
+    num_modes: int
+    as_pure_est: bool = True
+    pfw_num_time_steps: t.Optional[int] = None
+
+    def __attrs_post_init__(self):
+        """Post-initialization stage."""
+
+        if self.pfw_num_time_steps is None:
+            # A very large integer 🤔.
+            pfs_nts = 99999999
+            object.__setattr__(self, 'pfw_num_time_steps', pfs_nts)
+
+    @cached_property
+    def momenta(self):
+        """
+
+        :return:
+        """
+        num_modes = self.num_modes
+        supercell_size = self.model_spec.supercell_size
+
+        # TODO: Should we exclude the momentum k = 0?
+        return np.arange(num_modes) * 2 * pi / supercell_size
+
+    @cached_property
+    def core_func(self):
+        """
+
+        :return:
+        """
+        model_spec = self.model_spec
+        num_modes = self.num_modes
+        as_pure_est = self.as_pure_est
+        pfs_nts = self.pfw_num_time_steps
+        momenta = self.momenta
+
+        # Slots to save data to  evaluate S(k).
+        sqr_abs_slot = int(SSFPartSlot.FDK_SQR_ABS)
+        real_slot = int(SSFPartSlot.FDK_REAL)
+        imag_slot = int(SSFPartSlot.FDK_IMAG)
+
+        cfc_spec_nt = model_spec.cfc_spec_nt
+        fourier_density = model.core_funcs.fourier_density
+
+        # noinspection PyUnusedLocal
+        @nb.jit(nopython=True)
+        def _core_func(step_idx: int,
+                       sys_idx: int,
+                       clone_ref_idx: int,
+                       state_confs: np.ndarray,
+                       iter_ssf_array: np.ndarray,
+                       aux_states_ssf_array: np.ndarray):
+            """
+
+            :param step_idx:
+            :param sys_idx:
+            :param clone_ref_idx:
+            :param state_confs:
+            :param iter_ssf_array:
+            :param aux_states_ssf_array:
+            :return:
+            """
+            prev_step_idx = step_idx % 2 - 1
+            actual_step_idx = step_idx % 2
+
+            prev_state_ssf = aux_states_ssf_array[prev_step_idx]
+            actual_state_ssf = aux_states_ssf_array[actual_step_idx]
+
+            prev_sys_ssf = prev_state_ssf[clone_ref_idx]
+            actual_sys_ssf = actual_state_ssf[sys_idx]
+            sys_conf = state_confs[sys_idx]
+
+            if not as_pure_est:
+                # Mixed estimator.
+
+                for kz_idx in range(num_modes):
+                    momentum = momenta[kz_idx]
+                    sys_fdk_idx = \
+                        fourier_density(momentum, sys_conf, cfc_spec_nt)
+
+                    # Just update the actual state.
+                    fdk_sqr_abs = sys_fdk_idx * sys_fdk_idx.conjugate()
+
+                    actual_sys_ssf[kz_idx, sqr_abs_slot] = fdk_sqr_abs.real
+                    actual_sys_ssf[kz_idx, real_slot] = sys_fdk_idx.real
+                    actual_sys_ssf[kz_idx, imag_slot] = sys_fdk_idx.imag
+
+                # Finish.
+                return
+
+            # Pure estimator.
+            if step_idx >= pfs_nts:
+                # Just "transport" the structure factor parts of the previous
+                # configuration to the new one.
+                for kz_idx in range(num_modes):
+                    actual_state_ssf[sys_idx, kz_idx] = prev_sys_ssf[kz_idx]
+
+            else:
+                # Evaluate the structure factor for the actual
+                # system configuration.
+                for kz_idx in range(num_modes):
+                    momentum = momenta[kz_idx]
+                    sys_fdk_idx = \
+                        fourier_density(momentum, sys_conf, cfc_spec_nt)
+
+                    fdk_sqr_abs = sys_fdk_idx * sys_fdk_idx.conjugate()
+
+                    # Update with the previous state ("transport").
+                    actual_sys_ssf[kz_idx, sqr_abs_slot] = \
+                        fdk_sqr_abs.real + prev_sys_ssf[kz_idx, sqr_abs_slot]
+
+                    actual_sys_ssf[kz_idx, real_slot] = \
+                        sys_fdk_idx.real + prev_sys_ssf[kz_idx, real_slot]
+
+                    actual_sys_ssf[kz_idx, imag_slot] = \
+                        sys_fdk_idx.imag + prev_sys_ssf[kz_idx, imag_slot]
+
+        return _core_func
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -67,26 +209,21 @@ class Sampling(qmc_base.dmc.Sampling):
     model_spec: model.Spec
 
     time_step: float
-    ini_sys_conf_set: np.ndarray
-    ini_ref_energy: t.Optional[float] = None
-    max_num_walkers: int = 544
-    target_num_walkers: int = 512
-    num_walkers_control_factor: t.Optional[float] = 0.5
+    max_num_walkers: int
+    target_num_walkers: int
+    num_walkers_control_factor: t.Optional[float] = None
     rng_seed: t.Optional[int] = None
+
+    # *** Estimators configuration ***
+    ssf_est_spec: t.Optional[SSFEstSpec] = None
+    jit_parallel: bool = True
+    jit_fastmath: bool = False
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
         if self.rng_seed is None:
-            rng_seed = utils.get_random_rng_seed()
+            rng_seed = int(utils.get_random_rng_seed())
             super().__setattr__('rng_seed', rng_seed)
-
-        # Only take as much sys_conf items as max_num_walkers.
-        # NOTE: Take the configurations counting from the last one.
-        ini_sys_conf_set = self.ini_sys_conf_set[-self.max_num_walkers:]
-        super().__setattr__('ini_sys_conf_set', ini_sys_conf_set)
-
-        core_funcs = CoreFuncs.from_model_spec(self.model_spec)
-        super().__setattr__('core_funcs', core_funcs)
 
     @property
     def state_confs_shape(self):
@@ -101,25 +238,37 @@ class Sampling(qmc_base.dmc.Sampling):
         max_num_walkers = self.max_num_walkers
         return max_num_walkers,
 
-    def init_get_ini_state(self) -> State:
-        """The initial state for the sampling.
+    def build_state(self, sys_conf_set: np.ndarray,
+                    ref_energy: float = None) -> State:
+        """Builds a state for the sampling.
 
         The state includes the drift, the energies wne the weights of
         each one of the initial system configurations.
+
+        :param sys_conf_set:
+        :param ref_energy:
+        :return:
         """
         confs_shape = self.state_confs_shape
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
-        ini_sys_conf_set = self.ini_sys_conf_set
-        ref_energy = self.ini_ref_energy
-        num_walkers = len(ini_sys_conf_set)
+
+        if len(confs_shape) == len(sys_conf_set.shape):
+            # Equal number of dimensions, but...
+            if confs_shape[1:] != self.model_spec.sys_conf_shape:
+                raise StateError("sys_conf_set is not a valid set of "
+                                 "configurations of the model spec")
+
+        # Only take as much sys_conf items as target_num_walkers.
+        sys_conf_set = np.asarray(sys_conf_set)[-self.target_num_walkers:]
+        num_walkers = len(sys_conf_set)
 
         # Initial state arrays.
         state_confs = np.zeros(confs_shape, dtype=state_confs_dtype)
         state_props = np.zeros(props_shape, dtype=state_props_dtype)
 
         # Calculate the initial state arrays properties.
-        self.core_funcs.prepare_ini_state(ini_sys_conf_set, state_confs,
+        self.core_funcs.prepare_ini_state(sys_conf_set, state_confs,
                                           state_props)
 
         state_energies = state_props[StateProp.ENERGY][:num_walkers]
@@ -134,18 +283,24 @@ class Sampling(qmc_base.dmc.Sampling):
             # average of the energy of the initial state.
             ref_energy = energy
 
+        # Table to control the branching process.
+        branching_spec = \
+            np.zeros(max_num_walkers, dtype=branching_spec_dtype)
+
         # NOTE: The branching spec for the initial state is None.
-        return State(confs=state_confs,
-                     props=state_props,
-                     energy=state_energy,
-                     weight=state_weight,
-                     num_walkers=num_walkers,
-                     ref_energy=ref_energy,
-                     accum_energy=energy,
-                     max_num_walkers=max_num_walkers)
+        return qmc_base.dmc.State(confs=state_confs,
+                                  props=state_props,
+                                  energy=state_energy,
+                                  weight=state_weight,
+                                  num_walkers=num_walkers,
+                                  ref_energy=ref_energy,
+                                  accum_energy=energy,
+                                  max_num_walkers=max_num_walkers,
+                                  branching_spec=branching_spec)
 
     def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
-                                  iter_batch: SamplingIterData) -> t.Tuple:
+                                  iter_batch: SamplingConfsPropsBatch) -> \
+            t.Tuple:
         """
 
         :param iter_batch:
@@ -185,12 +340,12 @@ class Sampling(qmc_base.dmc.Sampling):
         states_props_array, *_ext_arrays_ = \
             np.broadcast_arrays(states_props_array, *ext_arrays)
 
-        return _ext_arrays_, SamplingIterData(states_confs_array,
-                                              states_props_array,
-                                              iter_props_array)
+        return _ext_arrays_, SamplingConfsPropsBatch(states_confs_array,
+                                                     states_props_array,
+                                                     iter_props_array)
 
     @staticmethod
-    def energy_batch(iter_data: SamplingIterData):
+    def energy_batch(iter_data: SamplingConfsPropsBatch):
         """
 
         :param iter_data:
@@ -224,7 +379,7 @@ class Sampling(qmc_base.dmc.Sampling):
         return BatchFuncResult(total_energy_array, iter_data.iter_props)
 
     def one_body_density_batch(self, rel_dist: T_RelDist,
-                               iter_data: SamplingIterData,
+                               iter_data: SamplingConfsPropsBatch,
                                result: np.ndarray = None):
         """Calculates the one-body density for a sampling batch.
 
@@ -263,9 +418,9 @@ class Sampling(qmc_base.dmc.Sampling):
         total_obd_array = obd_masked_array.sum(axis=1)
         return BatchFuncResult(total_obd_array, iter_data.iter_props)
 
-    def structure_factor_batch(self, momentum: T_Momentum,
-                               batch_data: SamplingIterData,
-                               result: np.ndarray = None) -> BatchFuncResult:
+    def fourier_density_batch(self, momentum: T_Momentum,
+                              batch_data: SamplingConfsPropsBatch,
+                              result: np.ndarray = None) -> BatchFuncResult:
         """Evaluates the static structure factor for a sampling batch.
 
         :param momentum:
@@ -290,24 +445,50 @@ class Sampling(qmc_base.dmc.Sampling):
         states_masks_array: np.ndarray = states_props_array[mask_field]
 
         # noinspection PyTypeChecker
-        sf_array = core_funcs.structure_factor(momentum,
+        fdk_array = core_funcs.fourier_density(momentum,
                                                states_confs_array,
                                                states_weights_array,
                                                states_masks_array,
                                                result)
 
         # Mask the resulting array
-        sf_masked_array: ma.MaskedArray = \
-            ma.MaskedArray(sf_array, mask=states_masks_array)
+        fdk_masked_array: ma.MaskedArray = \
+            ma.MaskedArray(fdk_array, mask=states_masks_array)
 
         # Sum over the axis that indexes the walkers.
-        total_sf_array = sf_masked_array.sum(axis=1)
-        return BatchFuncResult(total_sf_array, batch_data.iter_props)
+        total_fdk_array = fdk_masked_array.sum(axis=1)
+        return BatchFuncResult(total_fdk_array, batch_data.iter_props)
 
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':
-        """The sampling core functions."""
-        return CoreFuncs.from_model_spec(self.model_spec)
+        """"""
+        model_spec = self.model_spec
+        boundaries = model_spec.boundaries
+        cfc_spec_nt = model_spec.cfc_spec_nt
+
+        ssf_est_spec = self.ssf_est_spec
+        if ssf_est_spec is not None:
+            ssf_num_modes = ssf_est_spec.num_modes
+            ssf_as_pure_est = ssf_est_spec.as_pure_est
+            ssf_pfw_nts = ssf_est_spec.pfw_num_time_steps
+            ssf_core_func = ssf_est_spec.core_func
+
+        else:
+            ssf_num_modes = 1
+            ssf_as_pure_est = False
+            ssf_pfw_nts = 512
+            ssf_core_func = dummy_pure_est_core_func
+
+        ssf_est_spec_nt = SSFEstSpecNT(ssf_num_modes,
+                                       ssf_as_pure_est,
+                                       ssf_pfw_nts,
+                                       ssf_core_func)
+
+        return CoreFuncs(boundaries,
+                         cfc_spec_nt,
+                         ssf_est_spec_nt,
+                         self.jit_parallel,
+                         self.jit_fastmath)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -317,29 +498,25 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     #: The boundaries of the QMC supercell.
     boundaries: t.Tuple[float, float]
 
-    #: The slots of a system configuration array.
-    sys_conf_slots: model.Spec.sys_conf_slots
-
     #: The common (fixed) spec to pass to the core functions of the model.
     cfc_spec_nt: model.CFCSpecNT
 
-    @classmethod
-    def from_model_spec(cls, model_spec: model.Spec):
-        """Initializes the core functions from a model spec.
+    #: The static structure factor spec.
+    ssf_est_spec_nt: SSFEstSpecNT = None
 
-        :param model_spec: The model spec.
-        :return: An instance of the core functions.
-        """
-        return cls(model_spec.boundaries,
-                   model_spec.sys_conf_slots,
-                   model_spec.cfc_spec_nt)
+    #: Parallel the execution where possible.
+    jit_parallel: bool = True
+
+    #: Use fastmath compiler directive.
+    jit_fastmath: bool = True
 
     @cached_property
     def recast(self):
         """Apply the periodic boundary conditions on a configuration."""
+        fastmath = self.jit_fastmath
         z_min, z_max = self.boundaries
 
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, fastmath=fastmath)
         def _recast(z: float):
             """Apply the periodic boundary conditions on a configuration.
 
@@ -356,11 +533,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
+        fastmath = self.jit_fastmath
+        pos_slot = int(SysConfSlot.pos)
+        drift_slot = int(SysConfSlot.drift)
         recast = self.recast
 
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, fastmath=fastmath)
         def _ith_diffuse(i_: int, time_step: float, sys_conf: np.ndarray):
             """
 
@@ -392,17 +570,22 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         :return:
         """
+        fastmath = self.jit_fastmath
         cfc_spec = self.cfc_spec_nt
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
+        pos_slot = int(SysConfSlot.pos)
+        drift_slot = int(SysConfSlot.drift)
 
         # JIT functions.
         ith_diffusion = self.ith_diffusion
         ith_energy_and_drift = model.core_funcs.ith_energy_and_drift
 
         # noinspection PyUnusedLocal
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, fastmath=fastmath)
         def _evolve_system(sys_idx: int,
+                           cloning_ref_idx: int,
+                           prev_state_confs: np.ndarray,
+                           prev_state_energies: np.ndarray,
+                           prev_state_weights: np.ndarray,
                            actual_state_confs: np.ndarray,
                            actual_state_energies: np.ndarray,
                            actual_state_weights: np.ndarray,
@@ -426,7 +609,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             """
             # Standard deviation as a function of time step.
             # sigma = sqrt(2 * time_step)
-
+            prev_conf = prev_state_confs[cloning_ref_idx]
             sys_conf = actual_state_confs[sys_idx]
             next_conf = next_state_confs[sys_idx]
 
@@ -434,13 +617,14 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             for i_ in range(nop):
                 # Diffuse current configuration. We can update the position
                 # of the next configuration.
-                z_i_next = ith_diffusion(i_, time_step, sys_conf)
+                z_i_next = ith_diffusion(i_, time_step, prev_conf)
+                sys_conf[pos_slot, i_] = z_i_next
                 next_conf[pos_slot, i_] = z_i_next
 
             energy = actual_state_energies[sys_idx]
             energy_next = 0.
             for i_ in range(nop):
-                ith_energy_drift = ith_energy_and_drift(i_, next_conf,
+                ith_energy_drift = ith_energy_and_drift(i_, sys_conf,
                                                         cfc_spec)
                 ith_energy_next, ith_drift_next = ith_energy_drift
                 next_conf[drift_slot, i_] = ith_drift_next
@@ -459,15 +643,16 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     def prepare_ini_ith_system(self):
         """Prepare a system of the initial state of the sampling."""
 
+        fastmath = self.jit_fastmath
         cfc_spec = self.cfc_spec_nt
         nop = cfc_spec.model_spec.boson_number
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
+        pos_slot = int(SysConfSlot.pos)
+        drift_slot = int(SysConfSlot.drift)
 
         # JIT functions.
         ith_energy_and_drift = model.core_funcs.ith_energy_and_drift
 
-        @nb.jit(nopython=True)
+        @nb.jit(nopython=True, fastmath=fastmath)
         def _prepare_ini_ith_system(sys_idx: int,
                                     state_confs: np.ndarray,
                                     state_energies: np.ndarray,
@@ -505,6 +690,9 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     def prepare_ini_state(self):
         """Prepare the initial state of the sampling. """
 
+        parallel = self.jit_parallel
+        fastmath = self.jit_fastmath
+
         # Fields
         state_props_fields = qmc_base.dmc.StateProp
         energy_field = state_props_fields.ENERGY.value
@@ -514,7 +702,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         # JIT functions.
         prepare_ini_ith_system = self.prepare_ini_ith_system
 
-        @nb.jit(nopython=True, parallel=True)
+        @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
         def _prepare_ini_state(ini_sys_conf_set: np.ndarray,
                                state_confs: np.ndarray,
                                state_props: np.ndarray):
@@ -576,22 +764,22 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         return _one_body_density
 
     @cached_property
-    def structure_factor(self):
+    def fourier_density(self):
         """The weighed structure factor."""
 
-        types = ['void(f8,f8[:,:],f8,b1,f8[:])']
+        types = ['void(f8,f8[:,:],f8,b1,c16[:])']
         signature = '(),(ns,nop),(),() -> ()'
         cfc_spec = self.cfc_spec_nt
 
-        structure_factor = model.core_funcs.structure_factor
+        fourier_density = model.core_funcs.fourier_density
 
         # noinspection PyTypeChecker
         @nb.guvectorize(types, signature, nopython=True, target='parallel')
-        def _structure_factor(momentum: float,
-                              sys_conf: np.ndarray,
-                              sys_weight: float,
-                              sys_mask: bool,
-                              result: np.ndarray) -> np.ndarray:
+        def _fourier_density(momentum: float,
+                             sys_conf: np.ndarray,
+                             sys_weight: float,
+                             sys_mask: bool,
+                             result: np.ndarray) -> np.ndarray:
             """
 
             :param sys_conf:
@@ -602,9 +790,9 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             """
             # NOTE: We need if... else... to avoid bugs.
             if not sys_mask:
-                sys_sf = structure_factor(momentum, sys_conf, cfc_spec)
-                result[0] = sys_weight * sys_sf
+                sys_fdk = fourier_density(momentum, sys_conf, cfc_spec)
+                result[0] = sys_weight * sys_fdk
             else:
                 result[0] = 0.
 
-        return _structure_factor
+        return _fourier_density

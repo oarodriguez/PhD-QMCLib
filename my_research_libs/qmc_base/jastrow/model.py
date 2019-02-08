@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
-from typing import ClassVar, NamedTuple, Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 import numpy as np
 from cached_property import cached_property
@@ -36,7 +36,7 @@ class SysConfSlot(IntEnum):
 
 
 class SysConfDistType(Enum):
-    """"""
+    """The ways to arrange the positions of the system configuration."""
     RANDOM = 'random'
     REGULAR = 'regular'
 
@@ -91,12 +91,6 @@ class Spec(model.Spec):
 
     #: The size of the QMC simulation box.
     supercell_size: float
-
-    #: The slots of the system configuration array.
-    sys_conf_slots: ClassVar = SysConfSlot
-
-    #: The ways to arrange the positions of the system configuration.
-    sys_conf_dist_type: ClassVar = SysConfDistType
 
     @property
     @abstractmethod
@@ -211,7 +205,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -313,7 +307,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -377,7 +371,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -440,8 +434,8 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         # TODO: Rename to drift
-        pos_slot = int(self.sys_conf_slots.pos)
-        drift_slot = int(self.sys_conf_slots.drift)
+        pos_slot = int(SysConfSlot.pos)
+        drift_slot = int(SysConfSlot.drift)
         ith_drift = self.ith_drift
 
         @jit(nopython=True)
@@ -476,7 +470,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func_log_dz = self.one_body_func_log_dz
         two_body_func_log_dz = self.two_body_func_log_dz
@@ -572,8 +566,8 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
-        # drift_slot = int(self.sys_conf_slots.DRIFT_SLOT)
+        pos_slot = int(SysConfSlot.pos)
+        # drift_slot = int(SysConfSlot.DRIFT_SLOT)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -679,7 +673,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         potential = self.potential
         one_body_func_log_dz = self.one_body_func_log_dz
@@ -759,7 +753,7 @@ class CoreFuncs(model.CoreFuncs):
         :return:
         """
         real_distance = self.real_distance
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         one_body_func = self.one_body_func
         two_body_func = self.two_body_func
@@ -856,20 +850,22 @@ class CoreFuncs(model.CoreFuncs):
         return _one_body_density
 
     @cached_property
-    def structure_factor(self):
+    def fourier_density(self):
         """
 
         :return:
         """
-        pos_slot = int(self.sys_conf_slots.pos)
+        pos_slot = int(SysConfSlot.pos)
 
         # noinspection PyUnusedLocal
         @jit(nopython=True)
-        def _structure_factor(kz: float,
-                              sys_conf: np.ndarray,
-                              cfc_spec: CFCSpecNT):
-            """Computes the local two-body correlation function for a given
-            configuration of the position of the bodies.
+        def _fourier_density(kz: float,
+                             sys_conf: np.ndarray,
+                             cfc_spec: CFCSpecNT):
+            """Fourier density component with momentum :math:`k`.
+
+            This function corresponds to the Fourier transform of the
+            density operator.
 
             :param kz:
             :param sys_conf:
@@ -885,16 +881,16 @@ class CoreFuncs(model.CoreFuncs):
                 s_cos += cos(kz * z_i)
                 s_sin += sin(kz * z_i)
 
-            return s_cos ** 2 + s_sin ** 2
+            return s_cos + 1j * s_sin
 
-        return _structure_factor
+        return _fourier_density
 
 
 class PhysicalFuncs(model.PhysicalFuncs):
     """Functions to calculate the main physical properties of a model."""
 
     #: The model spec these functions correspond to.
-    spec: Spec
+    cfc_spec_nt: CFCSpecNT
 
     @property
     @abstractmethod
@@ -911,7 +907,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
         # the functions depend only on the configuration of the particles of
         # the system, and possibly on other quantities with physical
         # significance but otherwise independent to the model.
-        cfc_spec_nt = self.spec.cfc_spec_nt
+        cfc_spec_nt = self.cfc_spec_nt
         __wf_abs_log = self.core_funcs.wf_abs_log
         signatures = ['(f8[:,:],f8[:])']
         layout = '(ns,nop)->()'
@@ -934,7 +930,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
     def energy(self):
         """Local energy."""
 
-        cfc_spec_nt = self.spec.cfc_spec_nt
+        cfc_spec_nt = self.cfc_spec_nt
         __energy = self.core_funcs.energy
         types = ['(f8[:,:],f8[:])']
         signature = '(ns,nop) -> ()'
@@ -956,7 +952,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
     def one_body_density(self):
         """One-body density matrix."""
 
-        cfc_spec_nt = self.spec.cfc_spec_nt
+        cfc_spec_nt = self.cfc_spec_nt
         __one_body_density = self.core_funcs.one_body_density
         types = ['(f8,f8[:,:],f8[:])']
         signature = '(),(ns,nop) -> ()'
@@ -977,29 +973,35 @@ class PhysicalFuncs(model.PhysicalFuncs):
         return _one_body_density
 
     @cached_property
-    def structure_factor(self):
-        """Static structure factor."""
+    def fourier_density(self):
+        """Fourier density component with momentum :math:`k`.
 
-        cfc_spec_nt = self.spec.cfc_spec_nt
-        __structure_factor = self.core_funcs.structure_factor
-        types = ['(f8,f8[:,:],f8[:])']
-        signature = '(),(ns,nop) -> ()'
+        This function corresponds to the Fourier transform of the
+        density operator.
+        """
+
+        cfc_spec_nt = self.cfc_spec_nt
+        __fourier_density = self.core_funcs.fourier_density
+        types = ['(f8,f8[:,:],c16[:])']
+        signature = '(nkz),(ns,nop) -> (nkz)'
 
         # noinspection PyTypeChecker
         @guvectorize(types, signature, nopython=True, target='parallel')
-        def _structure_factor(kz: float,
-                              sys_conf: np.ndarray,
-                              result: np.ndarray) -> np.ndarray:
+        def _fourier_density(kz_set: np.ndarray,
+                             sys_conf: np.ndarray,
+                             result: np.ndarray) -> np.ndarray:
             """
 
-            :param kz:
+            :param kz_set:
             :param sys_conf:
             :param result:
             :return:
             """
-            result[0] = __structure_factor(kz, sys_conf, cfc_spec_nt)
+            for i_ in range(kz_set.shape[0]):
+                kz = kz_set[i_]
+                result[i_] = __fourier_density(kz, sys_conf, cfc_spec_nt)
 
-        return _structure_factor
+        return _fourier_density
 
 
 class CSWFOptimizer(model.WFOptimizer):

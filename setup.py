@@ -56,7 +56,9 @@ setup(
             'decorator>=4.2',
             'pytest>=3.4',
             'gmpy2>=2.0',
-            'attrs>=18.0'
+            'attrs>=18.0',
+            'tqdm>=4.20',
+            'colorlog>=4.0'
         ],
         classifiers=[
             'Development Status :: 3 - Alpha',

@@ -45,7 +45,6 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
     model_spec: model.Spec
 
     move_spread: float
-    ini_sys_conf: np.ndarray
     rng_seed: Optional[int]
 
     @property
@@ -67,7 +66,6 @@ class NormalSampling(vmc.NormalSampling, metaclass=ABCMeta):
     model_spec: model.Spec
 
     time_step: float
-    ini_sys_conf: np.ndarray
     rng_seed: int
 
     @property
