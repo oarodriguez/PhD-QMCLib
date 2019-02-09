@@ -22,7 +22,7 @@ DESCRIPTION = 'A collection of libraries to estimate ' \
 
 setup(
         name='Ph.D. Thesis Code Libraries',
-        version='0.3.0',
+        version='0.10.0',
         url='https://bitbucket.org/oarodriguez/myresearch-libs/',
         packages=[
             'my_research_libs',
