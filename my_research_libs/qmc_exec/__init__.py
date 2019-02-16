@@ -6,7 +6,7 @@
     Quantum Monte Carlo calculation.
 """
 #
-from . import data, dmc, vmc, wf_opt
+from . import dmc, vmc, wf_opt
 
 #
 from .logging import exec_logger

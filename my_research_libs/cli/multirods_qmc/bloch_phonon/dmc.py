@@ -11,8 +11,8 @@ from my_research_libs.mrbp_qmc import dmc, model
 from my_research_libs.qmc_base import dmc as dmc_base
 from my_research_libs.qmc_base.jastrow import SysConfDistType
 from my_research_libs.qmc_exec import dmc as dmc_exec_base, exec_logger
-from my_research_libs.qmc_exec.data import SamplingData
 from my_research_libs.qmc_exec.dmc import ProcInput
+from my_research_libs.qmc_exec.dmc.data import SamplingData
 from my_research_libs.util.attr import (
     bool_converter, bool_validator, int_converter, int_validator,
     opt_int_converter, opt_int_validator, opt_path_validator,
