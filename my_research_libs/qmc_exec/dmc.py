@@ -12,11 +12,11 @@ from my_research_libs.qmc_base import (
     dmc as dmc_base, model as model_base
 )
 from my_research_libs.qmc_base.dmc import SSFPartSlot
-from my_research_libs.qmc_data.dmc import (
+from my_research_libs.util.attr import str_validator
+from .data import (
     EnergyBlocks, NumWalkersBlocks, PropBlocks, PropsDataBlocks,
     PropsDataSeries, SSFBlocks, SSFPartBlocks, SamplingData, WeightBlocks
 )
-from my_research_libs.util.attr import str_validator
 from .logging import exec_logger
 
 __all__ = [
