@@ -1,10 +1,10 @@
 import attr
 import yaml
 
+from my_research_libs import mrbp_qmc as bloch_phonon
 from my_research_libs.cli.multirods_qmc.bloch_phonon import (
     dmc as dmc_cli, vmc as vmc_cli
 )
-from my_research_libs.multirods_qmc import bloch_phonon
 
 
 def test_dmc_proc():

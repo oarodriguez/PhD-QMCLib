@@ -7,7 +7,7 @@ from matplotlib import pyplot
 from numba.runtime import rtsys
 
 import my_research_libs.qmc_base.dmc as dmc_base
-from my_research_libs.multirods_qmc import bloch_phonon
+from my_research_libs import mrbp_qmc as bloch_phonon
 from my_research_libs.qmc_base.jastrow import SysConfDistType, SysConfSlot
 from my_research_libs.qmc_exec import exec_logger
 

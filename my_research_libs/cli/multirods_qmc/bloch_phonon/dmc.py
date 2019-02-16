@@ -7,7 +7,7 @@ import h5py
 import numpy as np
 from cached_property import cached_property
 
-from my_research_libs.multirods_qmc.bloch_phonon import dmc, model
+from my_research_libs.mrbp_qmc import dmc, model
 from my_research_libs.qmc_base import dmc as dmc_base
 from my_research_libs.qmc_base.jastrow import SysConfDistType
 from my_research_libs.qmc_data.dmc import SamplingData

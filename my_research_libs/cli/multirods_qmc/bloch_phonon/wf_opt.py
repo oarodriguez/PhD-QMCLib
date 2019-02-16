@@ -3,7 +3,7 @@ import typing as t
 import attr
 import numpy as np
 
-from my_research_libs.multirods_qmc.bloch_phonon import model
+from my_research_libs.mrbp_qmc import model
 from my_research_libs.qmc_exec import exec_logger, wf_opt as wf_opt_exec
 from my_research_libs.util.attr import (
     bool_validator, int_validator, opt_float_converter, opt_int_validator

@@ -3,7 +3,7 @@ import typing as t
 import attr
 from cached_property import cached_property
 
-from my_research_libs.multirods_qmc.bloch_phonon import model, vmc
+from my_research_libs.mrbp_qmc import vmc, model
 from my_research_libs.qmc_exec import vmc as vmc_exec_base
 from my_research_libs.util.attr import int_validator, opt_int_validator
 
