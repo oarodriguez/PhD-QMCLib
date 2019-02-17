@@ -1,10 +1,11 @@
 import attr
 import yaml
 
-from my_research_libs import mrbp_qmc as bloch_phonon
+from my_research_libs import mrbp_qmc
 from my_research_libs.cli.multirods_qmc.bloch_phonon import (
     dmc as dmc_cli, vmc as vmc_cli
 )
+from my_research_libs.qmc_base.jastrow import SysConfDistType
 
 
 def test_dmc_proc():
@@ -18,12 +19,12 @@ def test_dmc_proc():
     tbf_contact_cutoff = 0.25 * supercell_size
 
     # TODO: Improve this test.
-    model_spec = bloch_phonon.Spec(lattice_depth=lattice_depth,
-                                   lattice_ratio=lattice_ratio,
-                                   interaction_strength=interaction_strength,
-                                   boson_number=boson_number,
-                                   supercell_size=supercell_size,
-                                   tbf_contact_cutoff=tbf_contact_cutoff)
+    model_spec = mrbp_qmc.Spec(lattice_depth=lattice_depth,
+                               lattice_ratio=lattice_ratio,
+                               interaction_strength=interaction_strength,
+                               boson_number=boson_number,
+                               supercell_size=supercell_size,
+                               tbf_contact_cutoff=tbf_contact_cutoff)
     move_spread = 0.25 * model_spec.well_width
     ini_sys_conf = model_spec.init_get_sys_conf()
     rng_seed = None
@@ -60,8 +61,7 @@ def test_dmc_proc():
     vmc_proc_input = vmc_proc.build_input(ini_sys_conf)
     vmc_batch, _ = vmc_proc.exec(vmc_proc_input)
 
-    sys_conf_set = vmc_batch.confs
-    dmc_proc_input = dmc_proc.build_input_from_model(sys_conf_set)
+    dmc_proc_input = dmc_proc.build_input_from_model(SysConfDistType.RANDOM)
     dmc_result = dmc_proc.exec(dmc_proc_input)
 
 

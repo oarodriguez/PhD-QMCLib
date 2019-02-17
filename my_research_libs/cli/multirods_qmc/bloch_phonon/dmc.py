@@ -10,9 +10,7 @@ from cached_property import cached_property
 from my_research_libs.mrbp_qmc import dmc, model
 from my_research_libs.qmc_base import dmc as dmc_base
 from my_research_libs.qmc_base.jastrow import SysConfDistType
-from my_research_libs.qmc_exec import dmc as dmc_exec_base, exec_logger
-from my_research_libs.qmc_exec.dmc import ProcInput
-from my_research_libs.qmc_exec.dmc.data import SamplingData
+from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
 from my_research_libs.util.attr import (
     bool_converter, bool_validator, int_converter, int_validator,
     opt_int_converter, opt_int_validator, opt_path_validator,
@@ -30,7 +28,7 @@ __all__ = [
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class ModelSysConfHandler(dmc_exec_base.ModelSysConfHandler):
+class ModelSysConfHandler(dmc_exec.io.ModelSysConfHandler):
     """"""
 
     dist_type: str = attr.ib(validator=str_validator)
@@ -81,7 +79,7 @@ class ModelSysConfHandler(dmc_exec_base.ModelSysConfHandler):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class RawHDF5FileHandler(dmc_exec_base.RawHDF5FileHandler):
+class RawHDF5FileHandler(dmc_exec.io.RawHDF5FileHandler):
     """ handler for HDF5 files without a specific structure."""
 
     location: str = attr.ib(validator=str_validator)
@@ -116,7 +114,7 @@ class RawHDF5FileHandler(dmc_exec_base.RawHDF5FileHandler):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
+class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
     """A handler for structured HDF5 files to save DMC procedure results."""
 
     #: Path to the file.
@@ -167,7 +165,8 @@ class HDF5FileHandler(dmc_exec_base.HDF5FileHandler):
             data_blocks = self.load_data_blocks(h5_file)
 
         data_series = None  # For now...
-        sampling_data = SamplingData(data_blocks, series=data_series)
+        sampling_data = dmc_exec.data.SamplingData(data_blocks,
+                                                   series=data_series)
         return ProcResult(state, proc, sampling_data)
 
     def get_proc_config(self, proc: 'Proc'):
@@ -223,7 +222,7 @@ io_handler_spec_validator = attr.validators.instance_of(io_handler_spec_types)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class IOHandlerSpec(dmc_exec_base.IOHandlerSpec):
+class IOHandlerSpec(dmc_exec.io.IOHandlerSpec):
     """"""
 
     type: str = attr.ib(validator=io_handler_spec_type_validator)
@@ -279,7 +278,7 @@ class IOHandlerSpec(dmc_exec_base.IOHandlerSpec):
 
 
 @attr.s(auto_attribs=True)
-class ProcIO(dmc_exec_base.ProcIO):
+class ProcIO(dmc_exec.io.ProcIO):
     """"""
     #:
     input: IOHandlerSpec
@@ -335,7 +334,7 @@ opt_model_spec_validator = attr.validators.optional(model_spec_validator)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class SSFEstSpec(dmc_exec_base.SSFEstSpec):
+class SSFEstSpec(dmc_exec.SSFEstSpec):
     """Structure factor estimator basic config."""
 
     num_modes: int = \
@@ -358,7 +357,7 @@ T_IOHandler = \
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class ProcResult(dmc_exec_base.ProcResult):
+class ProcResult(dmc_exec.ProcResult):
     """Result of the DMC estimator sampling."""
 
     #: The last state of the sampling.
@@ -368,11 +367,11 @@ class ProcResult(dmc_exec_base.ProcResult):
     proc: 'Proc'
 
     #: The data generated during the sampling.
-    data: SamplingData
+    data: dmc_exec.data.SamplingData
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class Proc(dmc_exec_base.Proc):
+class Proc(dmc_exec.Proc):
     """DMC sampling procedure."""
 
     model_spec: model.Spec = attr.ib(validator=None)
@@ -539,7 +538,7 @@ class Proc(dmc_exec_base.Proc):
 
         sys_conf_set = np.asarray(sys_conf_set)
         state = self.sampling.build_state(sys_conf_set)
-        return ProcInput(state)
+        return dmc_exec.ProcInput(state)
 
     def build_input_from_result(self, proc_result: ProcResult):
         """
@@ -549,11 +548,11 @@ class Proc(dmc_exec_base.Proc):
         """
         state = proc_result.state
         assert self.model_spec == proc_result.proc.model_spec
-        return ProcInput(state)
+        return dmc_exec.ProcInput(state)
 
     def build_result(self, state: dmc_base.State,
                      sampling: dmc.Sampling,
-                     data: SamplingData):
+                     data: dmc_exec.data.SamplingData):
         """
 
         :param state:
@@ -709,7 +708,7 @@ class ProcSpec:
         """
         self.output.save(proc_result, base_path)
 
-    def exec(self, proc_input: ProcInput):
+    def exec(self, proc_input: dmc_exec.ProcInput):
         """
 
         :return:
