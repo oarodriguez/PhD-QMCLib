@@ -11,13 +11,10 @@ def test_proc_cli():
     with open('./dmc-conf.tpl.yml', 'r') as fp:
         data = yaml.safe_load(fp)
 
-    proc_cli = dmc_exec.cli_app.ProcCLI.from_config(data)
+    proc_cli = dmc_exec.cli_app.CLIApp.from_config(data)
     proc_cli_conf = attr.asdict(proc_cli)
 
-    proc_cli_clone = dmc_exec.cli_app.ProcCLI.from_config(proc_cli_conf)
-    assert proc_cli == proc_cli_clone
-
-    print(yaml.dump(proc_cli_conf, indent=4))
+    print(yaml.dump(data, indent=4, allow_unicode=True))
 
 
 if __name__ == '__main__':

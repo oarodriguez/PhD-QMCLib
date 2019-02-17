@@ -19,7 +19,7 @@ opt_proc_validator = attr.validators.optional(proc_validator)
 
 # TODO: We need a better name for this class.
 @attr.s(auto_attribs=True)
-class ProcSpec:
+class AppSpec:
     """"""
 
     #: Procedure spec.
@@ -159,11 +159,11 @@ def proc_cli_tags_converter(tag_or_tags: t.Union[str, t.Sequence[str]]):
     return ' - '.join(hashed_tags)
 
 
-proc_spec_validator = attr.validators.instance_of(ProcSpec)
+proc_spec_validator = attr.validators.instance_of(AppSpec)
 
 
 @attr.s(auto_attribs=True)
-class ProcCLI:
+class CLIApp:
     """Entry point for the CLI."""
 
     #:
@@ -189,7 +189,7 @@ class ProcCLI:
                         validator=str_validator)
 
     #:
-    main_proc_set: t.Sequence[ProcSpec] = attr.ib(validator=seq_validator)
+    main_proc_set: t.Sequence[AppSpec] = attr.ib(validator=seq_validator)
 
     #:
     base_path: t.Optional[Path] = \
@@ -203,7 +203,7 @@ class ProcCLI:
 
     @classmethod
     def from_config(cls, config: t.Mapping):
-        """Initializes a ProcCLI instance from a mapping object.
+        """Initializes a CLIApp instance from a mapping object.
 
         :param config:
         :return:
@@ -223,7 +223,7 @@ class ProcCLI:
             proc_config = dict(proc_config)
             proc_config['proc_id'] = proc_id
 
-            proc_spec = ProcSpec.from_config(proc_config)
+            proc_spec = AppSpec.from_config(proc_config)
 
             # Append...
             main_proc_spec_set.append(proc_spec)
