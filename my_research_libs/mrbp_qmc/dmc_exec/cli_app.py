@@ -7,7 +7,7 @@ from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
 from my_research_libs.util.attr import (
     opt_int_validator, opt_path_validator, seq_validator, str_validator
 )
-from .dmc import Proc, ProcResult
+from .proc import Proc, ProcResult
 from .io import (
     HDF5FileHandler, ModelSysConfHandler, T_IOHandler, get_io_handler,
     io_handler_validator

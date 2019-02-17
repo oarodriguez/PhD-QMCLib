@@ -11,7 +11,7 @@ from .data import (
     EnergyBlocks, NumWalkersBlocks, PropBlocks, PropsDataBlocks, SSFBlocks,
     SSFPartBlocks, SamplingData, WeightBlocks
 )
-from .dmc import Proc, ProcResult
+from .proc import Proc, ProcResult
 
 
 class IOHandler(metaclass=ABCMeta):

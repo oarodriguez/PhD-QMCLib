@@ -9,7 +9,7 @@ from my_research_libs.qmc_exec import dmc as dmc_exec
 from my_research_libs.util.attr import (
     opt_int_validator, opt_str_validator, path_validator, str_validator
 )
-from .dmc import Proc, ProcResult
+from .proc import Proc, ProcResult
 
 
 @attr.s(auto_attribs=True, frozen=True)

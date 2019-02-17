@@ -2,10 +2,10 @@
 
 """
 #
-from .cli_app import ProcCLI, ProcSpec
+from .cli_app import CLIApp, ProcSpec
 
 #
-from .dmc import Proc, ProcResult, SSFEstSpec
+from .proc import Proc, ProcResult, SSFEstSpec
 
 #
 from .io import HDF5FileHandler, ProcIO
