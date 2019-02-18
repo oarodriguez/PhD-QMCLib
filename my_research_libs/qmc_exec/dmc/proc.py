@@ -135,7 +135,7 @@ class Proc(metaclass=ABCMeta):
     @abstractmethod
     def build_result(self, state: dmc_base.State,
                      sampling: dmc_base.Sampling,
-                     data: SamplingData):
+                     data: SamplingData) -> ProcResult:
         """
 
         :param state: The last state of the sampling.

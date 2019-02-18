@@ -44,7 +44,7 @@ setup(
             'matplotlib>=2.2',
             'numba>=0.39',
             'h5py>=2.5.0',
-            'pytables>=3.4',
+            'tables>=3.4',
             'mpmath>=1.0',
             'progressbar2>=3.6.0',
             'pytz>=2016.4',
@@ -58,7 +58,8 @@ setup(
             'gmpy2>=2.0',
             'attrs>=18.0',
             'tqdm>=4.20',
-            'colorlog>=4.0'
+            'colorlog>=4.0',
+            'toml>=0.10.0'
         ],
         classifiers=[
             'Development Status :: 3 - Alpha',

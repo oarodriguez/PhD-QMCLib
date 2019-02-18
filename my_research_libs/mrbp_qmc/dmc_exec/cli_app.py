@@ -30,8 +30,7 @@ class AppSpec:
 
     #: Output spec.
     # TODO: Update the accepted output handlers.
-    proc_output: T_IOHandler = attr.ib(default=None,
-                                       validator=io_handler_validator)
+    proc_output: T_IOHandler = attr.ib(validator=io_handler_validator)
 
     #: Procedure id.
     proc_id: t.Optional[int] = \
@@ -109,7 +108,7 @@ class AppSpec:
         """
         self.proc_output.dump(proc_result)
 
-    def exec(self, proc_input: dmc_exec.ProcInput):
+    def exec(self, proc_input: dmc_exec.ProcInput) -> ProcResult:
         """
 
         :return:

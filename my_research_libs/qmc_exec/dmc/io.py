@@ -81,10 +81,10 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         blocks_group.require_group('weight')
         blocks_group.require_group('num_walkers')
 
-    def dump(self, proc_result: 'ProcResult'):
+    def dump(self, data: 'ProcResult'):
         """Save a DMC procedure result to file.
 
-        :param proc_result:
+        :param data:
         :return:
         """
         file_path = self.location.absolute()
@@ -93,11 +93,11 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
             #
             self.init_main_groups(h5_file)
 
-            self.save_proc(proc_result.proc, h5_file)
+            self.save_proc(data.proc, h5_file)
 
-            self.save_state(proc_result.state, h5_file)
+            self.save_state(data.state, h5_file)
 
-            self.save_data_blocks(proc_result.data, h5_file)
+            self.save_data_blocks(data.data, h5_file)
 
             h5_file.flush()
 

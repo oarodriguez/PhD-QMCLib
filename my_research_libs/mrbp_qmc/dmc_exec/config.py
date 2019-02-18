@@ -1,11 +1,18 @@
 import os
 import pathlib
-from collections import Mapping
+import typing as t
+from collections import Mapping, Sequence
 from math import pi
 
 import attr
 import jinja2
+import toml
 import yaml
+
+from .io import IO_FILE_HANDLER_TYPES
+
+CONFIG_FILE_EXTENSIONS = ('.yml', '.yaml', '.toml')
+YAML_EXTENSIONS = ('.yml', '.yaml')
 
 UNIX_NEWLINE = '\n'
 
@@ -24,6 +31,78 @@ class Variables:
 
     #:
     K_OPT: float = pi / LKP
+
+
+def fix_app_spec_locations(app_spec_config: t.MutableMapping,
+                           config_path: pathlib.Path):
+    """Fix any relative path in the AppSpec configuration.
+
+    Relative paths are relative to the location of the configuration
+    file.
+
+    :param app_spec_config: The configuration of the application.
+    :param config_path: The location of the configuration file.
+    :return:
+    """
+    proc_input = app_spec_config['proc_input']
+    handler_type = proc_input['type']
+    if handler_type in IO_FILE_HANDLER_TYPES:
+        # If input_location is absolute, base_path is discarded
+        # automatically.
+        input_location = proc_input['location']
+        proc_input['location'] = config_path / input_location
+
+    proc_output = app_spec_config['proc_output']
+    handler_type = proc_output['type']
+    if handler_type in IO_FILE_HANDLER_TYPES:
+        output_location = proc_output['location']
+        proc_output['location'] = config_path / output_location
+
+
+def load_cli_app_config(path: pathlib.Path):
+    """
+
+    :param path:
+    :return:
+    """
+    suffix = path.suffix
+    if not suffix:
+        raise IOError('config file has no extension')
+
+    if suffix not in CONFIG_FILE_EXTENSIONS:
+        raise IOError('unknown file extension')
+
+    # NOTE: Should we base this choice in file extensions.¿
+    if suffix in YAML_EXTENSIONS:
+        assume_yaml = True
+    else:
+        assume_yaml = False
+
+    with path.open('r') as fp:
+        if assume_yaml:
+            config_data = yaml.safe_load(fp)
+        else:
+            config_data = toml.load(fp)
+
+    # Keep support for old config files.
+    if 'main_proc_set' in config_data:
+        config_data['app_spec'] = config_data.pop('main_proc_set')
+
+    app_spec_data = config_data['app_spec']
+    if isinstance(app_spec_data, Sequence):
+        app_spec_config_set = []
+        for app_spec_config in app_spec_data:
+            app_spec_config_set.append(app_spec_config)
+    else:
+        app_spec_config_set = [app_spec_data]
+
+    path = path.absolute()
+    loc_parent = path.parent
+    for app_spec_conf in app_spec_config_set:
+        fix_app_spec_locations(app_spec_conf, loc_parent)
+
+    config_data['app_spec'] = app_spec_config_set
+    return config_data
 
 
 @attr.s(auto_attribs=True, frozen=True)

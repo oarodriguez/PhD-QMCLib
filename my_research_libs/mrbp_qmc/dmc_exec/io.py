@@ -12,6 +12,9 @@ from my_research_libs.util.attr import (
 )
 from .proc import Proc, ProcResult
 
+IO_HANDLER_TYPES = ('MODEL_SYS_CONF', 'HDF5_FILE')
+IO_FILE_HANDLER_TYPES = ('HDF5_FILE',)
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class ModelSysConfHandler(dmc_exec.io.ModelSysConfHandler):
@@ -195,11 +198,11 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
 
 
 T_IOHandler = \
-    t.Union[ModelSysConfHandler, HDF5FileHandler]
+    t.Union[HDF5FileHandler, ModelSysConfHandler]
 
 io_handler_type_validator = [
     attr.validators.instance_of(str),
-    attr.validators.in_(('MODEL_SYS_CONF', 'HDF5_FILE'))
+    attr.validators.in_(IO_HANDLER_TYPES)
 ]
 
 io_handler_types = (ModelSysConfHandler, HDF5FileHandler)
