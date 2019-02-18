@@ -203,25 +203,28 @@ class Proc(dmc_exec.Proc):
         """"""
         pass
 
-    def build_input_from_model(self, sys_conf_dist_type: SysConfDistType):
+    def input_from_model(self, dist_type: SysConfDistType,
+                         num_sys_conf: int = None):
         """
 
-        :param sys_conf_dist_type:
+        :param dist_type:
+        :param num_sys_conf:
         :return:
         """
         model_spec = self.model_spec
 
         sys_conf_set = []
-        for _ in range(self.target_num_walkers):
+        num_sys_conf = num_sys_conf or self.target_num_walkers
+        for _ in range(num_sys_conf):
             sys_conf = \
-                model_spec.init_get_sys_conf(dist_type=sys_conf_dist_type)
+                model_spec.init_get_sys_conf(dist_type=dist_type)
             sys_conf_set.append(sys_conf)
 
         sys_conf_set = np.asarray(sys_conf_set)
         state = self.sampling.build_state(sys_conf_set)
         return dmc_exec.ProcInput(state)
 
-    def build_input_from_result(self, proc_result: ProcResult):
+    def input_from_result(self, proc_result: ProcResult):
         """
 
         :param proc_result:

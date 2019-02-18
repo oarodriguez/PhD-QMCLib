@@ -55,7 +55,7 @@ def test_proc():
     vmc_proc_input = vmc_proc.build_input(ini_sys_conf)
     vmc_batch, _ = vmc_proc.exec(vmc_proc_input)
 
-    dmc_proc_input = dmc_proc.build_input_from_model(SysConfDistType.RANDOM)
+    dmc_proc_input = dmc_proc.input_from_model(SysConfDistType.RANDOM)
     dmc_result = dmc_proc.exec(dmc_proc_input)
 
 

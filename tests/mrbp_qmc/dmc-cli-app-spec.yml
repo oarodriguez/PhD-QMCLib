@@ -11,7 +11,7 @@ tags:
   - multi-rods
 
 # Main Diffusion Monte Carlo procedure
-main:
+app_spec:
 
   #  type: SIMPLE_BRANCHING_BASIC
   proc:
@@ -38,38 +38,14 @@ main:
       as_pure_est: true
 
   #
-  input:
+  proc_input:
     type: MODEL_SYS_CONF
     dist_type: RANDOM
 
   #
-  output:
+  proc_output:
     type: HDF5_FILE
-    location: /path/to/output/file.h5
+    location: ./path/to/output/file.h5
     group: dmc-proc
 
   proc_id: 101
-  tag_input: False
-  tag_output: True
-
-#
-main_post_exec:
-  #
-  - proc:
-      time_step: 0.5e-2
-      num_batches: 1024
-      num_time_steps_batch: 512
-
-    output:
-      type: HDF5_FILE
-      location: /path/to/output/file.h5
-      group: dmc-proc-extra
-
-    proc_id: 6774862
-
-  #
-  - proc:
-      time_step: 1e-3
-      num_batches: 512
-      num_time_steps_batch: 512
-

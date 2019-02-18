@@ -31,12 +31,11 @@ class IOHandler(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def load(self, base_path: Path = None):
+    def load(self):
         pass
 
     @abstractmethod
-    def save(self, data: 'ProcResult',
-             base_path: Path = None):
+    def dump(self, data: 'ProcResult'):
         pass
 
 
@@ -53,6 +52,9 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
 
     #: The HDF5 group in the file to read and/or write data.
     group: str
+
+    #: Replace any existing data in the file.
+    dump_replace: bool
 
     #: A tag to identify this handler.
     type: str
@@ -79,20 +81,13 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         blocks_group.require_group('weight')
         blocks_group.require_group('num_walkers')
 
-    def save(self, proc_result: 'ProcResult',
-             base_path: Path = None):
+    def dump(self, proc_result: 'ProcResult'):
         """Save a DMC procedure result to file.
 
         :param proc_result:
-        :param base_path:
         :return:
         """
-        location = self.location
-        if location.is_absolute():
-            file_path = location
-        else:
-            file_path = base_path / location
-
+        file_path = self.location.absolute()
         h5_file = h5py.File(file_path)
         with h5_file:
             #
@@ -365,45 +360,3 @@ class RawHDF5FileHandler(IOHandler, metaclass=ABCMeta):
 
     #: A tag to identify this handler.
     type: str
-
-
-class IOHandlerSpec(metaclass=ABCMeta):
-    """"""
-
-    type: str
-
-    spec: IOHandler
-
-    @classmethod
-    @abstractmethod
-    def from_config(cls, config: t.Mapping):
-        pass
-
-    def load(self):
-        """"""
-        return self.spec.load()
-
-    def save(self, data: 'ProcResult'):
-        """"""
-        return self.spec.save(data)
-
-
-@attr.s(auto_attribs=True)
-class ProcIO:
-    """"""
-    #:
-    input: IOHandlerSpec
-
-    #:
-    output: t.Optional[IOHandlerSpec] = None
-
-    @classmethod
-    @abstractmethod
-    def from_config(cls, config: t.Mapping):
-        """
-
-        :param config:
-        :return:
-        """
-        # Extract the input spec.
-        pass

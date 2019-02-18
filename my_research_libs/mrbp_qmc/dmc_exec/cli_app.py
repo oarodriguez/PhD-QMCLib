@@ -7,11 +7,11 @@ from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
 from my_research_libs.util.attr import (
     opt_int_validator, opt_path_validator, seq_validator, str_validator
 )
-from .proc import Proc, ProcResult
 from .io import (
     HDF5FileHandler, ModelSysConfHandler, T_IOHandler, get_io_handler,
     io_handler_validator
 )
+from .proc import Proc, ProcResult
 
 proc_validator = attr.validators.instance_of(Proc)
 opt_proc_validator = attr.validators.optional(proc_validator)
@@ -26,12 +26,12 @@ class AppSpec:
     proc: Proc = attr.ib(validator=proc_validator)
 
     #: Input spec.
-    input: T_IOHandler = attr.ib(validator=io_handler_validator)
+    proc_input: T_IOHandler = attr.ib(validator=io_handler_validator)
 
     #: Output spec.
     # TODO: Update the accepted output handlers.
-    output: T_IOHandler = attr.ib(default=None,
-                                  validator=io_handler_validator)
+    proc_output: T_IOHandler = attr.ib(default=None,
+                                       validator=io_handler_validator)
 
     #: Procedure id.
     proc_id: t.Optional[int] = \
@@ -49,94 +49,65 @@ class AppSpec:
         :param config:
         :return:
         """
-        proc_config = config['proc']
+        # Own copy(shallow).
+        self_config = dict(config)
+
+        proc_config = self_config['proc']
         proc = Proc.from_config(proc_config)
 
         # Procedure id...
-        proc_id = config.get('proc_id', 0)
+        proc_id = self_config.get('proc_id', 0)
 
-        input_handler_config = config['input']
+        # Aliases for proc_input and proc_output.
+        # TODO: Deprecate these fields.
+        if 'input' in self_config:
+            proc_input = self_config.pop('input')
+            self_config['proc_input'] = proc_input
+
+        if 'output' in self_config:
+            proc_output = self_config.pop('output')
+            self_config['proc_output'] = proc_output
+
+        input_handler_config = self_config['proc_input']
         input_handler = get_io_handler(input_handler_config)
 
         # Extract the output spec.
-        output_handler_config = config['output']
+        output_handler_config = self_config['proc_output']
         output_handler = get_io_handler(output_handler_config)
 
         if not isinstance(output_handler, HDF5FileHandler):
             raise TypeError('only the HDF5_FILE is supported as '
                             'output handler')
 
-        return cls(proc=proc, input=input_handler,
-                   output=output_handler, proc_id=proc_id)
+        return cls(proc=proc, proc_input=input_handler,
+                   proc_output=output_handler, proc_id=proc_id)
 
-    def tag_io_handler(self, io_handler: T_IOHandler):
+    def build_input(self):
         """
 
-        :param io_handler:
         :return:
         """
-        proc_id = self.proc_id
-        if isinstance(io_handler, HDF5FileHandler):
-            spec_group = io_handler.group
-            group_suffix = 'proc-ID' + str(proc_id)
-            spec_group = '_'.join([spec_group, group_suffix])
-            return attr.evolve(io_handler, group=spec_group)
-
-    def evolve(self, config: t.Mapping):
-        """
-
-        :param config:
-        :return:
-        """
-        evolve_config = dict(config)
-
-        proc_config = evolve_config.pop('proc')
-        proc = self.proc.evolve(proc_config)
-
-        # IO configuration is never evolved directly.
-        input_config = evolve_config.pop('input', None)
-        if input_config is None:
-            input_handler = attr.evolve(self.input)
-        else:
-            input_handler = get_io_handler(input_config)
-
-        # Extract the output spec.
-        output_config = evolve_config.pop('output', None)
-        if output_config is None:
-            output_handler = attr.evolve(self.output)
-        else:
-            output_handler = get_io_handler(output_config)
-
-        return attr.evolve(self, proc=proc, input=input_handler,
-                           output=output_handler, **evolve_config)
-
-    def build_input(self, base_path: Path = None):
-        """
-
-        :param base_path:
-        :return:
-        """
-        input_handler = self.input
+        input_handler = self.proc_input
 
         if isinstance(input_handler, ModelSysConfHandler):
             sys_conf_dist_type = input_handler.dist_type_enum
-            return self.proc.build_input_from_model(sys_conf_dist_type)
+            num_sys_conf = input_handler.num_sys_conf
+            return self.proc.input_from_model(sys_conf_dist_type,
+                                              num_sys_conf)
 
         if isinstance(input_handler, HDF5FileHandler):
-            proc_result = input_handler.load(base_path)
-            return self.proc.build_input_from_result(proc_result)
+            proc_result = input_handler.load()
+            return self.proc.input_from_result(proc_result)
 
         raise TypeError
 
-    def save_output(self, proc_result: ProcResult,
-                    base_path: Path = None):
+    def dump_output(self, proc_result: ProcResult):
         """
 
         :param proc_result:
-        :param base_path:
         :return:
         """
-        self.output.save(proc_result, base_path)
+        self.proc_output.dump(proc_result)
 
     def exec(self, proc_input: dmc_exec.ProcInput):
         """
@@ -252,9 +223,9 @@ class CLIApp:
             exec_logger.info("*** *** ->> ")
             exec_logger.info(f'Starting procedure ID{proc_id}...')
 
-            proc_input = proc_spec.build_input(self.base_path)
+            proc_input = proc_spec.build_input()
             result = proc_spec.exec(proc_input)
-            proc_spec.save_output(result, self.base_path)
+            proc_spec.dump_output(result)
 
             exec_logger.info(f'Procedure ID{proc_id} completed.')
             exec_logger.info("<<- *** ***")

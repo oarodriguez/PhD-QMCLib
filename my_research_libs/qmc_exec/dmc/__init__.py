@@ -10,8 +10,8 @@ from . import data
 
 #
 from .io import (
-    HDF5FileHandler, HDF5FileHandlerGroupError, IOHandler, IOHandlerSpec,
-    ModelSysConfHandler, ProcIO, RawHDF5FileHandler
+    HDF5FileHandler, HDF5FileHandlerGroupError, IOHandler, ModelSysConfHandler,
+    RawHDF5FileHandler
 )
 
 #

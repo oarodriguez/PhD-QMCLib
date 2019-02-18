@@ -7,19 +7,25 @@ import h5py
 from my_research_libs.qmc_base.jastrow import SysConfDistType
 from my_research_libs.qmc_exec import dmc as dmc_exec
 from my_research_libs.util.attr import (
-    opt_int_validator, opt_str_validator, path_validator, str_validator
+    bool_validator, opt_int_validator, opt_str_validator,
+    path_validator, str_validator
 )
 from .proc import Proc, ProcResult
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class ModelSysConfHandler(dmc_exec.io.ModelSysConfHandler):
-    """"""
-
-    dist_type: str = attr.ib(validator=str_validator)
+    """Handler to build inputs from system configurations."""
 
     #: A tag to identify this handler.
     type: str = attr.ib(validator=str_validator)
+
+    #:
+    dist_type: str = attr.ib(validator=str_validator)
+
+    #:
+    num_sys_conf: t.Optional[int] = attr.ib(default=None,
+                                            validator=opt_int_validator)
 
     def __attrs_post_init__(self):
         """Post initialization stage."""
@@ -33,14 +39,14 @@ class ModelSysConfHandler(dmc_exec.io.ModelSysConfHandler):
         :param config:
         :return:
         """
-        return cls(**config)
+        self_config = dict(config)
+        return cls(**self_config)
 
-    def load(self, base_path: Path = None):
+    def load(self):
         """"""
         raise NotImplementedError
 
-    def save(self, data: 'ProcResult',
-             base_path: Path = None):
+    def dump(self, data: 'ProcResult'):
         """"""
         raise NotImplementedError
 
@@ -90,11 +96,10 @@ class RawHDF5FileHandler(dmc_exec.io.RawHDF5FileHandler):
         """
         return cls(**config)
 
-    def load(self, base_path: Path = None):
+    def load(self):
         pass
 
-    def save(self, data: 'ProcResult',
-             base_path: Path = None):
+    def dump(self, data: 'ProcResult'):
         pass
 
 
@@ -107,6 +112,9 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
 
     #: The HDF5 group in the file to read and/or write data.
     group: str = attr.ib(validator=str_validator)
+
+    #: Replace any existing data in the file.
+    dump_replace: bool = attr.ib(default=False, validator=bool_validator)
 
     #: A tag to identify this handler.
     type: t.Optional[str] = attr.ib(default=None, validator=opt_str_validator)
@@ -132,17 +140,12 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
         location = Path(config.pop('location'))
         return cls(location=location, **config)
 
-    def load(self, base_path: Path = None):
+    def load(self):
         """Load the contents of the file.
 
         :return:
         """
-        location = self.location
-        if location.is_absolute():
-            file_path = location
-        else:
-            file_path = base_path / location
-
+        file_path = self.location.absolute()
         h5_file = h5py.File(file_path, 'r')
         with h5_file:
             state = self.load_state(h5_file)
@@ -204,114 +207,6 @@ io_handler_types = (ModelSysConfHandler, HDF5FileHandler)
 io_handler_validator = attr.validators.instance_of(io_handler_types)
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class IOHandlerSpec(dmc_exec.io.IOHandlerSpec):
-    """"""
-
-    type: str = attr.ib(validator=io_handler_type_validator)
-
-    spec: T_IOHandler = attr.ib(validator=io_handler_validator)
-
-    proc_id: t.Optional[int] = \
-        attr.ib(default=None, validator=opt_int_validator)
-
-    def __attrs_post_init__(self):
-        """
-
-        :return:
-        """
-        self_spec = self.spec
-
-        if isinstance(self_spec, HDF5FileHandler):
-
-            proc_id = self.proc_id
-            spec_group = self_spec.group
-
-            if proc_id is not None:
-                group_suffix = 'proc-id-#' + str(proc_id)
-                spec_group = '_'.join([spec_group, group_suffix])
-
-            self_spec = attr.evolve(self_spec, group=spec_group)
-            object.__setattr__(self, 'spec', self_spec)
-
-        # Reset proc_id to None.
-        object.__setattr__(self, 'proc_id', None)
-
-    @classmethod
-    def from_config(cls, config: t.Mapping):
-        """
-
-        :param config:
-        :return:
-        """
-        io_handler_type = config['type']
-        io_handler = config['spec']
-        proc_id = config.get('proc_id', None)
-
-        if io_handler_type == 'MODEL_SYS_CONF':
-            io_handler = ModelSysConfHandler(**io_handler)
-
-        elif io_handler_type == 'HDF5_FILE':
-            io_handler = HDF5FileHandler(**io_handler)
-
-        else:
-            raise ValueError
-
-        return cls(io_handler_type, io_handler, proc_id)
-
-
-@attr.s(auto_attribs=True)
-class ProcIO(dmc_exec.io.ProcIO):
-    """"""
-    #:
-    input: IOHandlerSpec
-
-    #:
-    output: t.Optional[IOHandlerSpec] = None
-
-    #: The procedure id.
-    #: Used to store a ProcResult in different HDF5 groups.
-    proc_id: t.Optional[int] = \
-        attr.ib(default=None, validator=opt_int_validator)
-
-    def __attrs_post_init__(self):
-        """"""
-        proc_id = self.proc_id
-
-        if proc_id is not None:
-            self_input = attr.evolve(self.input, proc_id=proc_id)
-            object.__setattr__(self, 'input', self_input)
-
-            if self.output is not None:
-                self_output = attr.evolve(self.output, proc_id=proc_id)
-                object.__setattr__(self, 'output', self_output)
-
-            # Reset proc_id to None.
-            object.__setattr__(self, 'proc_id', None)
-
-    @classmethod
-    def from_config(cls, config: t.Mapping):
-        """
-
-        :param config:
-        :return:
-        """
-
-        input_spec_config = dict(config['input'])
-        input_handler = IOHandlerSpec.from_config(input_spec_config)
-
-        # Extract the output spec.
-        output_spec_config = dict(config['output'])
-        output_handler = IOHandlerSpec.from_config(output_spec_config)
-
-        if not isinstance(output_handler.spec, HDF5FileHandler):
-            raise TypeError('only the HDF5_FILE is supported as '
-                            'output handler')
-
-        proc_id = config.get('proc_id', None)
-        return cls(input_handler, output_handler, proc_id)
-
-
 def get_io_handler(config: t.Mapping):
     """
 
@@ -321,7 +216,7 @@ def get_io_handler(config: t.Mapping):
     handler_config = dict(config)
     handler_type = handler_config['type']
 
-    if handler_type == 'MODEL_SYS_CONF':
+    if handler_type in ('MODEL_SYS_CONF',):
         return ModelSysConfHandler(**handler_config)
 
     elif handler_type == 'HDF5_FILE':

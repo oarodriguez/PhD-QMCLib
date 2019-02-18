@@ -120,7 +120,7 @@ class Proc(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def build_input_from_model(self, sys_conf_dist_type: SysConfDistType):
+    def input_from_model(self, sys_conf_dist_type: SysConfDistType):
         """
 
         :param sys_conf_dist_type:
@@ -129,7 +129,7 @@ class Proc(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def build_input_from_result(self, proc_result: ProcResult):
+    def input_from_result(self, proc_result: ProcResult):
         pass
 
     @abstractmethod
