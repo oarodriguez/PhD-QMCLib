@@ -4,7 +4,7 @@ import attr
 import yaml
 
 from my_research_libs.mrbp_qmc import dmc_exec
-from my_research_libs.mrbp_qmc.dmc_exec import load_cli_app_config
+from my_research_libs.mrbp_qmc.dmc_exec import CLIApp, load_cli_app_config
 
 
 def test_app_spec():
@@ -24,6 +24,15 @@ def test_app_spec():
     app_spec.dump_output(proc_result=app_result)
 
     print(yaml.dump(proc_cli_conf, indent=4, allow_unicode=True))
+
+
+def test_cli_app():
+    """"""
+    conf_location = Path('./dmc-cli-app-spec.yml')
+    config = load_cli_app_config(conf_location)
+
+    app_cli = CLIApp.from_config(config)
+    app_cli.exec()
 
 
 if __name__ == '__main__':

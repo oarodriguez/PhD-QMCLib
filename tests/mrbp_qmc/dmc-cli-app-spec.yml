@@ -8,7 +8,6 @@ meta:
   category: "Quantum Many-Body Systems"
   tags: ["qmc", "dmc", "multi-rods"]
 
-
 app_spec:
 
   # First Diffusion Monte Carlo procedure.

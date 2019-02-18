@@ -1,11 +1,10 @@
 import typing as t
-from pathlib import Path
 
 import attr
 
 from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
 from my_research_libs.util.attr import (
-    opt_int_validator, opt_path_validator, seq_validator, str_validator
+    opt_int_validator, seq_validator, str_validator
 )
 from .io import (
     HDF5FileHandler, ModelSysConfHandler, T_IOHandler, get_io_handler,
@@ -133,8 +132,8 @@ proc_spec_validator = attr.validators.instance_of(AppSpec)
 
 
 @attr.s(auto_attribs=True)
-class CLIApp:
-    """Entry point for the CLI."""
+class AppMeta:
+    """Metadata of the application."""
 
     #:
     name: str = attr.ib(validator=str_validator)
@@ -158,18 +157,20 @@ class CLIApp:
     tags: str = attr.ib(converter=proc_cli_tags_converter,
                         validator=str_validator)
 
-    #:
-    main_proc_set: t.Sequence[AppSpec] = attr.ib(validator=seq_validator)
+
+@attr.s(auto_attribs=True)
+class CLIApp:
+    """Entry point for the CLI."""
+
+    #: Metadata.
+    meta: AppMeta
 
     #:
-    base_path: t.Optional[Path] = \
-        attr.ib(default=None, validator=opt_path_validator)
+    app_spec: t.Sequence[AppSpec] = attr.ib(validator=seq_validator)
 
     def __attrs_post_init__(self):
         """"""
-        if self.base_path is None:
-            base_path = Path('.')
-            object.__setattr__(self, 'base_path', base_path)
+        pass
 
     @classmethod
     def from_config(cls, config: t.Mapping):
@@ -180,53 +181,44 @@ class CLIApp:
         """
         self_config = dict(config.items())
 
-        # Get the main config.
-        main_proc_set = self_config.pop('main_proc_set')
+        app_meta = AppMeta(**self_config['meta'])
+        app_spec_data = self_config.pop('app_spec')
 
-        main_proc_spec_set = []
-        for proc_num, proc_config in enumerate(main_proc_set):
+        app_spec_set = []
+        for proc_num, app_spec_config in enumerate(app_spec_data):
 
-            proc_id = proc_config.get('proc_id', None)
+            proc_id = app_spec_config.get('proc_id', None)
             proc_id = proc_num if proc_id is None else proc_id
 
-            # The reference spec should not be tagged.
-            proc_config = dict(proc_config)
-            proc_config['proc_id'] = proc_id
+            app_spec_config = dict(app_spec_config)
+            app_spec_config['proc_id'] = proc_id
+            app_spec = AppSpec.from_config(app_spec_config)
+            app_spec_set.append(app_spec)
 
-            proc_spec = AppSpec.from_config(proc_config)
-
-            # Append...
-            main_proc_spec_set.append(proc_spec)
-
-        base_path = self_config.pop('base_path', None)
-        if base_path is not None:
-            base_path = Path(base_path)
-
-        return cls(main_proc_set=main_proc_spec_set,
-                   base_path=base_path, **self_config)
+        return cls(meta=app_meta, app_spec=app_spec_set)
 
     def exec(self):
-        """
+        """Execute the application tasks.
 
         :return:
         """
-        main_proc_set = self.main_proc_set
-        len_self = len(main_proc_set)
+        app_spec_set = self.app_spec
+        len_spec_set = len(app_spec_set)
 
         exec_logger.info(f'Starting the QMC calculations...')
         exec_logger.info(f'Starting the execution of a set of '
-                         f'{len_self} QMC calculations...')
+                         f'{len_spec_set} QMC calculations...')
 
-        for proc_id, proc_spec in enumerate(main_proc_set, 1):
+        for proc_num, app_spec in enumerate(app_spec_set, 1):
 
             exec_logger.info("*** *** ->> ")
-            exec_logger.info(f'Starting procedure ID{proc_id}...')
+            exec_logger.info(f'Starting procedure ID{proc_num}...')
 
-            proc_input = proc_spec.build_input()
-            result = proc_spec.exec(proc_input)
-            proc_spec.dump_output(result)
+            proc_input = app_spec.build_input()
+            result = app_spec.exec(proc_input)
+            app_spec.dump_output(result)
 
-            exec_logger.info(f'Procedure ID{proc_id} completed.')
+            exec_logger.info(f'Procedure ID{proc_num} completed.')
             exec_logger.info("<<- *** ***")
 
         exec_logger.info(f'All the QMC calculations have completed.')
