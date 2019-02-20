@@ -19,9 +19,8 @@ def test_app_spec():
     proc_cli_conf = attr.asdict(app_spec)
 
     # Execute
-    app_input = app_spec.build_input()
-    app_result = app_spec.exec(app_input)
-    app_spec.dump_output(proc_result=app_result)
+    app_result = app_spec.exec(dump_output=False)
+    print(app_result)
 
     print(yaml.dump(proc_cli_conf, indent=4, allow_unicode=True))
 

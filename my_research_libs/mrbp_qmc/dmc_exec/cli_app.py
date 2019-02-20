@@ -6,10 +6,10 @@ from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
 from my_research_libs.util.attr import (
     opt_int_validator, seq_validator, str_validator
 )
-from .io import (
-    HDF5FileHandler, ModelSysConfHandler, get_io_handler
+from .io import HDF5FileHandler
+from .proc import (
+    MODEL_SYS_CONF_TYPE, ModelSysConfSpec, Proc, ProcInput, ProcResult
 )
-from .proc import Proc, ProcResult
 
 proc_validator = attr.validators.instance_of(Proc)
 opt_proc_validator = attr.validators.optional(proc_validator)
@@ -100,34 +100,25 @@ class AppSpec:
 
         :return:
         """
-        input_handler = self.proc_input
+        proc_input = self.proc_input
+        if isinstance(proc_input, ModelSysConfSpec):
+            return ProcInput.from_model_sys_conf_spec(proc_input, self.proc)
+        if isinstance(proc_input, HDF5FileHandler):
+            proc_result = proc_input.load()
+            return ProcInput.from_result(proc_result, self.proc)
+        else:
+            raise TypeError
 
-        if isinstance(input_handler, ModelSysConfHandler):
-            sys_conf_dist_type = input_handler.dist_type_enum
-            num_sys_conf = input_handler.num_sys_conf
-            return self.proc.input_from_model(sys_conf_dist_type,
-                                              num_sys_conf)
-
-        if isinstance(input_handler, HDF5FileHandler):
-            proc_result = input_handler.load()
-            return self.proc.input_from_result(proc_result)
-
-        raise TypeError
-
-    def dump_output(self, proc_result: ProcResult):
-        """
-
-        :param proc_result:
-        :return:
-        """
-        self.proc_output.dump(proc_result)
-
-    def exec(self, proc_input: dmc_exec.ProcInput) -> ProcResult:
+    def exec(self, dump_output: bool = True) -> ProcResult:
         """
 
         :return:
         """
-        return self.proc.exec(proc_input)
+        self_input = self.build_input()
+        proc_result = self.proc.exec(self_input)
+        if dump_output:
+            self.proc_output.dump(proc_result)
+        return proc_result
 
 
 def proc_cli_tags_converter(tag_or_tags: t.Union[str, t.Sequence[str]]):
@@ -229,11 +220,29 @@ class CLIApp:
             exec_logger.info("*** *** ->> ")
             exec_logger.info(f'Starting procedure ID{proc_num}...')
 
-            proc_input = app_spec.build_input()
-            result = app_spec.exec(proc_input)
-            app_spec.dump_output(result)
+            result = app_spec.exec()
+            print(result)
 
             exec_logger.info(f'Procedure ID{proc_num} completed.')
             exec_logger.info("<<- *** ***")
 
         exec_logger.info(f'All the QMC calculations have completed.')
+
+
+def get_io_handler(config: t.Mapping):
+    """
+
+    :param config:
+    :return:
+    """
+    handler_config = dict(config)
+    handler_type = handler_config['type']
+
+    if handler_type == MODEL_SYS_CONF_TYPE:
+        return ModelSysConfSpec(**handler_config)
+
+    elif handler_type == 'HDF5_FILE':
+        return HDF5FileHandler.from_config(handler_config)
+
+    else:
+        raise TypeError(f"unknown handler type {handler_type}")

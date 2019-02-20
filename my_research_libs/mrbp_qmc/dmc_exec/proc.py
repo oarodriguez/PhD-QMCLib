@@ -10,11 +10,58 @@ from my_research_libs.qmc_base.jastrow import SysConfDistType
 from my_research_libs.qmc_exec import dmc as dmc_exec
 from my_research_libs.util.attr import (
     bool_converter, bool_validator, int_converter, int_validator,
-    opt_int_converter, opt_int_validator
+    opt_int_converter, opt_int_validator, opt_str_validator, str_validator
 )
+
+# String to use a ModelSysConfSpec instance as input for a Proc instance.
+MODEL_SYS_CONF_TYPE = 'MODEL_SYS_CONF'
 
 model_spec_validator = attr.validators.instance_of(model.Spec)
 opt_model_spec_validator = attr.validators.optional(model_spec_validator)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class ModelSysConfSpec(dmc_exec.proc.ModelSysConfSpec):
+    """Handler to build inputs from system configurations."""
+
+    #:
+    dist_type: str = attr.ib(validator=str_validator)
+
+    #:
+    num_sys_conf: t.Optional[int] = attr.ib(default=None,
+                                            validator=opt_int_validator)
+
+    #: A tag to identify this handler.
+    type: str = attr.ib(default=None, validator=opt_str_validator)
+
+    def __attrs_post_init__(self):
+        """Post initialization stage."""
+        # This is the type tag, and must be fixed.
+        object.__setattr__(self, 'type', f'{MODEL_SYS_CONF_TYPE}')
+
+    @classmethod
+    def from_config(cls, config: t.Mapping):
+        """
+
+        :param config:
+        :return:
+        """
+        self_config = dict(config)
+        return cls(**self_config)
+
+    def dist_type_as_type(self) -> SysConfDistType:
+        """
+
+        :return:
+        """
+        dist_type = self.dist_type
+        if dist_type is None:
+            dist_type_enum = SysConfDistType.RANDOM
+        else:
+            if dist_type not in SysConfDistType.__members__:
+                raise ValueError
+            dist_type_enum = SysConfDistType[dist_type]
+        return dist_type_enum
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -35,6 +82,56 @@ class SSFEstSpec(dmc_exec.SSFEstSpec):
 
 ssf_validator = attr.validators.instance_of(SSFEstSpec)
 opt_ssf_validator = attr.validators.optional(ssf_validator)
+
+
+@attr.s(auto_attribs=True)
+class ProcInput(dmc_exec.ProcInput):
+    """Represents the input for the DMC calculation procedure."""
+    # The state of the DMC procedure input.
+    # NOTE: Is this class necessary? 🤔
+    state: dmc_base.State
+
+    @classmethod
+    def from_model_sys_conf_spec(cls, sys_conf_spec: ModelSysConfSpec,
+                                 proc: 'Proc'):
+        """
+
+        :param sys_conf_spec:
+        :param proc:
+        :return:
+        """
+        model_spec = proc.model_spec
+        dist_type = sys_conf_spec.dist_type_as_type()
+        num_sys_conf = sys_conf_spec.num_sys_conf
+
+        sys_conf_set = []
+        num_sys_conf = num_sys_conf or proc.target_num_walkers
+        for _ in range(num_sys_conf):
+            sys_conf = \
+                model_spec.init_get_sys_conf(dist_type=dist_type)
+            sys_conf_set.append(sys_conf)
+
+        sys_conf_set = np.asarray(sys_conf_set)
+        state = proc.sampling.build_state(sys_conf_set)
+        return cls(state)
+
+    @classmethod
+    def from_result(cls, proc_result: 'ProcResult',
+                    proc: 'Proc'):
+        """
+
+        :param proc_result:
+        :param proc:
+        :return:
+        """
+        state = proc_result.state
+        assert proc.model_spec == proc_result.proc.model_spec
+        return cls(state)
+
+
+class ProcInputError(ValueError):
+    """Flags an invalid input for a DMC calculation procedure."""
+    pass
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -202,37 +299,6 @@ class Proc(dmc_exec.Proc):
     def checkpoint(self):
         """"""
         pass
-
-    def input_from_model(self, dist_type: SysConfDistType,
-                         num_sys_conf: int = None):
-        """
-
-        :param dist_type:
-        :param num_sys_conf:
-        :return:
-        """
-        model_spec = self.model_spec
-
-        sys_conf_set = []
-        num_sys_conf = num_sys_conf or self.target_num_walkers
-        for _ in range(num_sys_conf):
-            sys_conf = \
-                model_spec.init_get_sys_conf(dist_type=dist_type)
-            sys_conf_set.append(sys_conf)
-
-        sys_conf_set = np.asarray(sys_conf_set)
-        state = self.sampling.build_state(sys_conf_set)
-        return dmc_exec.ProcInput(state)
-
-    def input_from_result(self, proc_result: ProcResult):
-        """
-
-        :param proc_result:
-        :return:
-        """
-        state = proc_result.state
-        assert self.model_spec == proc_result.proc.model_spec
-        return dmc_exec.ProcInput(state)
 
     def build_result(self, state: dmc_base.State,
                      sampling: dmc.Sampling,

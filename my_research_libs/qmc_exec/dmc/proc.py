@@ -10,7 +10,6 @@ from my_research_libs.qmc_base import (
     dmc as dmc_base, model as model_base
 )
 from my_research_libs.qmc_base.dmc import SSFPartSlot
-from my_research_libs.qmc_base.jastrow import SysConfDistType
 from .data import (
     EnergyBlocks, NumWalkersBlocks, PropsDataBlocks,
     PropsDataSeries, SSFBlocks, SamplingData, WeightBlocks
@@ -19,6 +18,16 @@ from ..logging import exec_logger
 
 DMC_TASK_LOG_NAME = f'DMC Sampling'
 VMC_SAMPLING_LOG_NAME = 'VMC Sampling'
+
+
+class ModelSysConfSpec(metaclass=ABCMeta):
+    """Handler to build inputs from system configurations."""
+
+    #:
+    dist_type: str
+
+    #:
+    num_sys_conf: t.Optional[int]
 
 
 class SSFEstSpec(metaclass=ABCMeta):
@@ -34,6 +43,30 @@ class ProcInput(metaclass=ABCMeta):
     # The state of the DMC procedure input.
     # NOTE: Is this class necessary? 🤔
     state: dmc_base.State
+
+    @classmethod
+    @abstractmethod
+    def from_model_sys_conf_spec(cls, sys_conf_spec: ModelSysConfSpec,
+                                 proc: 'Proc'):
+        """
+
+        :param sys_conf_spec:
+        :param proc:
+        :return:
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def from_result(cls, proc_result: 'ProcResult',
+                    proc: 'Proc'):
+        """
+
+        :param proc_result:
+        :param proc:
+        :return:
+        """
+        pass
 
 
 class ProcInputError(ValueError):
@@ -117,19 +150,6 @@ class Proc(metaclass=ABCMeta):
     @property
     @abstractmethod
     def sampling(self) -> dmc_base.Sampling:
-        pass
-
-    @abstractmethod
-    def input_from_model(self, sys_conf_dist_type: SysConfDistType):
-        """
-
-        :param sys_conf_dist_type:
-        :return:
-        """
-        pass
-
-    @abstractmethod
-    def input_from_result(self, proc_result: ProcResult):
         pass
 
     @abstractmethod

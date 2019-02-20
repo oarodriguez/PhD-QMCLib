@@ -4,7 +4,6 @@ from pathlib import Path
 import attr
 import h5py
 
-from my_research_libs.qmc_base.jastrow import SysConfDistType
 from my_research_libs.qmc_exec import dmc as dmc_exec
 from my_research_libs.util.attr import (
     bool_validator, opt_int_validator, opt_str_validator,
@@ -12,57 +11,8 @@ from my_research_libs.util.attr import (
 )
 from .proc import Proc, ProcResult
 
-MODEL_SYS_CONF_TYPE = 'MODEL_SYS_CONF'
 IO_HANDLER_TYPES = ('HDF5_FILE',)
 IO_FILE_HANDLER_TYPES = ('HDF5_FILE',)
-
-
-@attr.s(auto_attribs=True, frozen=True)
-class ModelSysConfHandler(dmc_exec.io.ModelSysConfHandler):
-    """Handler to build inputs from system configurations."""
-
-    #: A tag to identify this handler.
-    type: str = attr.ib(validator=str_validator)
-
-    #:
-    dist_type: str = attr.ib(validator=str_validator)
-
-    #:
-    num_sys_conf: t.Optional[int] = attr.ib(default=None,
-                                            validator=opt_int_validator)
-
-    def __attrs_post_init__(self):
-        """Post initialization stage."""
-        # This is the type tag, and must be fixed.
-        object.__setattr__(self, 'type', f'{MODEL_SYS_CONF_TYPE}')
-
-    @classmethod
-    def from_config(cls, config: t.Mapping):
-        """
-
-        :param config:
-        :return:
-        """
-        self_config = dict(config)
-        return cls(**self_config)
-
-    @property
-    def dist_type_enum(self) -> SysConfDistType:
-        """
-
-        :return:
-        """
-        dist_type = self.dist_type
-
-        if dist_type is None:
-            dist_type_enum = SysConfDistType.RANDOM
-        else:
-            if dist_type not in SysConfDistType.__members__:
-                raise ValueError
-
-            dist_type_enum = SysConfDistType[dist_type]
-
-        return dist_type_enum
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -188,22 +138,3 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
         proc_config.update(proc_group.attrs.items())
 
         return Proc.from_config(proc_config)
-
-
-def get_io_handler(config: t.Mapping):
-    """
-
-    :param config:
-    :return:
-    """
-    handler_config = dict(config)
-    handler_type = handler_config['type']
-
-    if handler_type == MODEL_SYS_CONF_TYPE:
-        return ModelSysConfHandler(**handler_config)
-
-    elif handler_type == 'HDF5_FILE':
-        return HDF5FileHandler.from_config(handler_config)
-
-    else:
-        raise TypeError(f"unknown handler type {handler_type}")

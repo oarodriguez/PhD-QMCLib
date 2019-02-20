@@ -1,5 +1,4 @@
 from my_research_libs.mrbp_qmc import Spec, dmc_exec, vmc_exec
-from my_research_libs.qmc_base.jastrow import SysConfDistType
 
 
 def test_proc():
@@ -52,10 +51,9 @@ def test_proc():
                       num_time_steps_batch=num_time_steps_batch,
                       ssf_spec=ssf_spec)
 
-    vmc_proc_input = vmc_proc.build_input(ini_sys_conf)
-    vmc_batch, _ = vmc_proc.exec(vmc_proc_input)
-
-    dmc_proc_input = dmc_proc.input_from_model(SysConfDistType.RANDOM)
+    sys_conf_spec = dmc_exec.ModelSysConfSpec(dist_type='RANDOM')
+    dmc_proc_input = \
+        dmc_exec.ProcInput.from_model_sys_conf_spec(sys_conf_spec, dmc_proc)
     dmc_result = dmc_proc.exec(dmc_proc_input)
 
 

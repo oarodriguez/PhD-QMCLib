@@ -331,15 +331,6 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         return prop_blocks_data
 
 
-class ModelSysConfHandler(metaclass=ABCMeta):
-    """"""
-    #:
-    dist_type: str
-
-    #:
-    num_sys_conf: t.Optional[int]
-
-
 @attr.s(auto_attribs=True, frozen=True)
 class NpyFileHandler(IOHandler, metaclass=ABCMeta):
     """"""

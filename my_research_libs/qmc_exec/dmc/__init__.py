@@ -10,9 +10,10 @@ from . import data
 
 #
 from .io import (
-    HDF5FileHandler, HDF5FileHandlerGroupError, IOHandler, ModelSysConfHandler,
-    RawHDF5FileHandler
+    HDF5FileHandler, HDF5FileHandlerGroupError, IOHandler, RawHDF5FileHandler
 )
 
 #
-from .proc import (Proc, ProcInput, ProcInputError, ProcResult, SSFEstSpec)
+from .proc import (
+    ModelSysConfSpec, Proc, ProcInput, ProcInputError, ProcResult, SSFEstSpec
+)

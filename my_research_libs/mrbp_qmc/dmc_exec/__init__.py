@@ -11,4 +11,6 @@ from .config import fix_app_spec_locations, load_cli_app_config
 from .io import HDF5FileHandler
 
 #
-from .proc import Proc, ProcResult, SSFEstSpec
+from .proc import (
+    ModelSysConfSpec, Proc, ProcInput, ProcInputError, ProcResult, SSFEstSpec
+)
