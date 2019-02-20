@@ -7,7 +7,7 @@ import numpy as np
 import tqdm
 
 from my_research_libs.qmc_base import model as model_base, vmc as vmc_base
-from .logging import exec_logger
+from ..logging import exec_logger
 
 __all__ = [
     'Proc',

@@ -4,7 +4,9 @@ import attr
 from cached_property import cached_property
 
 from my_research_libs.qmc_exec import vmc as vmc_exec
-from my_research_libs.util.attr import int_validator, opt_int_validator
+from my_research_libs.util.attr import (
+    int_converter, int_validator, opt_int_converter, opt_int_validator
+)
 from .. import model, vmc
 
 model_spec_validator = attr.validators.instance_of(model.Spec)
@@ -24,13 +26,14 @@ class Proc(vmc_exec.Proc):
     move_spread: float = attr.ib(converter=float)
 
     rng_seed: t.Optional[int] = \
-        attr.ib(default=None, validator=opt_int_validator)
+        attr.ib(default=None, converter=opt_int_converter,
+                validator=opt_int_validator)
 
     num_batches: int = \
-        attr.ib(default=8, validator=int_validator)
+        attr.ib(default=8, converter=int_converter, validator=int_validator)
 
     num_steps_batch: int = \
-        attr.ib(default=4096, validator=int_validator)
+        attr.ib(default=4096, converter=int_converter, validator=int_validator)
 
     @classmethod
     def from_config(cls, config: t.Mapping):
