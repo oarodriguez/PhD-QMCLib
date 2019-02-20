@@ -7,13 +7,26 @@ from my_research_libs.util.attr import (
     opt_int_validator, seq_validator, str_validator
 )
 from .io import (
-    HDF5FileHandler, ModelSysConfHandler, T_IOHandler, get_io_handler,
-    io_handler_validator
+    HDF5FileHandler, ModelSysConfHandler, get_io_handler
 )
 from .proc import Proc, ProcResult
 
 proc_validator = attr.validators.instance_of(Proc)
 opt_proc_validator = attr.validators.optional(proc_validator)
+
+# Helpers for the AppSpec.proc_input handling.
+T_ProcInput = t.Union[HDF5FileHandler, ModelSysConfSpec]
+proc_input_types = (ModelSysConfSpec, HDF5FileHandler)
+# noinspection PyTypeChecker
+proc_input_validator = \
+    attr.validators.instance_of(proc_input_types)
+
+# Helpers for the AppSpec.proc_output handling.
+T_ProcOutput = dmc_exec.IOHandler
+# NOTE: Using base class or specific classes...
+proc_output_types = (dmc_exec.IOHandler,)
+proc_output_validator = \
+    attr.validators.instance_of(proc_output_types)
 
 
 # TODO: We need a better name for this class.
@@ -25,11 +38,13 @@ class AppSpec:
     proc: Proc = attr.ib(validator=proc_validator)
 
     #: Input spec.
-    proc_input: T_IOHandler = attr.ib(validator=io_handler_validator)
+    proc_input: T_ProcInput = \
+        attr.ib(validator=proc_input_validator)
 
     #: Output spec.
     # TODO: Update the accepted output handlers.
-    proc_output: T_IOHandler = attr.ib(validator=io_handler_validator)
+    proc_output: T_ProcOutput = \
+        attr.ib(validator=proc_output_validator)
 
     #: Procedure id.
     proc_id: t.Optional[int] = \

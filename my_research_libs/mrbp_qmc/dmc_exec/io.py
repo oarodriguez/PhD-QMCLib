@@ -12,7 +12,8 @@ from my_research_libs.util.attr import (
 )
 from .proc import Proc, ProcResult
 
-IO_HANDLER_TYPES = ('MODEL_SYS_CONF', 'HDF5_FILE')
+MODEL_SYS_CONF_TYPE = 'MODEL_SYS_CONF'
+IO_HANDLER_TYPES = ('HDF5_FILE',)
 IO_FILE_HANDLER_TYPES = ('HDF5_FILE',)
 
 
@@ -33,7 +34,7 @@ class ModelSysConfHandler(dmc_exec.io.ModelSysConfHandler):
     def __attrs_post_init__(self):
         """Post initialization stage."""
         # This is the type tag, and must be fixed.
-        object.__setattr__(self, 'type', 'MODEL_SYS_CONF')
+        object.__setattr__(self, 'type', f'{MODEL_SYS_CONF_TYPE}')
 
     @classmethod
     def from_config(cls, config: t.Mapping):
@@ -44,14 +45,6 @@ class ModelSysConfHandler(dmc_exec.io.ModelSysConfHandler):
         """
         self_config = dict(config)
         return cls(**self_config)
-
-    def load(self):
-        """"""
-        raise NotImplementedError
-
-    def dump(self, data: 'ProcResult'):
-        """"""
-        raise NotImplementedError
 
     @property
     def dist_type_enum(self) -> SysConfDistType:
@@ -197,19 +190,6 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
         return Proc.from_config(proc_config)
 
 
-T_IOHandler = \
-    t.Union[HDF5FileHandler, ModelSysConfHandler]
-
-io_handler_type_validator = [
-    attr.validators.instance_of(str),
-    attr.validators.in_(IO_HANDLER_TYPES)
-]
-
-io_handler_types = (ModelSysConfHandler, HDF5FileHandler)
-# noinspection PyTypeChecker
-io_handler_validator = attr.validators.instance_of(io_handler_types)
-
-
 def get_io_handler(config: t.Mapping):
     """
 
@@ -219,7 +199,7 @@ def get_io_handler(config: t.Mapping):
     handler_config = dict(config)
     handler_type = handler_config['type']
 
-    if handler_type in ('MODEL_SYS_CONF',):
+    if handler_type == MODEL_SYS_CONF_TYPE:
         return ModelSysConfHandler(**handler_config)
 
     elif handler_type == 'HDF5_FILE':
