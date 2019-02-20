@@ -1,13 +1,11 @@
 import typing as t
-from pathlib import Path
 
 import attr
 import h5py
 
 from my_research_libs.qmc_exec import dmc as dmc_exec
 from my_research_libs.util.attr import (
-    bool_validator, opt_int_validator, opt_str_validator,
-    path_validator, str_validator
+    bool_validator, opt_str_validator, str_validator
 )
 from .proc import Proc, ProcResult
 
@@ -54,7 +52,7 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
     """A handler for structured HDF5 files to save DMC procedure results."""
 
     #: Path to the file.
-    location: Path = attr.ib(validator=path_validator)
+    location: str = attr.ib(validator=str_validator)
 
     #: The HDF5 group in the file to read and/or write data.
     group: str = attr.ib(validator=str_validator)
@@ -70,10 +68,10 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
         # This is the type tag, and must be fixed.
         object.__setattr__(self, 'type', 'HDF5_FILE')
 
-        location = self.location
-        if location.is_dir():
-            raise ValueError(f"location {location} is a directory, not a "
-                             f"file")
+        location_path = self.location_path
+        if location_path.is_dir():
+            raise ValueError(f"location {location_path} is a directory, "
+                             f"not a file")
 
     @classmethod
     def from_config(cls, config: t.Mapping):
@@ -82,16 +80,14 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
         :param config:
         :return:
         """
-        config = dict(config)
-        location = Path(config.pop('location'))
-        return cls(location=location, **config)
+        return cls(**config)
 
     def load(self):
         """Load the contents of the file.
 
         :return:
         """
-        file_path = self.location.absolute()
+        file_path = self.location_path
         h5_file = h5py.File(file_path, 'r')
         with h5_file:
             state = self.load_state(h5_file)

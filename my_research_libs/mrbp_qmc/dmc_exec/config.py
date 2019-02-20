@@ -44,27 +44,35 @@ def fix_app_spec_locations(app_spec_config: t.MutableMapping,
     :param config_path: The location of the configuration file.
     :return:
     """
+    # Aliases for proc_input and proc_output.
+    # TODO: Deprecate these fields.
+    if 'input' in app_spec_config:
+        app_spec_config['proc_input'] = app_spec_config.pop('input')
+    if 'output' in app_spec_config:
+        app_spec_config['proc_output'] = app_spec_config.pop('output')
+
     proc_input = app_spec_config['proc_input']
     handler_type = proc_input['type']
     if handler_type in IO_FILE_HANDLER_TYPES:
         # If input_location is absolute, base_path is discarded
         # automatically.
         input_location = proc_input['location']
-        proc_input['location'] = config_path / input_location
+        proc_input['location'] = str(config_path / input_location)
 
     proc_output = app_spec_config['proc_output']
     handler_type = proc_output['type']
     if handler_type in IO_FILE_HANDLER_TYPES:
         output_location = proc_output['location']
-        proc_output['location'] = config_path / output_location
+        proc_output['location'] = str(config_path / output_location)
 
 
-def load_cli_app_config(path: pathlib.Path):
+def load_cli_app_config(location: t.Union[str, pathlib.Path]):
     """
 
-    :param path:
+    :param location:
     :return:
     """
+    path = pathlib.Path(location)
     suffix = path.suffix
     if not suffix:
         raise IOError('config file has no extension')

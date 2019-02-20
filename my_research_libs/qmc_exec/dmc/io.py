@@ -48,7 +48,7 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
     """A handler for properly structured HDF5 files."""
 
     #: Path to the file.
-    location: Path
+    location: str
 
     #: The HDF5 group in the file to read and/or write data.
     group: str
@@ -58,6 +58,11 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
 
     #: A tag to identify this handler.
     type: str
+
+    @property
+    def location_path(self):
+        """Return the file location as a ``pathlib.Path`` object."""
+        return Path(self.location).absolute()
 
     def init_main_groups(self, h5_file: h5py.File):
         """Initialize sub-groups to store the data.
@@ -87,8 +92,8 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         :param data:
         :return:
         """
-        file_path = self.location.absolute()
-        h5_file = h5py.File(file_path)
+        self_path = self.location_path
+        h5_file = h5py.File(self_path)
         with h5_file:
             #
             self.init_main_groups(h5_file)

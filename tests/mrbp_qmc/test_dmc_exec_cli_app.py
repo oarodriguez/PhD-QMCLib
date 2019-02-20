@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import attr
 import yaml
 
@@ -11,8 +9,7 @@ def test_app_spec():
     """Testing the DMCProcCLI."""
     # TODO: Fix config file.
 
-    conf_location = Path('./dmc-cli-app-spec.yml')
-    config = load_cli_app_config(conf_location)
+    config = load_cli_app_config('./dmc-cli-app-spec.yml')
     data = config['app_spec'][0]
 
     app_spec = dmc_exec.cli_app.AppSpec.from_config(data)
@@ -27,8 +24,7 @@ def test_app_spec():
 
 def test_cli_app():
     """"""
-    conf_location = Path('./dmc-cli-app-spec.yml')
-    config = load_cli_app_config(conf_location)
+    config = load_cli_app_config('./dmc-cli-app-spec.yml')
 
     app_cli = CLIApp.from_config(config)
     app_cli.exec()
