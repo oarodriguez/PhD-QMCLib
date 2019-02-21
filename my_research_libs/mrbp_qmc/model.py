@@ -19,11 +19,13 @@ __all__ = [
     'CFCSpecNT',
     'CoreFuncs',
     'CSWFOptimizer',
-    'OBFSpecNT',
+    'OBFParams',
+    'Params',
     'PhysicalFuncs',
     'Spec',
-    'SpecNT',
-    'TBFSpecNT',
+    'TBFParams',
+    'DIST_RAND',
+    'DIST_REGULAR',
     'core_funcs'
 ]
 
@@ -32,8 +34,10 @@ DIST_RAND = qmc_base.jastrow.SysConfDistType.RANDOM
 DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
 
 
-class SpecNT(qmc_base.jastrow.SpecNT, NamedTuple):
+@attr.s(auto_attribs=True, frozen=True)
+class Params(qmc_base.jastrow.Params):
     """The model `Spec` as a named tuple."""
+
     lattice_depth: float
     lattice_ratio: float
     interaction_strength: float
@@ -45,8 +49,22 @@ class SpecNT(qmc_base.jastrow.SpecNT, NamedTuple):
     is_free: bool
     is_ideal: bool
 
+    @classmethod
+    def get_dtype_fields(cls):
+        """"""
+        return [(f.name, f.type) for f in attr.fields(cls)]
 
-class OBFSpecNT(qmc_base.jastrow.OBFSpecNT, NamedTuple):
+    def as_record(self):
+        """Return as a structured array."""
+        # NOTE 1: Return the first element of the array to simplify the
+        #  access to the elements of the parameters.
+        # NOTE 2: Should we return an instance of numpy.rec.array? This
+        #  array is only used in code compiled in nopython mode after all.
+        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class OBFParams(qmc_base.jastrow.OBFParams):
     """One-body function parameters."""
     lattice_depth: float
     lattice_ratio: float
@@ -56,8 +74,18 @@ class OBFSpecNT(qmc_base.jastrow.OBFSpecNT, NamedTuple):
     param_k1: float
     param_kp1: float
 
+    @classmethod
+    def get_dtype_fields(cls):
+        """"""
+        return [(f.name, f.type) for f in attr.fields(cls)]
 
-class TBFSpecNT(qmc_base.jastrow.OBFSpecNT, NamedTuple):
+    def as_record(self):
+        """Return as a structured array."""
+        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class TBFParams(qmc_base.jastrow.TBFParams):
     """Two-body function parameters."""
     supercell_size: float
     tbf_contact_cutoff: float
@@ -66,13 +94,22 @@ class TBFSpecNT(qmc_base.jastrow.OBFSpecNT, NamedTuple):
     param_r_off: float
     param_am: float
 
+    @classmethod
+    def get_dtype_fields(cls):
+        """"""
+        return [(f.name, f.type) for f in attr.fields(cls)]
+
+    def as_record(self):
+        """Return as a structured array."""
+        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
+
 
 class CFCSpecNT(qmc_base.jastrow.CFCSpecNT, NamedTuple):
     """"""
     # Does nothing, only for type hints
-    model_spec: SpecNT
-    obf_spec: OBFSpecNT
-    tbf_spec: TBFSpecNT
+    model_spec: Params
+    obf_params: OBFParams
+    tbf_params: TBFParams
 
 
 # noinspection PyUnusedLocal
@@ -202,10 +239,10 @@ class Spec(qmc_base.jastrow.Spec):
         return sys_conf
 
     @property
-    def as_nt(self):
+    def params(self):
         """"""
         # NOTE: Keep the order in which the attributes were defined.
-        return SpecNT(self.lattice_depth,
+        return Params(self.lattice_depth,
                       self.lattice_ratio,
                       self.interaction_strength,
                       self.boson_number,
@@ -217,7 +254,7 @@ class Spec(qmc_base.jastrow.Spec):
                       self.is_ideal)
 
     @property
-    def obf_spec_nt(self):
+    def obf_params(self):
         """
 
         :return:
@@ -227,17 +264,17 @@ class Spec(qmc_base.jastrow.Spec):
         e0 = float(ideal.eigen_energy(v0, r))
         k1, kp1 = sqrt(e0), sqrt(v0 - e0)
 
-        obf_spec_nt = OBFSpecNT(self.lattice_depth,
-                                self.lattice_ratio,
-                                self.well_width,
-                                self.barrier_width,
-                                param_e0=e0,
-                                param_k1=k1,
-                                param_kp1=kp1)
-        return obf_spec_nt
+        obf_params = OBFParams(self.lattice_depth,
+                               self.lattice_ratio,
+                               self.well_width,
+                               self.barrier_width,
+                               param_e0=e0,
+                               param_k1=k1,
+                               param_kp1=kp1)
+        return obf_params
 
     @property
-    def tbf_spec_nt(self):
+    def tbf_params(self):
         """
 
         :return:
@@ -251,13 +288,13 @@ class Spec(qmc_base.jastrow.Spec):
             raise ValueError("parameter value 'rm' out of domain")
 
         if gn == 0:
-            tbf_spec_nt = TBFSpecNT(self.supercell_size,
-                                    self.tbf_contact_cutoff,
-                                    param_k2=0.,
-                                    param_beta=0.,
-                                    param_r_off=1 / 2 * sc_size,
-                                    param_am=1.0)
-            return tbf_spec_nt
+            tbf_params = TBFParams(self.supercell_size,
+                                   self.tbf_contact_cutoff,
+                                   param_k2=0.,
+                                   param_beta=0.,
+                                   param_r_off=1 / 2 * sc_size,
+                                   param_am=1.0)
+            return tbf_params
 
         # Convert interaction energy to Lieb gamma.
         lgm = 0.5 * (sc_size / nop) ** 2 * gn
@@ -305,20 +342,20 @@ class Spec(qmc_base.jastrow.Spec):
         # am = sin(pi * rm) ** beta / cos(k2 * (rm - r_off))
         # Return momentum and length in units of lattice period.
         # return k2, beta, r_off, am
-        tbf_spec_nt = TBFSpecNT(self.supercell_size,
-                                self.tbf_contact_cutoff,
-                                param_k2=k2 / sc_size,
-                                param_beta=beta,
-                                param_r_off=r_off * sc_size,
-                                param_am=am)
-        return tbf_spec_nt
+        tbf_params = TBFParams(self.supercell_size,
+                               self.tbf_contact_cutoff,
+                               param_k2=k2 / sc_size,
+                               param_beta=beta,
+                               param_r_off=r_off * sc_size,
+                               param_am=am)
+        return tbf_params
 
     @property
     def cfc_spec_nt(self):
         """"""
-        self_spec = self.as_nt
-        obf_spec = self.obf_spec_nt
-        tbf_spec = self.tbf_spec_nt
+        self_spec = self.params.as_record()
+        obf_spec = self.obf_params.as_record()
+        tbf_spec = self.tbf_params.as_record()
         return CFCSpecNT(self_spec, obf_spec, tbf_spec)
 
     @cached_property
@@ -329,18 +366,18 @@ class Spec(qmc_base.jastrow.Spec):
 
 
 @jit(nopython=True)
-def _one_body_func(z: float, spec: OBFSpecNT) -> float:
+def _one_body_func(z: float, obf_params: OBFParams) -> float:
     """One-body function.
 
     :param z:
-    :param spec:
+    :param obf_params:
     :return:
     """
-    v0 = spec.lattice_depth
-    r = spec.lattice_ratio
-    e0 = spec.param_e0
-    k1 = spec.param_k1
-    kp1 = spec.param_kp1
+    v0 = obf_params.lattice_depth
+    r = obf_params.lattice_ratio
+    e0 = obf_params.param_e0
+    k1 = obf_params.param_k1
+    kp1 = obf_params.param_kp1
 
     z_cell = (z % 1.)
     z_a, z_b = 1 / (1 + r), r / (1 + r)
@@ -354,16 +391,16 @@ def _one_body_func(z: float, spec: OBFSpecNT) -> float:
 
 
 @jit(nopython=True)
-def _one_body_func_log_dz(z: float, spec: OBFSpecNT) -> float:
+def _one_body_func_log_dz(z: float, obf_params: OBFParams) -> float:
     """One-body function logarithmic derivative.
 
     :param z:
-    :param spec:
+    :param obf_params:
     :return:
     """
-    r = spec.lattice_ratio
-    k1 = spec.param_k1
-    kp1 = spec.param_kp1
+    r = obf_params.lattice_ratio
+    k1 = obf_params.param_k1
+    kp1 = obf_params.param_kp1
 
     z_cell = (z % 1.)
     z_a, z_b = 1 / (1 + r), r / (1 + r)
@@ -376,16 +413,16 @@ def _one_body_func_log_dz(z: float, spec: OBFSpecNT) -> float:
 
 
 @jit(nopython=True)
-def _one_body_func_log_dz2(z: float, spec: OBFSpecNT) -> float:
+def _one_body_func_log_dz2(z: float, obf_params: OBFParams) -> float:
     """One-body function second logarithmic derivative.
 
     :param z:
-    :param spec:
+    :param obf_params:
     :return:
     """
-    v0 = spec.lattice_depth
-    r = spec.lattice_ratio
-    e0 = spec.param_e0
+    v0 = obf_params.lattice_depth
+    r = obf_params.lattice_ratio
+    e0 = obf_params.param_e0
 
     z_cell = (z % 1.)
     z_a, z_b = 1 / (1 + r), r / (1 + r)
@@ -393,19 +430,19 @@ def _one_body_func_log_dz2(z: float, spec: OBFSpecNT) -> float:
 
 
 @jit(nopython=True)
-def _two_body_func(rz: float, spec: TBFSpecNT) -> float:
+def _two_body_func(rz: float, tbf_params: TBFParams) -> float:
     """Two-body function.
 
     :param rz:
-    :param spec:
+    :param tbf_params:
     :return:
     """
-    sc_size = spec.supercell_size
-    rm = spec.tbf_contact_cutoff
-    k2 = spec.param_k2
-    beta = spec.param_beta
-    r_off = spec.param_r_off
-    am = spec.param_am
+    sc_size = tbf_params.supercell_size
+    rm = tbf_params.tbf_contact_cutoff
+    k2 = tbf_params.param_k2
+    beta = tbf_params.param_beta
+    r_off = tbf_params.param_r_off
+    am = tbf_params.param_am
 
     # Two-body term.
     if rz < fabs(rm):
@@ -415,18 +452,18 @@ def _two_body_func(rz: float, spec: TBFSpecNT) -> float:
 
 
 @jit(nopython=True)
-def _two_body_func_log_dz(rz: float, spec: TBFSpecNT) -> float:
+def _two_body_func_log_dz(rz: float, tbf_params: TBFParams) -> float:
     """Two-body function logarithmic derivative.
 
     :param rz:
-    :param spec:
+    :param tbf_params:
     :return:
     """
-    sc_size = spec.supercell_size
-    rm = spec.tbf_contact_cutoff
-    k2 = spec.param_k2
-    beta = spec.param_beta
-    r_off = spec.param_r_off
+    sc_size = tbf_params.supercell_size
+    rm = tbf_params.tbf_contact_cutoff
+    k2 = tbf_params.param_k2
+    beta = tbf_params.param_beta
+    r_off = tbf_params.param_r_off
 
     # Two-body term.
     if rz < fabs(rm):
@@ -436,17 +473,17 @@ def _two_body_func_log_dz(rz: float, spec: TBFSpecNT) -> float:
 
 
 @jit(nopython=True)
-def _two_body_func_log_dz2(rz: float, spec: TBFSpecNT) -> float:
+def _two_body_func_log_dz2(rz: float, tbf_params: TBFParams) -> float:
     """Two-body function logarithmic derivative.
 
     :param rz:
-    :param spec:
+    :param tbf_params:
     :return:
     """
-    sc_size = spec.supercell_size
-    rm = spec.tbf_contact_cutoff
-    k2 = spec.param_k2
-    beta = spec.param_beta
+    sc_size = tbf_params.supercell_size
+    rm = tbf_params.tbf_contact_cutoff
+    k2 = tbf_params.param_k2
+    beta = tbf_params.param_beta
 
     # Two-body term.
     if rz < fabs(rm):
@@ -458,29 +495,29 @@ def _two_body_func_log_dz2(rz: float, spec: TBFSpecNT) -> float:
 
 
 @jit(nopython=True)
-def _potential(z: float, spec: SpecNT) -> float:
+def _potential(z: float, params: Params) -> float:
     """Calculates the potential energy of the Bose gas due to the
      external potential.
 
      :param z: The current configuration of the positions of the
                particles.
-     :param spec:
+     :param params:
      :return:
     """
-    v0 = spec.lattice_depth
-    z_a = spec.well_width
+    v0 = params.lattice_depth
+    z_a = params.well_width
     z_cell = z % 1.
     return v0 if z_a < z_cell else 0.
 
 
 @jit(nopython=True)
-def _real_distance(z_i, z_j, model_spec: SpecNT):
+def _real_distance(z_i, z_j, params: Params):
     """The real distance between two bosons.
 
     This routine takes into account the periodic boundary
     conditions of the QMC calculation.
     """
-    sc_size = model_spec.supercell_size
+    sc_size = params.supercell_size
     return min_distance(z_i, z_j, sc_size)
 
 

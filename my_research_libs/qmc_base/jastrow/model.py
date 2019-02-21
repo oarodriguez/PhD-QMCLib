@@ -1,5 +1,5 @@
 import typing as t
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
 
@@ -14,13 +14,13 @@ __all__ = [
     'CFCSpecNT',
     'CoreFuncs',
     'CSWFOptimizer',
-    'OBFSpecNT',
+    'OBFParams',
+    'Params',
     'PhysicalFuncs',
     'Spec',
-    'SpecNT',
     'SysConfSlot',
     'SysConfDistType',
-    'TBFSpecNT'
+    'TBFParams'
 ]
 
 
@@ -45,7 +45,7 @@ DIST_RAND = SysConfDistType.RANDOM
 DIST_REGULAR = SysConfDistType.REGULAR
 
 
-class SpecNT(model.SpecNT, t.NamedTuple):
+class Params(model.Params, metaclass=ABCMeta):
     """The common fields a Jastrow model spec should implement."""
     boson_number: int
     supercell_size: float
@@ -53,7 +53,7 @@ class SpecNT(model.SpecNT, t.NamedTuple):
     is_ideal: bool
 
 
-class OBFSpecNT(t.NamedTuple):
+class OBFParams(model.Params, metaclass=ABCMeta):
     """Fields of the one-body function spec.
 
     We declare this class to help with typing and nothing more. A concrete
@@ -63,7 +63,7 @@ class OBFSpecNT(t.NamedTuple):
     pass
 
 
-class TBFSpecNT(t.NamedTuple):
+class TBFParams(model.Params, metaclass=ABCMeta):
     """Fields of the two-body function spec.
 
     We declare this class to help with typing and nothing more. A concrete
@@ -75,9 +75,9 @@ class TBFSpecNT(t.NamedTuple):
 
 class CFCSpecNT(t.NamedTuple):
     """The common structure of the spec of a core function."""
-    model_spec: SpecNT
-    obf_spec: OBFSpecNT
-    tbf_spec: TBFSpecNT
+    model_params: Params
+    obf_params: OBFParams
+    tbf_params: TBFParams
 
 
 class Spec(model.Spec):
@@ -115,42 +115,42 @@ class Spec(model.Spec):
 
     @property
     @abstractmethod
-    def as_nt(self) -> SpecNT:
+    def params(self) -> Params:
         """"""
         pass
 
     @property
     @abstractmethod
-    def obf_spec_nt(self) -> OBFSpecNT:
+    def obf_params(self) -> OBFParams:
         pass
 
     @property
     @abstractmethod
-    def tbf_spec_nt(self) -> TBFSpecNT:
+    def tbf_params(self) -> TBFParams:
         pass
 
     @property
     def cfc_spec_nt(self):
         """"""
-        self_spec = self.as_nt
-        obf_spec = self.obf_spec_nt
-        tbf_spec = self.tbf_spec_nt
-        return CFCSpecNT(self_spec, obf_spec, tbf_spec)
+        self_params = self.params.as_record()
+        obf_params = self.obf_params.as_record()
+        tbf_params = self.tbf_params.as_record()
+        return CFCSpecNT(self_params, obf_params, tbf_params)
 
 
 # Stubs to help with static type checking.
 # noinspection PyUnusedLocal
-def _one_body_func_stub(z: float, spec: OBFSpecNT) -> float:
+def _one_body_func_stub(z: float, obf_params: OBFParams) -> float:
     pass
 
 
 # noinspection PyUnusedLocal
-def _two_body_func_stub(rz: float, spec: TBFSpecNT) -> float:
+def _two_body_func_stub(rz: float, tbf_params: TBFParams) -> float:
     pass
 
 
 # noinspection PyUnusedLocal
-def _potential_stub(z: float, spec: SpecNT) -> float:
+def _potential_stub(z: float, params: Params) -> float:
     pass
 
 
@@ -227,25 +227,25 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return:
             """
-            model_spec = cfc_spec.model_spec
-            obf_spec = cfc_spec.obf_spec
-            tbf_spec = cfc_spec.tbf_spec
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
             ith_wf_abs_log = 0.
 
-            if not model_spec.is_free:
+            if not model_params.is_free:
                 # Gas subject to external potential.
                 z_i = sys_conf[pos_slot, i_]
-                obv = one_body_func(z_i, obf_spec)
+                obv = one_body_func(z_i, obf_params)
                 ith_wf_abs_log += log(fabs(obv))
 
-            if not model_spec.is_ideal:
+            if not model_params.is_ideal:
                 # Gas with interactions.
                 z_i = sys_conf[pos_slot, i_]
-                nop = model_spec.boson_number
+                nop = model_params.boson_number
                 for j_ in range(i_ + 1, nop):
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_spec)
-                    tbv = two_body_func(fabs(z_ij), tbf_spec)
+                    z_ij = real_distance(z_i, z_j, model_params)
+                    tbv = two_body_func(fabs(z_ij), tbf_params)
                     ith_wf_abs_log += log(fabs(tbv))
 
             return ith_wf_abs_log
@@ -270,13 +270,13 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return:
             """
-            model_spec = cfc_spec.model_spec
+            model_params = cfc_spec.model_params
             wf_abs_log = 0.
 
-            if model_spec.is_free and model_spec.is_ideal:
+            if model_params.is_free and model_params.is_ideal:
                 return wf_abs_log
 
-            nop = model_spec.boson_number
+            nop = model_params.boson_number
             for i_ in range(nop):
                 wf_abs_log += ith_wf_abs_log(i_, sys_conf, cfc_spec)
             return wf_abs_log
@@ -332,38 +332,38 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return:
             """
-            model_spec = cfc_spec.model_spec
-            obf_spec = cfc_spec.obf_spec
-            tbf_spec = cfc_spec.tbf_spec
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
             delta_wf_abs_log = 0.
 
             # NOTE: Is it better to use this conditional from external loops?
-            if model_spec.is_free and model_spec.is_ideal:
+            if model_params.is_free and model_params.is_ideal:
                 return delta_wf_abs_log
 
             # k-nth particle position.
             z_k = sys_conf[pos_slot, k_]
             z_k_upd = z_k + z_k_delta
 
-            if not model_spec.is_free:
+            if not model_params.is_free:
                 # Gas subject to external potential.
-                obv = one_body_func(z_k, obf_spec)
-                obv_upd = one_body_func(z_k_upd, obf_spec)
+                obv = one_body_func(z_k, obf_params)
+                obv_upd = one_body_func(z_k_upd, obf_params)
                 delta_wf_abs_log += log(fabs(obv_upd / obv))
 
-            if not model_spec.is_ideal:
+            if not model_params.is_ideal:
                 # Gas with interactions.
-                nop = model_spec.boson_number
+                nop = model_params.boson_number
                 for i_ in range(nop):
                     if i_ == k_:
                         continue
 
                     z_i = sys_conf[pos_slot, i_]
-                    r_ki = fabs(real_distance(z_k, z_i, model_spec))
-                    r_ki_upd = fabs(real_distance(z_k_upd, z_i, model_spec))
+                    r_ki = fabs(real_distance(z_k, z_i, model_params))
+                    r_ki_upd = fabs(real_distance(z_k_upd, z_i, model_params))
 
-                    tbv = two_body_func(r_ki, tbf_spec)
-                    tbv_upd = two_body_func(r_ki_upd, tbf_spec)
+                    tbv = two_body_func(r_ki, tbf_params)
+                    tbv_upd = two_body_func(r_ki_upd, tbf_params)
                     delta_wf_abs_log += log(fabs(tbv_upd / tbv))
 
             return delta_wf_abs_log
@@ -396,35 +396,35 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return: The local energy.
             """
-            model_spec = cfc_spec.model_spec
-            obf_spec = cfc_spec.obf_spec
-            tbf_spec = cfc_spec.tbf_spec
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
             ith_drift = 0.
 
             # NOTE: Is it better to use this conditional from external loops?
-            if model_spec.is_free and model_spec.is_ideal:
+            if model_params.is_free and model_params.is_ideal:
                 return ith_drift
 
             # i-nth particle position.
             z_i = sys_conf[pos_slot, i_]
 
-            if not model_spec.is_free:
+            if not model_params.is_free:
                 # Case with external potential.
-                ob_fn_ldz = one_body_func_log_dz(z_i, obf_spec)
+                ob_fn_ldz = one_body_func_log_dz(z_i, obf_params)
                 ith_drift += ob_fn_ldz
 
-            if not model_spec.is_ideal:
+            if not model_params.is_ideal:
                 # Case with interactions.
-                nop = model_spec.boson_number
+                nop = model_params.boson_number
                 for j_ in range(nop):
                     # Do not account diagonal terms.
                     if j_ == i_:
                         continue
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_spec)
+                    z_ij = real_distance(z_i, z_j, model_params)
                     sgn = sign(z_ij)
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_ij),
-                                                     tbf_spec) * sgn
+                                                     tbf_params) * sgn
 
                     ith_drift += tb_fn_ldz
 
@@ -461,7 +461,7 @@ class CoreFuncs(model.CoreFuncs):
             # Set the position first, then the drift.
             result[pos_slot, :] = sys_conf[pos_slot, :]
 
-            nop = cfc_spec.model_spec.boson_number
+            nop = cfc_spec.model_params.boson_number
             for i_ in range(nop):
                 result[drift_slot, i_] = ith_drift(i_, sys_conf, cfc_spec)
 
@@ -496,9 +496,9 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return:
             """
-            model_spec = cfc_spec.model_spec
-            obf_spec = cfc_spec.obf_spec
-            tbf_spec = cfc_spec.tbf_spec
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
 
             z_k = sys_conf[pos_slot, k_]
             z_k_upd = z_k + z_k_delta
@@ -507,57 +507,57 @@ class CoreFuncs(model.CoreFuncs):
                 #
                 delta_ith_drift = 0.
 
-                if model_spec.is_ideal:
+                if model_params.is_ideal:
                     return delta_ith_drift
 
                 # Only a gas with interactions contributes in this case.
                 z_i = sys_conf[pos_slot, i_]
-                z_ki_upd = real_distance(z_k_upd, z_i, model_spec)
-                z_ki = real_distance(z_k, z_i, model_spec)
+                z_ki_upd = real_distance(z_k_upd, z_i, model_params)
+                z_ki = real_distance(z_k, z_i, model_params)
 
                 # TODO: Move th sign to the function.
                 sgn = sign(z_ki)
                 ob_fn_ldz = two_body_func_log_dz(fabs(z_ki),
-                                                 tbf_spec) * sgn
+                                                 tbf_params) * sgn
 
                 sgn = sign(z_ki_upd)
                 ob_fn_ldz_upd = two_body_func_log_dz(fabs(z_ki_upd),
-                                                     tbf_spec) * sgn
+                                                     tbf_params) * sgn
 
                 delta_ith_drift += -(ob_fn_ldz_upd - ob_fn_ldz)
                 return delta_ith_drift
 
             delta_ith_drift = 0.
             # NOTE: Is it better to use this conditional from external loops?
-            if model_spec.is_free and model_spec.is_ideal:
+            if model_params.is_free and model_params.is_ideal:
                 return delta_ith_drift
 
-            if not model_spec.is_free:
+            if not model_params.is_free:
                 #
-                ob_fn_ldz = one_body_func_log_dz(z_k, obf_spec)
-                ob_fn_ldz_upd = one_body_func_log_dz(z_k_upd, obf_spec)
+                ob_fn_ldz = one_body_func_log_dz(z_k, obf_params)
+                ob_fn_ldz_upd = one_body_func_log_dz(z_k_upd, obf_params)
 
                 delta_ith_drift += ob_fn_ldz_upd - ob_fn_ldz
 
-            if not model_spec.is_ideal:
+            if not model_params.is_ideal:
                 # Gas with interactions.
-                nop = model_spec.boson_number
+                nop = model_params.boson_number
                 for j_ in range(nop):
                     #
                     if j_ == k_:
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_kj = real_distance(z_k, z_j, model_spec)
-                    z_kj_upd = real_distance(z_k_upd, z_j, model_spec)
+                    z_kj = real_distance(z_k, z_j, model_params)
+                    z_kj_upd = real_distance(z_k_upd, z_j, model_params)
 
                     sgn = sign(z_kj)
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_kj),
-                                                     tbf_spec) * sgn
+                                                     tbf_params) * sgn
 
                     sgn = sign(z_kj_upd)
                     tb_fn_ldz_upd = two_body_func_log_dz(fabs(z_kj_upd),
-                                                         tbf_spec) * sgn
+                                                         tbf_params) * sgn
 
                     delta_ith_drift += (tb_fn_ldz_upd - tb_fn_ldz)
 
@@ -595,44 +595,44 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return: The local energy.
             """
-            model_spec = cfc_spec.model_spec
-            obf_spec = cfc_spec.obf_spec
-            tbf_spec = cfc_spec.tbf_spec
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
             ith_energy = 0.
 
-            if model_spec.is_free and model_spec.is_ideal:
+            if model_params.is_free and model_params.is_ideal:
                 return ith_energy
 
             kin_energy = 0.
             pot_energy = 0
             ith_drift = 0.
 
-            if not model_spec.is_free:
+            if not model_params.is_free:
                 # Case with external potential.
                 z_i = sys_conf[pos_slot, i_]
-                ob_fn_ldz2 = one_body_func_log_dz2(z_i, obf_spec)
-                ob_fn_ldz = one_body_func_log_dz(z_i, obf_spec)
+                ob_fn_ldz2 = one_body_func_log_dz2(z_i, obf_params)
+                ob_fn_ldz = one_body_func_log_dz(z_i, obf_params)
 
                 kin_energy += (-ob_fn_ldz2 + ob_fn_ldz ** 2)
-                pot_energy += potential(z_i, model_spec)
+                pot_energy += potential(z_i, model_params)
                 ith_drift += ob_fn_ldz
 
-            if not model_spec.is_ideal:
+            if not model_params.is_ideal:
                 # Case with interactions.
                 z_i = sys_conf[pos_slot, i_]
-                nop = model_spec.boson_number
+                nop = model_params.boson_number
                 for j_ in range(nop):
                     # Do not account diagonal terms.
                     if j_ == i_:
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_spec)
+                    z_ij = real_distance(z_i, z_j, model_params)
                     sgn = sign(z_ij)
 
-                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij), tbf_spec)
+                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij), tbf_params)
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_ij),
-                                                     tbf_spec) * sgn
+                                                     tbf_params) * sgn
 
                     kin_energy += (-tb_fn_ldz2 + tb_fn_ldz ** 2)
                     ith_drift += tb_fn_ldz
@@ -665,7 +665,7 @@ class CoreFuncs(model.CoreFuncs):
             :return:
             """
             energy = 0.
-            nop = cfc_spec.model_spec.boson_number
+            nop = cfc_spec.model_params.boson_number
             for i_ in range(nop):
                 energy += ith_energy(i_, sys_conf, cfc_spec)
             return energy
@@ -701,12 +701,12 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return: The local energy and the drift.
             """
-            model_spec = cfc_spec.model_spec
-            obf_spec = cfc_spec.obf_spec
-            tbf_spec = cfc_spec.tbf_spec
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
             ith_energy, ith_drift = 0., 0.
 
-            if model_spec.is_free and model_spec.is_ideal:
+            if model_params.is_free and model_params.is_ideal:
                 return ith_energy, ith_drift
 
             # Unpack the parameters.
@@ -714,32 +714,32 @@ class CoreFuncs(model.CoreFuncs):
             pot_energy = 0
             ith_drift = 0.
 
-            if not model_spec.is_free:
+            if not model_params.is_free:
                 # Case with external potential.
                 z_i = sys_conf[pos_slot, i_]
-                ob_fn_ldz2 = one_body_func_log_dz2(z_i, obf_spec)
-                ob_fn_ldz = one_body_func_log_dz(z_i, obf_spec)
+                ob_fn_ldz2 = one_body_func_log_dz2(z_i, obf_params)
+                ob_fn_ldz = one_body_func_log_dz(z_i, obf_params)
 
                 kin_energy += (-ob_fn_ldz2 + ob_fn_ldz ** 2)
-                pot_energy += potential(z_i, model_spec)
+                pot_energy += potential(z_i, model_params)
                 ith_drift += ob_fn_ldz
 
-            if not model_spec.is_ideal:
+            if not model_params.is_ideal:
                 # Case with interactions.
                 z_i = sys_conf[pos_slot, i_]
-                nop = model_spec.boson_number
+                nop = model_params.boson_number
                 for j_ in range(nop):
                     # Do not account diagonal terms.
                     if j_ == i_:
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_spec)
+                    z_ij = real_distance(z_i, z_j, model_params)
                     sgn = sign(z_ij)
 
-                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij), tbf_spec)
+                    tb_fn_ldz2 = two_body_func_log_dz2(fabs(z_ij), tbf_params)
                     tb_fn_ldz = two_body_func_log_dz(fabs(z_ij),
-                                                     tbf_spec) * sgn
+                                                     tbf_params) * sgn
 
                     kin_energy += (-tb_fn_ldz2 + tb_fn_ldz ** 2)
                     ith_drift += tb_fn_ldz
@@ -779,12 +779,12 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return:
             """
-            model_spec = cfc_spec.model_spec
-            obf_spec = cfc_spec.obf_spec
-            tbf_spec = cfc_spec.tbf_spec
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
             ith_obd_log = 0.
 
-            if model_spec.is_free and model_spec.is_ideal:
+            if model_params.is_free and model_params.is_ideal:
                 return ith_obd_log
 
             # The local one-body density matrix is calculated as the
@@ -793,32 +793,32 @@ class CoreFuncs(model.CoreFuncs):
             # divided by the wave function with the particles evaluated
             # in their original positions. To improve statistics, we
             # average over all possible particle displacements.
-            if not model_spec.is_free:
+            if not model_params.is_free:
                 #
                 z_i = sys_conf[pos_slot, i_]
                 z_i_sft = z_i + sz
 
-                ob_fn = one_body_func(z_i, obf_spec)
-                ob_fn_sft = one_body_func(z_i_sft, obf_spec)
+                ob_fn = one_body_func(z_i, obf_params)
+                ob_fn_sft = one_body_func(z_i_sft, obf_params)
                 ith_obd_log += (log(ob_fn_sft) - log(ob_fn))
 
-            if not model_spec.is_ideal:
+            if not model_params.is_ideal:
                 # Interacting gas.
                 z_i = sys_conf[pos_slot, i_]
                 z_i_sft = z_i + sz
-                nop = model_spec.boson_number
+                nop = model_params.boson_number
                 for j_ in range(nop):
                     #
                     if i_ == j_:
                         continue
 
                     z_j = sys_conf[pos_slot, j_]
-                    z_ij = real_distance(z_i, z_j, model_spec)
-                    tb_fn = two_body_func(fabs(z_ij), tbf_spec)
+                    z_ij = real_distance(z_i, z_j, model_params)
+                    tb_fn = two_body_func(fabs(z_ij), tbf_params)
 
                     # Shifted difference.
-                    z_ij = real_distance(z_i_sft, z_j, model_spec)
-                    tb_fn_shift = two_body_func(fabs(z_ij), tbf_spec)
+                    z_ij = real_distance(z_i_sft, z_j, model_params)
+                    tb_fn_shift = two_body_func(fabs(z_ij), tbf_params)
 
                     ith_obd_log += (log(tb_fn_shift) - log(tb_fn))
 
@@ -848,7 +848,7 @@ class CoreFuncs(model.CoreFuncs):
             :return:
             """
             obd = 0.
-            nop = cfc_spec.model_spec.boson_number
+            nop = cfc_spec.model_params.boson_number
             for i_ in range(nop):
                 obd += ith_one_body_density(i_, sz, sys_conf, cfc_spec)
             return obd / nop
@@ -878,10 +878,10 @@ class CoreFuncs(model.CoreFuncs):
             :param cfc_spec:
             :return:
             """
-            model_spec = cfc_spec.model_spec
+            model_params = cfc_spec.model_params
             s_sin, s_cos = 0., 0.
 
-            nop = cfc_spec.model_spec.boson_number
+            nop = cfc_spec.model_params.boson_number
             for i_ in range(nop):
                 z_i = sys_conf[pos_slot, i_]
                 s_cos += cos(kz * z_i)

@@ -25,9 +25,9 @@ STAT_REJECTED = qmc_base.vmc.STAT_REJECTED
 
 class WFSpecNT(qmc_base.vmc.WFSpecNT, t.NamedTuple):
     """""The parameters of the trial wave function."""
-    model_spec: model.SpecNT
-    obf_spec: model.OBFSpecNT
-    tbf_spec: model.TBFSpecNT
+    model_spec: model.SpecParams
+    obf_spec: model.OBFSpecParams
+    tbf_spec: model.TBFSpecParams
 
 
 class TPFSpecNT(qmc_base.jastrow.vmc.TPFSpecNT, t.NamedTuple):

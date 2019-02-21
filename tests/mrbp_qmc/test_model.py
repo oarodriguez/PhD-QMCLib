@@ -2,7 +2,8 @@ import attr
 import numpy as np
 import pytest
 
-from my_research_libs import mrbp_qmc as bloch_phonon
+from my_research_libs import mrbp_qmc
+from my_research_libs.mrbp_qmc.model import DIST_REGULAR
 from my_research_libs.qmc_base.jastrow import SysConfSlot
 
 LATTICE_DEPTH = 100
@@ -23,7 +24,7 @@ BASE_SPEC_ITEMS = dict(lattice_depth=LATTICE_DEPTH,
 
 def test_init():
     """"""
-    model_spec = bloch_phonon.Spec(**BASE_SPEC_ITEMS)
+    model_spec = mrbp_qmc.Spec(**BASE_SPEC_ITEMS)
     print(repr(model_spec))
     print(attr.asdict(model_spec))
 
@@ -33,7 +34,7 @@ def test_update_params():
 
     :return:
     """
-    model_spec = bloch_phonon.Spec(**BASE_SPEC_ITEMS)
+    model_spec = mrbp_qmc.Spec(**BASE_SPEC_ITEMS)
     with pytest.raises(AttributeError):
         # Extra parameter. This will fail.
         new_params = dict(BASE_SPEC_ITEMS, extra_param=True)
@@ -41,12 +42,23 @@ def test_update_params():
             setattr(model_spec, name, value)
 
 
+def test_wf_abs_log():
+    """Test the execution of the wave function."""
+    model_spec = mrbp_qmc.Spec(**BASE_SPEC_ITEMS)
+    core_funcs = mrbp_qmc.core_funcs
+
+    wf_abs_log = core_funcs.wf_abs_log
+    sys_conf = model_spec.init_get_sys_conf(DIST_REGULAR)
+    wf_abs_log_v = wf_abs_log(sys_conf, model_spec.cfc_spec_nt)
+    print(wf_abs_log_v)
+
+
 def test_qmc_funcs():
     """"""
 
     # We have an ideal system...
-    model_spec = bloch_phonon.Spec(**BASE_SPEC_ITEMS)
-    core_funcs = bloch_phonon.CoreFuncs()
+    model_spec = mrbp_qmc.Spec(**BASE_SPEC_ITEMS)
+    core_funcs = mrbp_qmc.CoreFuncs()
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model_spec.init_get_sys_conf()

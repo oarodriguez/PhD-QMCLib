@@ -1,22 +1,38 @@
+import typing as t
 from abc import ABCMeta, abstractmethod
-from typing import NamedTuple, Optional
 
 import numpy as np
 
 __all__ = [
     'CoreFuncs',
     'CoreFuncsMeta',
+    'Params',
     'PhysicalFuncs',
     'Spec',
     'SpecMeta',
-    'SpecNT',
     'WFOptimizer'
 ]
 
 
-class SpecNT(NamedTuple):
+class Params(metaclass=ABCMeta):
     """The parameters of the model."""
-    pass
+
+    @classmethod
+    def get_dtype(cls):
+        """Build the numpy dtype for the params object."""
+        return np.dtype(cls.get_dtype_fields())
+
+    @classmethod
+    @abstractmethod
+    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
+        """Retrieve the fields of the numpy dtype."""
+        pass
+
+    # NOTE: Mask the return type as a Params instance.
+    @abstractmethod
+    def as_record(self) -> 'Params':
+        """Return the params as a numpy structured array."""
+        pass
 
 
 class SpecMeta(ABCMeta):
@@ -54,7 +70,7 @@ class Spec(metaclass=SpecMeta):
 
     @property
     @abstractmethod
-    def as_nt(self):
+    def params(self):
         pass
 
     @property
@@ -188,7 +204,7 @@ class WFOptimizer(metaclass=ABCMeta):
     ini_wf_abs_log_set: np.ndarray
 
     #: The energy of reference to minimize the variance of the local energy.
-    ref_energy: Optional[float]
+    ref_energy: t.Optional[float]
 
     @abstractmethod
     def update_spec(self, *args, **kwargs):
