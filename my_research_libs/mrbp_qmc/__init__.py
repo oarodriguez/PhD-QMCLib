@@ -5,7 +5,7 @@
     Package for QMC routines of the Bloch-Phonon Jastrow model.
 """
 #
-from . import dmc, dmc_exec, vmc, vmc_exec, wf_opt
+from . import dmc, dmc_exec, vmc, vmc_exec, vmc_ndf, wf_opt
 
 #
 from .model import (

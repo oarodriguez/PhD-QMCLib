@@ -4,7 +4,7 @@
 """
 
 #
-from . import vmc
+from . import vmc, vmc_ndf
 
 #
 from .model import *

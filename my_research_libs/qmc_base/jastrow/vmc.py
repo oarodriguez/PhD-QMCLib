@@ -1,6 +1,5 @@
+import typing as t
 from abc import ABCMeta
-from math import sqrt
-from typing import NamedTuple, Optional, Union
 
 import numpy as np
 from cached_property import cached_property
@@ -12,23 +11,11 @@ from .. import vmc
 __all__ = [
     'CoreFuncs',
     'Sampling',
-    'NTPFSpecNT',
-    'NormalSampling',
-    'UTPFSpecNT',
+    'TPFSpecNT',
 ]
 
 
-class NTPFSpecNT(vmc.NTPFSpecNT, NamedTuple):
-    """The parameters of the transition probability function.
-
-    The parameters correspond to a sampling done with random numbers
-    generated from a (normal) gaussian distribution function.
-    """
-    boson_number: int
-    sigma: float
-
-
-class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
+class TPFSpecNT(vmc.TPFSpecNT, t.NamedTuple):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -45,40 +32,13 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
     model_spec: model.Spec
 
     move_spread: float
-    rng_seed: Optional[int]
-
-    @property
-    def wf_spec_nt(self):
-        """The trial wave function spec."""
-        return self.model_spec.cfc_spec_nt
+    rng_seed: t.Optional[int]
 
     @property
     def tpf_spec_nt(self):
         """"""
         boson_number = self.model_spec.boson_number
-        return UTPFSpecNT(boson_number, self.move_spread)
-
-
-class NormalSampling(vmc.NormalSampling, metaclass=ABCMeta):
-    """Spec for the VMC sampling of a Bijl-Jastrow model."""
-
-    #: The spec of a concrete Jastrow model.
-    model_spec: model.Spec
-
-    time_step: float
-    rng_seed: int
-
-    @property
-    def wf_spec_nt(self):
-        """The trial wave function spec."""
-        return self.model_spec.cfc_spec_nt
-
-    @property
-    def tpf_spec_nt(self):
-        """"""
-        sigma = sqrt(self.time_step)
-        number = self.model_spec.boson_number
-        return NTPFSpecNT(number, sigma)
+        return TPFSpecNT(boson_number, self.move_spread)
 
 
 class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
@@ -90,7 +50,7 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
     function.
     """
     # The slots available in a single particle configuration.
-    sys_conf_slots = model.SysConfSlot
+    sys_conf_slots: t.ClassVar = model.SysConfSlot
 
     @cached_property
     def ith_sys_conf_tpf(self):
@@ -105,7 +65,7 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         def _ith_sys_conf_ppf(i_: int,
                               ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,
-                              tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]):
+                              tpf_spec: TPFSpecNT):
             """Move the i-nth particle of the current configuration of the
             system. The moves are displacements of the original position plus
             a term sampled from a uniform distribution.
@@ -134,7 +94,7 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         @jit(nopython=True)
         def _sys_conf_ppf(ini_sys_conf: np.ndarray,
                           prop_sys_conf: np.ndarray,
-                          tpf_spec: Union[NTPFSpecNT, UTPFSpecNT]):
+                          tpf_spec: TPFSpecNT):
             """Move the current configuration of the system.
 
             :param ini_sys_conf: The current (initial) configuration.

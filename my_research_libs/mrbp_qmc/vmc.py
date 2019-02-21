@@ -1,5 +1,4 @@
-from math import sqrt
-from typing import NamedTuple, Optional, Union
+import typing as t
 
 import attr
 import numpy as np
@@ -14,11 +13,8 @@ __all__ = [
     'CoreFuncs',
     'Sampling',
     'StateError',
-    'TPFSpecNT',
-    'NormalCoreFuncs',
-    'NormalSampling',
     'StateProp',
-    'UTPFSpecNT',
+    'TPFSpecNT',
     'core_funcs'
 ]
 
@@ -27,19 +23,14 @@ StateProp = qmc_base.vmc.StateProp
 STAT_REJECTED = qmc_base.vmc.STAT_REJECTED
 
 
-class TPFSpecNT(qmc_base.jastrow.vmc.NTPFSpecNT, NamedTuple):
-    """Parameters of the transition probability function.
-
-    The parameters correspond to a sampling done with random numbers
-    generated from a normal (gaussian) distribution function.
-    """
-    boson_number: int
-    sigma: float
-    lower_bound: float
-    upper_bound: float
+class WFSpecNT(qmc_base.vmc.WFSpecNT, t.NamedTuple):
+    """""The parameters of the trial wave function."""
+    model_spec: model.SpecNT
+    obf_spec: model.OBFSpecNT
+    tbf_spec: model.TBFSpecNT
 
 
-class UTPFSpecNT(qmc_base.jastrow.vmc.UTPFSpecNT, NamedTuple):
+class TPFSpecNT(qmc_base.jastrow.vmc.TPFSpecNT, t.NamedTuple):
     """Parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -62,7 +53,7 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
 
     model_spec: model.Spec
     move_spread: float
-    rng_seed: Optional[int] = attr.ib(default=None)
+    rng_seed: t.Optional[int] = attr.ib(default=None)
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
@@ -71,13 +62,21 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
             super().__setattr__('rng_seed', rng_seed)
 
     @property
+    def wf_spec_nt(self):
+        """The trial wave function spec."""
+        model_spec = self.model_spec
+        return WFSpecNT(model_spec.as_nt,
+                        model_spec.obf_spec_nt,
+                        model_spec.tbf_spec_nt)
+
+    @property
     def tpf_spec_nt(self):
         """"""
         move_spread = self.move_spread
         boson_number = self.model_spec.boson_number
         z_min, z_max = self.model_spec.boundaries
-        return UTPFSpecNT(boson_number, move_spread=move_spread,
-                          lower_bound=z_min, upper_bound=z_max)
+        return TPFSpecNT(boson_number, move_spread=move_spread,
+                         lower_bound=z_min, upper_bound=z_max)
 
     def build_state(self, sys_conf: np.ndarray) -> qmc_base.vmc.State:
         """Builds a state for the sampling.
@@ -122,7 +121,7 @@ class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
         """Apply the periodic boundary conditions on a configuration."""
 
         @jit(nopython=True)
-        def _recast(z: float, tpf_spec: Union[TPFSpecNT, UTPFSpecNT]):
+        def _recast(z: float, tpf_spec: TPFSpecNT):
             """Apply the periodic boundary conditions on a configuration.
 
             :param z:
@@ -149,7 +148,7 @@ class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
         def _ith_sys_conf_ppf(i_: int,
                               ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,
-                              tpf_spec: Union[TPFSpecNT, UTPFSpecNT]):
+                              tpf_spec: TPFSpecNT):
             """Move the i-nth particle of the current configuration of the
             system under PBC.
 
@@ -168,46 +167,5 @@ class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
         return _ith_sys_conf_ppf
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class NormalSampling(qmc_base.jastrow.vmc.NormalSampling):
-    """The spec of the VMC sampling."""
-
-    model_spec: model.Spec
-    time_step: float
-    rng_seed: Optional[int] = attr.ib(default=None)
-
-    def __attrs_post_init__(self):
-        """Post-initialization stage."""
-        if self.rng_seed is None:
-            rng_seed = int(utils.get_random_rng_seed())
-            super().__setattr__('rng_seed', rng_seed)
-
-    @property
-    def tpf_spec_nt(self):
-        """"""
-        sigma = sqrt(self.time_step)
-        boson_number = self.model_spec.boson_number
-        z_min, z_max = self.model_spec.boundaries
-        return TPFSpecNT(boson_number, sigma=sigma,
-                         lower_bound=z_min, upper_bound=z_max)
-
-    @property
-    def core_funcs(self) -> 'NormalCoreFuncs':
-        """The core functions of the sampling."""
-        # NOTE: Should we use a new NormalCoreFuncs instance?
-        return normal_core_funcs
-
-
-class NormalCoreFuncs(CoreFuncs, qmc_base.vmc.NormalCoreFuncs):
-    """The core functions to realize a VMC calculation.
-
-    The VMC sampling is subject to periodic boundary conditions due to the
-    multi-rods external potential. The random numbers used in the calculation
-    are generated from a normal (gaussian) distribution function.
-    """
-    pass
-
-
 # Common reference to all the core functions.
 core_funcs = CoreFuncs()
-normal_core_funcs = NormalCoreFuncs()

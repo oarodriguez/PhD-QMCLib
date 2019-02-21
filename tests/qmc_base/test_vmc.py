@@ -1,5 +1,5 @@
+import typing as t
 from math import sqrt
-from typing import NamedTuple
 
 import attr
 import numba as nb
@@ -8,33 +8,35 @@ from cached_property import cached_property
 from matplotlib import pyplot
 from numpy.linalg import norm
 
-from my_research_libs.qmc_base import vmc
+from my_research_libs.qmc_base import vmc, vmc_ndf
+from my_research_libs.qmc_base.vmc import State
 
 
-class WFSpecNT(NamedTuple):
+class WFSpecNT(t.NamedTuple):
     """The parameters of the gaussian pdf."""
     dims: int
     mu: float
     sigma: float
 
 
-class NTPFSpecNT(vmc.NTPFSpecNT, NamedTuple):
+class NTPFSpecNT(vmc_ndf.TPFSpecNT, t.NamedTuple):
     """The gaussian, transition probability function parameters."""
     dims: int
     sigma: float
 
 
-class UTPFSpecNT(vmc.UTPFSpecNT, NamedTuple):
+class UTPFSpecNT(vmc.TPFSpecNT, t.NamedTuple):
     """The uniform, transition probability function parameters."""
     dims: int
     move_spread: float
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class NormalSampling(vmc.NormalSampling):
+class NormalSampling(vmc_ndf.Sampling):
     """A spec to sampling the multidimensional gaussian."""
 
     dims: int
+
     mu: float
     sigma: float
     time_step: float
@@ -52,8 +54,12 @@ class NormalSampling(vmc.NormalSampling):
         sigma = sqrt(self.time_step)
         return NTPFSpecNT(self.dims, sigma)
 
+    def build_state(self, sys_conf: np.ndarray) -> State:
+        # TODO: Implement
+        pass
+
     @cached_property
-    def core_funcs(self) -> 'NormalCoreFuncs':
+    def core_funcs(self) -> 'CoreFuncs':
         """The core functions of the sampling."""
         return NormalCoreFuncs()
 
@@ -120,7 +126,7 @@ class CoreFuncs(vmc.CoreFuncs):
         return _sys_conf_ppf
 
 
-class NormalCoreFuncs(CoreFuncs, vmc.NormalCoreFuncs):
+class NormalCoreFuncs(CoreFuncs, vmc_ndf.CoreFuncs):
     """Functions to sample a multidimensional Gaussian pdf."""
     pass
 
@@ -183,16 +189,17 @@ def test_normal_sampling():
                               rng_seed=0)
 
     ar = 0
-    for cj_, data in enumerate(sampling):
-        sys_conf, wfv, stat = data
+    for cj_, data in enumerate(sampling.states(ini_sys_conf)):
+        stat = data.move_stat
         ar += stat
         if cj_ + 1 >= num_steps:
             break
 
     ar /= num_steps
 
-    chain_data = sampling.as_chain(num_steps)
-    sys_conf_set, sys_props_set, ar_ = chain_data
+    chain_data = sampling.as_chain(num_steps, ini_sys_conf)
+    sys_conf_set = chain_data.confs
+    ar_ = chain_data.accept_rate
 
     assert sys_conf_set.shape == (num_steps, sampling.dims)
     assert ar == ar_

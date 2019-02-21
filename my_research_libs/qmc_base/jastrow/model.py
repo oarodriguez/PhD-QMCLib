@@ -1,7 +1,7 @@
+import typing as t
 from abc import abstractmethod
 from enum import Enum, IntEnum, unique
 from math import (cos, exp, fabs, log, sin)
-from typing import NamedTuple, Optional, Tuple
 
 import numpy as np
 from cached_property import cached_property
@@ -45,7 +45,7 @@ DIST_RAND = SysConfDistType.RANDOM
 DIST_REGULAR = SysConfDistType.REGULAR
 
 
-class SpecNT(model.SpecNT, NamedTuple):
+class SpecNT(model.SpecNT, t.NamedTuple):
     """The common fields a Jastrow model spec should implement."""
     boson_number: int
     supercell_size: float
@@ -53,7 +53,7 @@ class SpecNT(model.SpecNT, NamedTuple):
     is_ideal: bool
 
 
-class OBFSpecNT(NamedTuple):
+class OBFSpecNT(t.NamedTuple):
     """Fields of the one-body function spec.
 
     We declare this class to help with typing and nothing more. A concrete
@@ -63,7 +63,7 @@ class OBFSpecNT(NamedTuple):
     pass
 
 
-class TBFSpecNT(NamedTuple):
+class TBFSpecNT(t.NamedTuple):
     """Fields of the two-body function spec.
 
     We declare this class to help with typing and nothing more. A concrete
@@ -73,7 +73,7 @@ class TBFSpecNT(NamedTuple):
     pass
 
 
-class CFCSpecNT(NamedTuple):
+class CFCSpecNT(t.NamedTuple):
     """The common structure of the spec of a core function."""
     model_spec: SpecNT
     obf_spec: OBFSpecNT
@@ -114,12 +114,10 @@ class Spec(model.Spec):
         return np.zeros(sc_shape, dtype=np.float64)
 
     @property
-    def as_nt(self):
+    @abstractmethod
+    def as_nt(self) -> SpecNT:
         """"""
-        return SpecNT(self.boson_number,
-                      self.supercell_size,
-                      self.is_free,
-                      self.is_ideal)
+        pass
 
     @property
     @abstractmethod
@@ -130,6 +128,14 @@ class Spec(model.Spec):
     @abstractmethod
     def tbf_spec_nt(self) -> TBFSpecNT:
         pass
+
+    @property
+    def cfc_spec_nt(self):
+        """"""
+        self_spec = self.as_nt
+        obf_spec = self.obf_spec_nt
+        tbf_spec = self.tbf_spec_nt
+        return CFCSpecNT(self_spec, obf_spec, tbf_spec)
 
 
 # Stubs to help with static type checking.
@@ -1023,7 +1029,7 @@ class CSWFOptimizer(model.WFOptimizer):
     ini_wf_abs_log_set: np.ndarray
 
     #: The energy of reference to minimize the variance of the local energy.
-    ref_energy: Optional[float]
+    ref_energy: t.Optional[float]
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -1056,7 +1062,7 @@ class CSWFOptimizer(model.WFOptimizer):
 
     @abstractmethod
     def wf_abs_log_and_energy_set(self, cfc_spec: CFCSpecNT) -> \
-            Tuple[np.ndarray, np.ndarray]:
+            t.Tuple[np.ndarray, np.ndarray]:
         """Evaluates the wave function and energy for all the configurations.
 
         :param cfc_spec: The spec of the core functions.
