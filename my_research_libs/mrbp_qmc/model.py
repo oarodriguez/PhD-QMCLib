@@ -13,10 +13,12 @@ from scipy.optimize import brentq, differential_evolution
 
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
-from my_research_libs.util.attr import int_converter, int_validator
+from my_research_libs.util.attr import (
+    Record, int_converter, int_validator
+)
 
 __all__ = [
-    'CFCSpecNT',
+    'CFCSpec',
     'CoreFuncs',
     'CSWFOptimizer',
     'OBFParams',
@@ -35,7 +37,7 @@ DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class Params(qmc_base.jastrow.Params):
+class Params(qmc_base.jastrow.Params, Record):
     """The model `Spec` as a named tuple."""
 
     lattice_depth: float
@@ -49,22 +51,9 @@ class Params(qmc_base.jastrow.Params):
     is_free: bool
     is_ideal: bool
 
-    @classmethod
-    def get_dtype_fields(cls):
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
-
-    def as_record(self):
-        """Return as a structured array."""
-        # NOTE 1: Return the first element of the array to simplify the
-        #  access to the elements of the parameters.
-        # NOTE 2: Should we return an instance of numpy.rec.array? This
-        #  array is only used in code compiled in nopython mode after all.
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
-
 
 @attr.s(auto_attribs=True, frozen=True)
-class OBFParams(qmc_base.jastrow.OBFParams):
+class OBFParams(qmc_base.jastrow.OBFParams, Record):
     """One-body function parameters."""
     lattice_depth: float
     lattice_ratio: float
@@ -74,18 +63,9 @@ class OBFParams(qmc_base.jastrow.OBFParams):
     param_k1: float
     param_kp1: float
 
-    @classmethod
-    def get_dtype_fields(cls):
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
-
-    def as_record(self):
-        """Return as a structured array."""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
-
 
 @attr.s(auto_attribs=True, frozen=True)
-class TBFParams(qmc_base.jastrow.TBFParams):
+class TBFParams(qmc_base.jastrow.TBFParams, Record):
     """Two-body function parameters."""
     supercell_size: float
     tbf_contact_cutoff: float
@@ -94,20 +74,11 @@ class TBFParams(qmc_base.jastrow.TBFParams):
     param_r_off: float
     param_am: float
 
-    @classmethod
-    def get_dtype_fields(cls):
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
 
-    def as_record(self):
-        """Return as a structured array."""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
-
-
-class CFCSpecNT(qmc_base.jastrow.CFCSpecNT, NamedTuple):
+class CFCSpec(qmc_base.jastrow.CFCSpec, NamedTuple):
     """"""
     # Does nothing, only for type hints
-    model_spec: Params
+    model_params: Params
     obf_params: OBFParams
     tbf_params: TBFParams
 
@@ -324,7 +295,8 @@ class Spec(qmc_base.jastrow.Spec):
         # consistent with the Lieb-Liniger theory.
         a1d = 2.0 / (lgm * nop)
 
-        k2rm = brentq(_nonlinear_equation, 0, pi / 2, args=(a1d,))
+        # Type hint...
+        k2rm: float = brentq(_nonlinear_equation, 0, pi / 2, args=(a1d,))
 
         beta_rm = (
                 k2rm / pi * (rm - k2rm * a1d * tan(k2rm)) * tan(pi * rm) /
@@ -351,12 +323,12 @@ class Spec(qmc_base.jastrow.Spec):
         return tbf_params
 
     @property
-    def cfc_spec_nt(self):
+    def cfc_spec(self):
         """"""
-        self_spec = self.params.as_record()
-        obf_spec = self.obf_params.as_record()
-        tbf_spec = self.tbf_params.as_record()
-        return CFCSpecNT(self_spec, obf_spec, tbf_spec)
+        self_params = self.params.as_record()
+        obf_params = self.obf_params.as_record()
+        tbf_params = self.tbf_params.as_record()
+        return CFCSpec(self_params, obf_params, tbf_params)
 
     @cached_property
     def phys_funcs(self):
@@ -582,12 +554,12 @@ core_funcs = CoreFuncs()
 class PhysicalFuncs(qmc_base.jastrow.PhysicalFuncs):
     """Functions to calculate the main physical properties of the model."""
 
-    cfc_spec_nt: CFCSpecNT
+    cfc_spec_nt: CFCSpec
 
     @classmethod
     def from_model_spec(cls, model_spec: Spec):
         """Builds the core functions for the given model Spec."""
-        return cls(model_spec.cfc_spec_nt)
+        return cls(model_spec.cfc_spec)
 
     @cached_property
     def core_funcs(self):
@@ -648,7 +620,7 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
         energy = core_funcs.energy
 
         @jit(nopython=True, nogil=True)
-        def __threaded_func(sys_conf: np.ndarray, cfc_spec: CFCSpecNT):
+        def __threaded_func(sys_conf: np.ndarray, cfc_spec: CFCSpec):
             """Evaluates the energy and wave function, and releases de GIL.
 
             :param sys_conf: The system configuration.
@@ -661,7 +633,7 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
 
         return __threaded_func
 
-    def wf_abs_log_and_energy_set(self, cfc_spec: CFCSpecNT) -> \
+    def wf_abs_log_and_energy_set(self, cfc_spec: CFCSpec) -> \
             Tuple[np.ndarray, np.ndarray]:
         """"""
 

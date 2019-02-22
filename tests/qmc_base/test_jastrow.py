@@ -1,62 +1,34 @@
-import typing as t
 from math import exp, fabs, pi, sin, tan
 
 import attr
 import numba as nb
-import numpy as np
 from cached_property import cached_property
 from numpy import random
 
 from my_research_libs.qmc_base import jastrow, utils
 from my_research_libs.qmc_base.jastrow import SysConfSlot
+from my_research_libs.util.attr import Record
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class Params(jastrow.Params):
+class Params(jastrow.Params, Record):
     """"""
     boson_number: int
     supercell_size: float
     is_free: bool
     is_ideal: bool
 
-    @classmethod
-    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
-
-    def as_record(self):
-        """"""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
-
 
 @attr.s(auto_attribs=True, frozen=True)
-class OBFParams(jastrow.OBFParams):
+class OBFParams(jastrow.OBFParams, Record):
     """"""
     supercell_size: float
 
-    @classmethod
-    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
-
-    def as_record(self):
-        """"""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
-
 
 @attr.s(auto_attribs=True, frozen=True)
-class TBFParams(jastrow.TBFParams):
+class TBFParams(jastrow.TBFParams, Record):
     """"""
     supercell_size: float
-
-    @classmethod
-    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
-
-    def as_record(self):
-        """"""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
 
 
 @attr.s(auto_attribs=True)
@@ -122,10 +94,10 @@ class Spec(jastrow.Spec):
         return None
 
     @property
-    def cfc_spec_nt(self):
-        return jastrow.CFCSpecNT(self.params.as_record(),
-                                 self.obf_params.as_record(),
-                                 self.tbf_params.as_record())
+    def cfc_spec(self):
+        return jastrow.CFCSpec(self.params.as_record(),
+                               self.obf_params.as_record(),
+                               self.tbf_params.as_record())
 
     @property
     def phys_funcs(self):
@@ -275,7 +247,7 @@ def test_ith_wf_abs_log():
     nop, sc_size = 100, 100
     model_params = Spec(nop, sc_size)
     sys_conf = model_params.init_get_sys_conf()
-    cfc_spec = model_params.cfc_spec_nt
+    cfc_spec = model_params.cfc_spec
 
     core_funcs = CoreFuncs()
     wf_v1 = core_funcs.ith_wf_abs_log(0, sys_conf, cfc_spec)
@@ -293,7 +265,7 @@ def test_drift_funcs():
     nop, sc_size = 100, 100
     model_params = Spec(nop, sc_size)
     sys_conf = model_params.init_get_sys_conf()
-    cfc_spec = model_params.cfc_spec_nt
+    cfc_spec = model_params.cfc_spec
 
     core_funcs = CoreFuncs()
     drift_v1 = core_funcs.ith_drift(0, sys_conf, cfc_spec)
@@ -309,7 +281,7 @@ def test_energy_funcs():
     nop, sc_size = 100, 100
     model_params = Spec(nop, sc_size)
     sys_conf = model_params.init_get_sys_conf()
-    cfc_spec = model_params.cfc_spec_nt
+    cfc_spec = model_params.cfc_spec
 
     core_funcs = CoreFuncs()
     e_r1 = core_funcs.ith_energy(0, sys_conf, cfc_spec)
@@ -327,7 +299,7 @@ def test_obd_funcs():
     nop, sc_size = 100, 100
     model_params = Spec(nop, sc_size)
     sys_conf = model_params.init_get_sys_conf()
-    cfc_spec = model_params.cfc_spec_nt
+    cfc_spec = model_params.cfc_spec
 
     core_funcs = CoreFuncs()
     sz = model_params.supercell_size / nop
@@ -344,7 +316,7 @@ def test_sf_funcs():
     nop, sc_size = 100, 100
     model_params = Spec(nop, sc_size)
     sys_conf = model_params.init_get_sys_conf()
-    cfc_spec = model_params.cfc_spec_nt
+    cfc_spec = model_params.cfc_spec
 
     core_funcs = CoreFuncs()
     kz = 2 * pi / sc_size

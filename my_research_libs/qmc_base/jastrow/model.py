@@ -11,7 +11,7 @@ from .. import model
 from ..utils import sign
 
 __all__ = [
-    'CFCSpecNT',
+    'CFCSpec',
     'CoreFuncs',
     'CSWFOptimizer',
     'OBFParams',
@@ -73,7 +73,7 @@ class TBFParams(model.Params, metaclass=ABCMeta):
     pass
 
 
-class CFCSpecNT(t.NamedTuple):
+class CFCSpec(t.NamedTuple):
     """The common structure of the spec of a core function."""
     model_params: Params
     obf_params: OBFParams
@@ -115,27 +115,18 @@ class Spec(model.Spec):
 
     @property
     @abstractmethod
-    def params(self) -> Params:
-        """"""
+    def params(self):
         pass
 
     @property
     @abstractmethod
-    def obf_params(self) -> OBFParams:
+    def obf_params(self):
         pass
 
     @property
     @abstractmethod
-    def tbf_params(self) -> TBFParams:
+    def tbf_params(self):
         pass
-
-    @property
-    def cfc_spec_nt(self):
-        """"""
-        self_params = self.params.as_record()
-        obf_params = self.obf_params.as_record()
-        tbf_params = self.tbf_params.as_record()
-        return CFCSpecNT(self_params, obf_params, tbf_params)
 
 
 # Stubs to help with static type checking.
@@ -218,7 +209,7 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True)
         def _ith_wf_abs_log(i_: int, sys_conf: np.ndarray,
-                            cfc_spec: CFCSpecNT):
+                            cfc_spec: CFCSpec):
             """Computes the variational wave function of a system of bosons in
             a specific configuration.
 
@@ -262,7 +253,7 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True, nogil=True)
         def _wf_abs_log(sys_conf: np.ndarray,
-                        cfc_spec: CFCSpecNT):
+                        cfc_spec: CFCSpec):
             """Computes the variational wave function of a system of bosons in
             a specific configuration.
 
@@ -293,7 +284,7 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True, nogil=True)
         def _wf_abs(sys_conf: np.ndarray,
-                    cfc_spec: CFCSpecNT):
+                    cfc_spec: CFCSpec):
             """Computes the variational wave function of a system of
             bosons in a specific configuration.
 
@@ -322,7 +313,7 @@ class CoreFuncs(model.CoreFuncs):
         def _delta_wf_abs_log_kth_move(k_: int,
                                        z_k_delta: float,
                                        sys_conf: np.ndarray,
-                                       cfc_spec: CFCSpecNT):
+                                       cfc_spec: CFCSpec):
             """Computes the change of the logarithm of the wave function
             after displacing the `k-th` particle by a distance ``z_k_delta``.
 
@@ -385,7 +376,7 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True)
         def _ith_drift(i_: int,
                        sys_conf: np.ndarray,
-                       cfc_spec: CFCSpecNT):
+                       cfc_spec: CFCSpec):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -446,7 +437,7 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True)
         def _drift(sys_conf: np.ndarray,
-                   cfc_spec: CFCSpecNT,
+                   cfc_spec: CFCSpec,
                    result: np.ndarray = None):
             """
 
@@ -485,7 +476,7 @@ class CoreFuncs(model.CoreFuncs):
         def _delta_ith_drift_kth_move(i_: int, k_: int,
                                       z_k_delta: float,
                                       sys_conf: np.ndarray,
-                                      cfc_spec: CFCSpecNT):
+                                      cfc_spec: CFCSpec):
             """Computes the change of the i-th component of the drift
             after displacing the k-th particle by a distance ``z_k_delta``.
 
@@ -584,7 +575,7 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True)
         def _ith_energy(i_: int,
                         sys_conf: np.ndarray,
-                        cfc_spec: CFCSpecNT):
+                        cfc_spec: CFCSpec):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -657,7 +648,7 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True, nogil=True)
         def _energy(sys_conf: np.ndarray,
-                    cfc_spec: CFCSpecNT):
+                    cfc_spec: CFCSpec):
             """
 
             :param sys_conf:
@@ -690,7 +681,7 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True)
         def _ith_energy_and_drift(i_: int,
                                   sys_conf: np.ndarray,
-                                  cfc_spec: CFCSpecNT):
+                                  cfc_spec: CFCSpec):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -768,7 +759,7 @@ class CoreFuncs(model.CoreFuncs):
         def _ith_one_body_density(i_: int,
                                   sz: float,
                                   sys_conf: np.ndarray,
-                                  cfc_spec: CFCSpecNT):
+                                  cfc_spec: CFCSpec):
             """Computes the logarithm of the local one-body density matrix
             for a given configuration of the position of the bodies and for a
             specified particle index.
@@ -837,7 +828,7 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True, nogil=True)
         def _one_body_density(sz: float,
                               sys_conf: np.ndarray,
-                              cfc_spec: CFCSpecNT):
+                              cfc_spec: CFCSpec):
             """Computes the logarithm of the local one-body density matrix
             for a given configuration of the position of the bodies and for a
             specified particle index.
@@ -867,7 +858,7 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True)
         def _fourier_density(kz: float,
                              sys_conf: np.ndarray,
-                             cfc_spec: CFCSpecNT):
+                             cfc_spec: CFCSpec):
             """Fourier density component with momentum :math:`k`.
 
             This function corresponds to the Fourier transform of the
@@ -896,7 +887,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
     """Functions to calculate the main physical properties of a model."""
 
     #: The model spec these functions correspond to.
-    cfc_spec_nt: CFCSpecNT
+    cfc_spec_nt: CFCSpec
 
     @property
     @abstractmethod
@@ -909,7 +900,7 @@ class PhysicalFuncs(model.PhysicalFuncs):
         """Logarithm of the absolute value fo the trial wave function."""
 
         # These functions are compiled for the instance model spec. Therefore,
-        # the spec.cfc_spec_nt attribute becomes a compile-time constant and
+        # the spec.cfc_spec attribute becomes a compile-time constant and
         # the functions depend only on the configuration of the particles of
         # the system, and possibly on other quantities with physical
         # significance but otherwise independent to the model.
@@ -1061,7 +1052,7 @@ class CSWFOptimizer(model.WFOptimizer):
         pass
 
     @abstractmethod
-    def wf_abs_log_and_energy_set(self, cfc_spec: CFCSpecNT) -> \
+    def wf_abs_log_and_energy_set(self, cfc_spec: CFCSpec) -> \
             t.Tuple[np.ndarray, np.ndarray]:
         """Evaluates the wave function and energy for all the configurations.
 
@@ -1080,7 +1071,7 @@ class CSWFOptimizer(model.WFOptimizer):
 
         # Temporary spec with the variational parameter modified
         upd_model_spec = self.update_spec(tbf_contact_cutoff)
-        cfc_spec = upd_model_spec.cfc_spec_nt
+        cfc_spec = upd_model_spec.cfc_spec
 
         # The function to get the energy and weights.
         core_funcs_data = self.wf_abs_log_and_energy_set(cfc_spec)

@@ -49,7 +49,7 @@ def test_wf_abs_log():
 
     wf_abs_log = core_funcs.wf_abs_log
     sys_conf = model_spec.init_get_sys_conf(DIST_REGULAR)
-    wf_abs_log_v = wf_abs_log(sys_conf, model_spec.cfc_spec_nt)
+    wf_abs_log_v = wf_abs_log(sys_conf, model_spec.cfc_spec)
     print(wf_abs_log_v)
 
 
@@ -62,7 +62,7 @@ def test_qmc_funcs():
 
     # Generate a random configuration, pick the model parameters.
     sys_conf = model_spec.init_get_sys_conf()
-    cfc_spec = model_spec.cfc_spec_nt
+    cfc_spec = model_spec.cfc_spec
 
     # Testing a scalar function with own arguments
     energy_func = core_funcs.energy

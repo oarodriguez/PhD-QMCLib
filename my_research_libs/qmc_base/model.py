@@ -16,23 +16,7 @@ __all__ = [
 
 class Params(metaclass=ABCMeta):
     """The parameters of the model."""
-
-    @classmethod
-    def get_dtype(cls):
-        """Build the numpy dtype for the params object."""
-        return np.dtype(cls.get_dtype_fields())
-
-    @classmethod
-    @abstractmethod
-    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
-        """Retrieve the fields of the numpy dtype."""
-        pass
-
-    # NOTE: Mask the return type as a Params instance.
-    @abstractmethod
-    def as_record(self) -> 'Params':
-        """Return the params as a numpy structured array."""
-        pass
+    pass
 
 
 class SpecMeta(ABCMeta):
@@ -75,7 +59,7 @@ class Spec(metaclass=SpecMeta):
 
     @property
     @abstractmethod
-    def cfc_spec_nt(self):
+    def cfc_spec(self):
         """Tuple to be used as part of the arguments of the functions
         in the corresponding :class:`CoreFuncs` instance of the model
         (:attr:`Spec.core_funcs` attribute).

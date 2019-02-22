@@ -86,7 +86,7 @@ class Record(metaclass=ABCMeta):
         return [(field.name, field.type) for field in attr.fields(cls)]
 
     # NOTE: Mask the return type as a Params instance.
-    def as_record(self):
+    def as_record(self) -> 'Record':
         """Return the params as a numpy structured array."""
         # NOTE 1: Return the first element of the array to simplify the
         #  access to the elements of the parameters.
