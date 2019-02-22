@@ -4,13 +4,14 @@
 
     Module with symbols and routines used with the attrs library.
 """
+import typing as t
+from abc import ABCMeta
 from pathlib import Path
-from typing import Any, Sequence
 
 import attr
 import numpy as np
 
-#  Common validators.
+#  Common validators and converters.
 
 float_validator = attr.validators.instance_of((float, int))
 int_validator = attr.validators.instance_of(int)
@@ -25,7 +26,7 @@ opt_bool_validator = attr.validators.optional(bool_validator)
 path_validator = attr.validators.instance_of(Path)
 opt_path_validator = attr.validators.optional(path_validator)
 
-seq_validator = attr.validators.instance_of(Sequence)
+seq_validator = attr.validators.instance_of(t.Sequence)
 
 # These are the possible types of the data read from HDF5 files.
 _valid_int_types = \
@@ -33,7 +34,7 @@ _valid_int_types = \
 
 
 # TODO: More tests for this function...
-def int_converter(value: Any):
+def int_converter(value: t.Any):
     """Converter for data that may come from an HDF5 file.
 
     :param value:
@@ -51,7 +52,7 @@ def int_converter(value: Any):
 _valid_bool_types = bool, np.bool_
 
 
-def bool_converter(value: Any):
+def bool_converter(value: t.Any):
     """Converter for data that may come from an HDF5 file.
 
     :param value:
@@ -68,3 +69,28 @@ def bool_converter(value: Any):
 opt_int_converter = attr.converters.optional(int_converter)
 opt_float_converter = attr.converters.optional(float)
 opt_bool_converter = attr.converters.optional(bool_converter)
+
+
+@attr.s(auto_attribs=True)
+class Record(metaclass=ABCMeta):
+    """The parameters of the model."""
+
+    @classmethod
+    def get_dtype(cls):
+        """Build the numpy dtype for the params object."""
+        return np.dtype(cls.get_dtype_fields())
+
+    @classmethod
+    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
+        """Retrieve the fields of the numpy dtype."""
+        return [(field.name, field.type) for field in attr.fields(cls)]
+
+    # NOTE: Mask the return type as a Params instance.
+    def as_record(self):
+        """Return the params as a numpy structured array."""
+        # NOTE 1: Return the first element of the array to simplify the
+        #  access to the elements of the parameters.
+        # NOTE 2: Should we return an instance of numpy.rec.array? These
+        #  arrays are intended to be used in code compiled in nopython
+        #  mode after all.
+        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
