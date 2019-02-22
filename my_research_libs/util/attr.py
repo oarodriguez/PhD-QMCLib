@@ -73,7 +73,12 @@ opt_bool_converter = attr.converters.optional(bool_converter)
 
 @attr.s(auto_attribs=True)
 class Record(metaclass=ABCMeta):
-    """The parameters of the model."""
+    """Create an object associated with a numpy structured array.
+
+    This class should be used as a mixin. The attributes defined for any
+    class derived from ``Record`` define the fields and the ``dtype`` of
+    the structured array returned by the method ``Record.as_record()``.
+    """
 
     @classmethod
     def get_dtype(cls):
@@ -85,12 +90,20 @@ class Record(metaclass=ABCMeta):
         """Retrieve the fields of the numpy dtype."""
         return [(field.name, field.type) for field in attr.fields(cls)]
 
-    # NOTE: Mask the return type as a Params instance.
     def as_record(self) -> 'Record':
-        """Return the params as a numpy structured array."""
-        # NOTE 1: Return the first element of the array to simplify the
-        #  access to the elements of the parameters.
-        # NOTE 2: Should we return an instance of numpy.rec.array? These
+        """Return the current instance as a 0d numpy structured array.
+
+        The return type is "masked" as a ``Record`` instance, even when it is
+        a numpy array. This has two benefits:
+
+            * The attributes of the class serve as type hints for the
+              fields of the array.
+
+            * Many of the own methods that have no sense for a structured
+               array are hidden.
+        """
+        # NOTE: Should we return an instance of numpy.rec.array? These
         #  arrays are intended to be used in code compiled in nopython
         #  mode after all.
+        # A convoluted way to return a 0d array 🤔😃.
         return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]

@@ -213,16 +213,17 @@ class Spec(qmc_base.jastrow.Spec):
     def params(self):
         """"""
         # NOTE: Keep the order in which the attributes were defined.
-        return Params(self.lattice_depth,
-                      self.lattice_ratio,
-                      self.interaction_strength,
-                      self.boson_number,
-                      self.supercell_size,
-                      self.tbf_contact_cutoff,
-                      self.well_width,
-                      self.barrier_width,
-                      self.is_free,
-                      self.is_ideal)
+        params = Params(self.lattice_depth,
+                        self.lattice_ratio,
+                        self.interaction_strength,
+                        self.boson_number,
+                        self.supercell_size,
+                        self.tbf_contact_cutoff,
+                        self.well_width,
+                        self.barrier_width,
+                        self.is_free,
+                        self.is_ideal)
+        return params.as_record()
 
     @property
     def obf_params(self):
@@ -242,7 +243,7 @@ class Spec(qmc_base.jastrow.Spec):
                                param_e0=e0,
                                param_k1=k1,
                                param_kp1=kp1)
-        return obf_params
+        return obf_params.as_record()
 
     @property
     def tbf_params(self):
@@ -265,7 +266,7 @@ class Spec(qmc_base.jastrow.Spec):
                                    param_beta=0.,
                                    param_r_off=1 / 2 * sc_size,
                                    param_am=1.0)
-            return tbf_params
+            return tbf_params.as_record()
 
         # Convert interaction energy to Lieb gamma.
         lgm = 0.5 * (sc_size / nop) ** 2 * gn
@@ -320,15 +321,14 @@ class Spec(qmc_base.jastrow.Spec):
                                param_beta=beta,
                                param_r_off=r_off * sc_size,
                                param_am=am)
-        return tbf_params
+        return tbf_params.as_record()
 
     @property
     def cfc_spec(self):
         """"""
-        self_params = self.params.as_record()
-        obf_params = self.obf_params.as_record()
-        tbf_params = self.tbf_params.as_record()
-        return CFCSpec(self_params, obf_params, tbf_params)
+        return CFCSpec(self.params,
+                       self.obf_params,
+                       self.tbf_params)
 
     @cached_property
     def phys_funcs(self):
