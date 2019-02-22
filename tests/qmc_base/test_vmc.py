@@ -12,23 +12,43 @@ from my_research_libs.qmc_base import vmc, vmc_ndf
 from my_research_libs.qmc_base.vmc import State
 
 
-class WFSpecNT(t.NamedTuple):
+class WFSpec(vmc_ndf.WFSpec, t.NamedTuple):
     """The parameters of the gaussian pdf."""
     dims: int
     mu: float
     sigma: float
 
 
-class NTPFSpecNT(vmc_ndf.TPFSpecNT, t.NamedTuple):
+@attr.s(auto_attribs=True, frozen=True)
+class NTPFParams(vmc_ndf.TPFParams):
     """The gaussian, transition probability function parameters."""
     dims: int
     sigma: float
 
+    @classmethod
+    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
+        """"""
+        return [(f.name, f.type) for f in attr.fields(cls)]
 
-class UTPFSpecNT(vmc.TPFSpecNT, t.NamedTuple):
+    def as_record(self) -> 'NTPFParams':
+        """"""
+        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class UTPFParams(vmc.TPFParams):
     """The uniform, transition probability function parameters."""
     dims: int
     move_spread: float
+
+    @classmethod
+    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
+        """"""
+        return [(f.name, f.type) for f in attr.fields(cls)]
+
+    def as_record(self) -> 'UTPFParams':
+        """"""
+        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -44,15 +64,15 @@ class NormalSampling(vmc_ndf.Sampling):
     rng_seed: int
 
     @property
-    def wf_spec_nt(self):
+    def wf_spec(self):
         """"""
-        return WFSpecNT(self.dims, self.mu, self.sigma)
+        return WFSpec(self.dims, self.mu, self.sigma)
 
     @property
-    def tpf_spec_nt(self):
+    def tpf_params(self):
         """"""
         sigma = sqrt(self.time_step)
-        return NTPFSpecNT(self.dims, sigma)
+        return NTPFParams(self.dims, sigma)
 
     def build_state(self, sys_conf: np.ndarray) -> State:
         # TODO: Implement
@@ -77,7 +97,7 @@ class CoreFuncs(vmc.CoreFuncs):
         """The logarithm of the Gaussian pdf."""
 
         @nb.jit(nopython=True)
-        def _wf_abs_log(sys_conf: np.ndarray, wf_spec: WFSpecNT):
+        def _wf_abs_log(sys_conf: np.ndarray, wf_spec: WFSpec):
             """"""
             mu = wf_spec.mu
             sigma = wf_spec.sigma
@@ -95,10 +115,10 @@ class CoreFuncs(vmc.CoreFuncs):
         @nb.jit(nopython=True)
         def _ith_sys_conf_ppf(i_: int, ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,
-                              tpf_spec: NTPFSpecNT):
+                              tpf_params: NTPFParams):
             """"""
             z_i = ini_sys_conf[i_]
-            rnd_spread = rand_displace(tpf_spec)
+            rnd_spread = rand_displace(tpf_params)
             prop_sys_conf[i_] = z_i + rnd_spread
 
         return _ith_sys_conf_ppf
@@ -112,16 +132,16 @@ class CoreFuncs(vmc.CoreFuncs):
         @nb.jit(nopython=True)
         def _sys_conf_ppf(ini_sys_conf: np.ndarray,
                           prop_sys_conf: np.ndarray,
-                          tpf_spec: NTPFSpecNT):
+                          tpf_params: NTPFParams):
             """Changes the current configuration of the system.
 
             :param ini_sys_conf: The current (initial) configuration.
             :param prop_sys_conf: The proposed configuration.
-            :param tpf_spec: The parameters of the function.
+            :param tpf_params: The parameters of the function.
             """
-            scs = tpf_spec.dims  # Number of dimensions
+            scs = tpf_params.dims  # Number of dimensions
             for i_ in range(scs):
-                ith_sys_conf_tpf(i_, ini_sys_conf, prop_sys_conf, tpf_spec)
+                ith_sys_conf_tpf(i_, ini_sys_conf, prop_sys_conf, tpf_params)
 
         return _sys_conf_ppf
 
@@ -134,13 +154,15 @@ class NormalCoreFuncs(CoreFuncs, vmc_ndf.CoreFuncs):
 def test_core_funcs():
     """"""
     dims, mu, sigma = 10, 1, 1
-    wf_spec = WFSpecNT(dims, mu, sigma)
-    tpf_spec = UTPFSpecNT(dims, move_spread=0.5 * sigma)
+    wf_spec = WFSpec(dims, mu, sigma)
+    tpf_params = UTPFParams(dims, move_spread=0.5 * sigma)
     num_steps = 4096 * 64
     ini_sys_conf = init_get_sys_conf(dims)
 
     core_funcs = CoreFuncs()
-    chain = core_funcs.as_chain(wf_spec, tpf_spec,
+    tpf_params = tpf_params.as_record()
+    chain = core_funcs.as_chain(wf_spec,
+                                tpf_params,
                                 num_steps=num_steps,
                                 ini_sys_conf=ini_sys_conf,
                                 rng_seed=0)
@@ -157,13 +179,14 @@ def test_core_funcs():
 def test_normal_core_funcs():
     """"""
     dims, mu, sigma = 10, 1, 1
-    wf_spec = WFSpecNT(dims, mu, sigma)
-    tpf_spec = NTPFSpecNT(dims, 0.15 * sigma)
+    wf_spec = WFSpec(dims, mu, sigma)
+    tpf_params = NTPFParams(dims, 0.15 * sigma)
     ini_sys_conf = np.random.random_sample(dims)
     num_steps = 4096 * 64
 
     core_funcs = NormalCoreFuncs()
-    chain = core_funcs.as_chain(wf_spec, tpf_spec,
+    tpf_params = tpf_params.as_record()
+    chain = core_funcs.as_chain(wf_spec, tpf_params,
                                 num_steps=num_steps,
                                 ini_sys_conf=ini_sys_conf,
                                 rng_seed=0)

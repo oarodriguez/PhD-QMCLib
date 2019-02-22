@@ -6,10 +6,10 @@ from cached_property import cached_property
 from numba import jit
 from numpy import random as random
 
-from . import vmc as vmc_udf
+from . import model, vmc as vmc_udf
 
 
-class WFSpecNT(t.NamedTuple):
+class WFSpec(t.NamedTuple):
     """The parameters of the trial wave function.
 
     We declare this class to help with typing and nothing more. A concrete
@@ -19,7 +19,7 @@ class WFSpecNT(t.NamedTuple):
     pass
 
 
-class TPFSpecNT(t.NamedTuple):
+class TPFParams(model.Params, metaclass=ABCMeta):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -29,10 +29,10 @@ class TPFSpecNT(t.NamedTuple):
     sigma: float
 
 
-class SpecNT(t.NamedTuple):
+class SamplingSpec(t.NamedTuple):
     """The parameters to realize a sampling."""
-    wf_spec: WFSpecNT
-    tpf_spec: TPFSpecNT
+    wf_spec: WFSpec
+    tpf_params: TPFParams
     ini_sys_conf: np.ndarray
     rng_seed: int
 
@@ -60,7 +60,7 @@ class Sampling(vmc_udf.SamplingBase):
 
 
 @jit(nopython=True)
-def rand_displace(tpf_spec: TPFSpecNT):
+def rand_displace(tpf_params: TPFParams):
     """Generates a random number from a normal distribution with
     zero mean and a a standard deviation ``ppf_spec.move_spread``.
     """
@@ -74,7 +74,7 @@ def rand_displace(tpf_spec: TPFSpecNT):
     # probability function, but with a **time step** parameter,
     # which is equal to the variance of the proposal distribution.
     # sigma = sqrt(time_step)
-    sigma = tpf_spec.sigma
+    sigma = tpf_params.sigma
     return normal(0, sigma)
 
 

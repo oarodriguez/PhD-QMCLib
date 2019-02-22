@@ -17,18 +17,20 @@ from cached_property import cached_property
 from numba import jit
 from numpy import random as random
 
+from . import model
+
 __all__ = [
     'CoreFuncs',
     'RandDisplaceStat',
     'Sampling',
-    'SpecNT',
+    'SamplingSpec',
     'State',
     'StateProp',
     'SamplingBatch',
     'T_E_SIter',
     'T_SIter',
-    'TPFSpecNT',
-    'WFSpecNT',
+    'TPFParams',
+    'WFSpec',
     'rand_displace'
 ]
 
@@ -53,7 +55,7 @@ STAT_REJECTED = int(RandDisplaceStat.REJECTED)
 STAT_ACCEPTED = int(RandDisplaceStat.ACCEPTED)
 
 
-class WFSpecNT(t.NamedTuple):
+class WFSpec(t.NamedTuple):
     """The parameters of the trial wave function.
 
     We declare this class to help with typing and nothing more. A concrete
@@ -63,7 +65,7 @@ class WFSpecNT(t.NamedTuple):
     pass
 
 
-class TPFSpecNT(t.NamedTuple):
+class TPFParams(model.Params, metaclass=ABCMeta):
     """Parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -72,10 +74,10 @@ class TPFSpecNT(t.NamedTuple):
     move_spread: float
 
 
-class SpecNT(t.NamedTuple):
+class SamplingSpec(t.NamedTuple):
     """The parameters to realize a sampling."""
-    wf_spec: WFSpecNT
-    tpf_spec: TPFSpecNT
+    wf_spec: WFSpec
+    tpf_params: TPFParams
     ini_sys_conf: np.ndarray
     rng_seed: int
 
@@ -119,13 +121,13 @@ class SamplingBase(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def wf_spec_nt(self) -> WFSpecNT:
+    def wf_spec(self) -> WFSpec:
         """The parameters of the trial wave function."""
         pass
 
     @property
     @abstractmethod
-    def tpf_spec_nt(self) -> TPFSpecNT:
+    def tpf_params(self) -> TPFParams:
         """The parameters of the transition probability function."""
         pass
 
@@ -153,8 +155,9 @@ class SamplingBase(metaclass=ABCMeta):
         :param num_steps: The number of states to generate.
         :param ini_sys_conf: The initial configuration of the sampling.
         """
-        return self.core_funcs.as_chain(self.wf_spec_nt,
-                                        self.tpf_spec_nt,
+        tpf_params = self.tpf_params.as_record()
+        return self.core_funcs.as_chain(self.wf_spec,
+                                        tpf_params,
                                         num_steps,
                                         ini_sys_conf,
                                         self.rng_seed)
@@ -167,8 +170,9 @@ class SamplingBase(metaclass=ABCMeta):
         :param ini_sys_conf: The initial configuration of the sampling.
         :return:
         """
-        return self.core_funcs.batches(self.wf_spec_nt,
-                                       self.tpf_spec_nt,
+        tpf_params = self.tpf_params.as_record()
+        return self.core_funcs.batches(self.wf_spec,
+                                       tpf_params,
                                        num_steps_batch,
                                        ini_sys_conf,
                                        self.rng_seed)
@@ -178,8 +182,9 @@ class SamplingBase(metaclass=ABCMeta):
 
         :param ini_sys_conf: The initial configuration of the sampling.
         """
-        return self.core_funcs.generator(self.wf_spec_nt,
-                                         self.tpf_spec_nt,
+        tpf_params = self.tpf_params.as_record()
+        return self.core_funcs.generator(self.wf_spec,
+                                         tpf_params,
                                          ini_sys_conf,
                                          self.rng_seed)
 
@@ -208,7 +213,7 @@ states_props_dtype = np.dtype([
 
 
 # noinspection PyUnusedLocal
-def _wf_abs_log_stub(sys_conf: np.ndarray, spec: WFSpecNT) -> float:
+def _wf_abs_log_stub(sys_conf: np.ndarray, wf_spec: WFSpec) -> float:
     """Stub for the probability density function (p.d.f.)."""
     pass
 
@@ -216,7 +221,7 @@ def _wf_abs_log_stub(sys_conf: np.ndarray, spec: WFSpecNT) -> float:
 # noinspection PyUnusedLocal
 def _ith_sys_conf_tpf_stub(i_: int, ini_sys_conf: np.ndarray,
                            prop_sys_conf: np.ndarray,
-                           tpf_spec: TPFSpecNT) -> float:
+                           tpf_params: TPFParams) -> float:
     """Stub for the (i-th particle) transition probability function."""
     pass
 
@@ -224,26 +229,26 @@ def _ith_sys_conf_tpf_stub(i_: int, ini_sys_conf: np.ndarray,
 # noinspection PyUnusedLocal
 def _sys_conf_tpf_stub(ini_sys_conf: np.ndarray,
                        prop_sys_conf: np.ndarray,
-                       tpf_spec: TPFSpecNT):
+                       tpf_params: TPFParams):
     """Stub for the transition probability function."""
     pass
 
 
 @jit(nopython=True)
-def rand_displace(tpf_spec: TPFSpecNT):
+def rand_displace(tpf_params: TPFParams):
     """Generates a random number from a uniform distribution.
 
     The number lies in the half-open interval
     ``[-0.5 * move_spread, 0.5 * move_spread)``, with
     ``move_spread = spec.move_spread``.
 
-    :param tpf_spec:
+    :param tpf_params:
     :return:
     """
     # Avoid `Untyped global name error` when executing the code in a
     # multiprocessing pool.
     rand = random.rand
-    move_spread = tpf_spec.move_spread
+    move_spread = tpf_params.move_spread
     return (rand() - 0.5) * move_spread
 
 
@@ -291,8 +296,8 @@ class CoreFuncs(metaclass=ABCMeta):
         sys_conf_tpf = self.sys_conf_tpf
 
         @jit(nopython=True, nogil=True)
-        def _generator(wf_spec: WFSpecNT,
-                       tpf_spec: TPFSpecNT,
+        def _generator(wf_spec: WFSpec,
+                       tpf_params: TPFParams,
                        ini_sys_conf: np.ndarray,
                        rng_seed: int):
             """VMC sampling generator.
@@ -305,7 +310,7 @@ class CoreFuncs(metaclass=ABCMeta):
             ``STAT_REJECTED``.
 
             :param wf_spec: The parameters of the probability density function.
-            :param tpf_spec: The parameters of the transition probability
+            :param tpf_params: The parameters of the transition probability
                 function.
             :param ini_sys_conf: The initial configuration of the particles.
             :param rng_seed: The seed used to generate the random numbers.
@@ -340,7 +345,7 @@ class CoreFuncs(metaclass=ABCMeta):
             while True:
 
                 # Just keep advancing...
-                sys_conf_tpf(actual_conf, next_conf, tpf_spec)
+                sys_conf_tpf(actual_conf, next_conf, tpf_params)
                 wf_abs_log_next = wf_abs_log(next_conf, wf_spec)
                 move_stat = STAT_REJECTED
 
@@ -370,15 +375,15 @@ class CoreFuncs(metaclass=ABCMeta):
         self_batches = self.batches
 
         @jit(nopython=True, nogil=True)
-        def _as_chain(wf_spec: WFSpecNT,
-                      tpf_spec: TPFSpecNT,
+        def _as_chain(wf_spec: WFSpec,
+                      tpf_params: TPFParams,
                       num_steps: int,
                       ini_sys_conf: np.ndarray,
                       rng_seed: int) -> SamplingBatch:
             """Returns the VMC sampling as a single batch.
 
             :param wf_spec: The parameters of the probability density function.
-            :param tpf_spec: The parameters of the transition probability
+            :param tpf_params: The parameters of the transition probability
                 function.
             :param num_steps: The number of samples of the Markov chain.
             :param ini_sys_conf: The initial configuration of the particles.
@@ -389,7 +394,7 @@ class CoreFuncs(metaclass=ABCMeta):
             num_steps_batch = num_steps
 
             # Return the only batch as the result.
-            return next(self_batches(wf_spec, tpf_spec, num_steps_batch,
+            return next(self_batches(wf_spec, tpf_params, num_steps_batch,
                                      ini_sys_conf, rng_seed))
 
         return _as_chain
@@ -409,15 +414,15 @@ class CoreFuncs(metaclass=ABCMeta):
         generator = self.generator
 
         @jit(nopython=True, nogil=True)
-        def _batches(wf_spec: WFSpecNT,
-                     tpf_spec: TPFSpecNT,
+        def _batches(wf_spec: WFSpec,
+                     tpf_params: TPFParams,
                      num_steps_batch: int,
                      ini_sys_conf: np.ndarray,
                      rng_seed: int):
             """Returns the VMC sampling batches of states configurations.
 
             :param wf_spec: The parameters of the probability density function.
-            :param tpf_spec: The parameters of the transition probability
+            :param tpf_params: The parameters of the transition probability
                 function.
             :param num_steps_batch: The number of steps per batch.
             :param ini_sys_conf: The initial configuration of the particles.
@@ -438,7 +443,7 @@ class CoreFuncs(metaclass=ABCMeta):
             move_stat_set = states_props[move_stat_field]
 
             accepted = 0
-            sampling_iter = generator(wf_spec, tpf_spec, ini_sys_conf,
+            sampling_iter = generator(wf_spec, tpf_params, ini_sys_conf,
                                       rng_seed)
 
             # Enumerating the sampling iterator.

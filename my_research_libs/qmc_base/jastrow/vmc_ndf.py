@@ -1,12 +1,10 @@
-import typing as t
 from abc import ABCMeta
-from math import sqrt
 
 from my_research_libs.qmc_base import vmc_ndf
 from my_research_libs.qmc_base.jastrow import model
 
 
-class TPFSpecNT(vmc_ndf.TPFSpecNT, t.NamedTuple):
+class TPFParams(vmc_ndf.TPFParams, metaclass=ABCMeta):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -24,13 +22,6 @@ class Sampling(vmc_ndf.Sampling, metaclass=ABCMeta):
 
     time_step: float
     rng_seed: int
-
-    @property
-    def tpf_spec_nt(self):
-        """"""
-        sigma = sqrt(self.time_step)
-        number = self.model_spec.boson_number
-        return TPFSpecNT(number, sigma)
 
 
 class CoreFuncs(vmc_ndf.CoreFuncs, metaclass=ABCMeta):

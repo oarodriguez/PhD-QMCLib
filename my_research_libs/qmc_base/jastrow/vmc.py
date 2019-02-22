@@ -11,11 +11,11 @@ from .. import vmc
 __all__ = [
     'CoreFuncs',
     'Sampling',
-    'TPFSpecNT',
+    'TPFParams',
 ]
 
 
-class TPFSpecNT(vmc.TPFSpecNT, t.NamedTuple):
+class TPFParams(vmc.TPFParams, metaclass=ABCMeta):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -33,12 +33,6 @@ class Sampling(vmc.Sampling, metaclass=ABCMeta):
 
     move_spread: float
     rng_seed: t.Optional[int]
-
-    @property
-    def tpf_spec_nt(self):
-        """"""
-        boson_number = self.model_spec.boson_number
-        return TPFSpecNT(boson_number, self.move_spread)
 
 
 class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
@@ -65,7 +59,7 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         def _ith_sys_conf_ppf(i_: int,
                               ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,
-                              tpf_spec: TPFSpecNT):
+                              tpf_params: TPFParams):
             """Move the i-nth particle of the current configuration of the
             system. The moves are displacements of the original position plus
             a term sampled from a uniform distribution.
@@ -73,12 +67,12 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
             :param i_:
             :param ini_sys_conf: The current (initial) configuration.
             :param prop_sys_conf: The proposed configuration.
-            :param tpf_spec:
+            :param tpf_params:
             :return:
             """
             # Unpack data.
             z_i = ini_sys_conf[pos_slot, i_]
-            rnd_spread = rand_displace(tpf_spec)
+            rnd_spread = rand_displace(tpf_params)
             prop_sys_conf[pos_slot, i_] = z_i + rnd_spread
 
         return _ith_sys_conf_ppf
@@ -94,16 +88,16 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         @jit(nopython=True)
         def _sys_conf_ppf(ini_sys_conf: np.ndarray,
                           prop_sys_conf: np.ndarray,
-                          tpf_spec: TPFSpecNT):
+                          tpf_params: TPFParams):
             """Move the current configuration of the system.
 
             :param ini_sys_conf: The current (initial) configuration.
             :param prop_sys_conf: The proposed configuration.
-            :param tpf_spec:
+            :param tpf_params:
             :return:
             """
-            nop = tpf_spec.boson_number  # Number of particles
+            nop = tpf_params.boson_number  # Number of particles
             for i_ in range(nop):
-                ith_sys_conf_tpf(i_, ini_sys_conf, prop_sys_conf, tpf_spec)
+                ith_sys_conf_tpf(i_, ini_sys_conf, prop_sys_conf, tpf_params)
 
         return _sys_conf_ppf

@@ -2,13 +2,15 @@ import typing as t
 from math import sqrt
 
 import attr
+import numpy as np
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base import jastrow
-from . import model, vmc as u_vmc
+from . import model, vmc as vmc_udf
 
 
-class TPFSpecNT(qmc_base.jastrow.vmc_ndf.TPFSpecNT, t.NamedTuple):
+@attr.s(auto_attribs=True, frozen=True)
+class TPFParams(qmc_base.jastrow.vmc_ndf.TPFParams):
     """Parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -19,9 +21,18 @@ class TPFSpecNT(qmc_base.jastrow.vmc_ndf.TPFSpecNT, t.NamedTuple):
     lower_bound: float
     upper_bound: float
 
+    @classmethod
+    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
+        """"""
+        return [(f.name, f.type) for f in attr.fields(cls)]
+
+    def as_record(self) -> 'TPFParams':
+        """"""
+        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
+
 
 @attr.s(auto_attribs=True, frozen=True)
-class Sampling(u_vmc.Sampling, jastrow.vmc_ndf.Sampling):
+class Sampling(vmc_udf.Sampling, jastrow.vmc_ndf.Sampling):
     """The spec of the VMC sampling."""
 
     model_spec: model.Spec
@@ -35,12 +46,12 @@ class Sampling(u_vmc.Sampling, jastrow.vmc_ndf.Sampling):
             super().__setattr__('rng_seed', rng_seed)
 
     @property
-    def tpf_spec_nt(self):
+    def tpf_params(self):
         """"""
         sigma = sqrt(self.time_step)
         boson_number = self.model_spec.boson_number
         z_min, z_max = self.model_spec.boundaries
-        return TPFSpecNT(boson_number, sigma=sigma,
+        return TPFParams(boson_number, sigma=sigma,
                          lower_bound=z_min, upper_bound=z_max)
 
     @property
@@ -50,7 +61,7 @@ class Sampling(u_vmc.Sampling, jastrow.vmc_ndf.Sampling):
         return core_funcs
 
 
-class CoreFuncs(u_vmc.CoreFuncs, jastrow.vmc_ndf.CoreFuncs):
+class CoreFuncs(vmc_udf.CoreFuncs, jastrow.vmc_ndf.CoreFuncs):
     """The core functions to realize a VMC calculation.
 
     The VMC sampling is subject to periodic boundary conditions due to the
