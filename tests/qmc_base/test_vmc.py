@@ -8,47 +8,37 @@ from cached_property import cached_property
 from matplotlib import pyplot
 from numpy.linalg import norm
 
-from my_research_libs.qmc_base import vmc, vmc_ndf
+from my_research_libs.qmc_base import vmc as vmc_udf, vmc_ndf
 from my_research_libs.qmc_base.vmc import State
+from my_research_libs.util.attr import Record
 
 
-class WFSpec(vmc_ndf.WFSpec, t.NamedTuple):
-    """The parameters of the gaussian pdf."""
+@attr.s(auto_attribs=True, frozen=True)
+class WFParams(Record):
+    """Represent the parameters of the of the gaussian pdf."""
     dims: int
     mu: float
     sigma: float
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class NTPFParams(vmc_ndf.TPFParams):
-    """The gaussian, transition probability function parameters."""
+class TPFParams(vmc_ndf.TPFParams, Record):
+    """Represents the transition probability function parameters."""
     dims: int
     sigma: float
 
-    @classmethod
-    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
-
-    def as_record(self) -> 'NTPFParams':
-        """"""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
-
 
 @attr.s(auto_attribs=True, frozen=True)
-class UTPFParams(vmc.TPFParams):
+class UTPFParams(vmc_udf.TPFParams, Record):
     """The uniform, transition probability function parameters."""
     dims: int
     move_spread: float
 
-    @classmethod
-    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
 
-    def as_record(self) -> 'UTPFParams':
-        """"""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
+class CFCSpec(vmc_udf.CFCSpec, t.NamedTuple):
+    """Represent the spec of the core functions."""
+    wf_params: WFParams
+    tpf_params: TPFParams
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -60,19 +50,26 @@ class NormalSampling(vmc_ndf.Sampling):
     mu: float
     sigma: float
     time_step: float
-    ini_sys_conf: np.ndarray
     rng_seed: int
 
     @property
-    def wf_spec(self):
+    def wf_params(self):
         """"""
-        return WFSpec(self.dims, self.mu, self.sigma)
+        wf_params = WFParams(self.dims, self.mu, self.sigma)
+        return wf_params.as_record()
 
     @property
-    def tpf_params(self):
+    def tpf_params(self) -> TPFParams:
         """"""
         sigma = sqrt(self.time_step)
-        return NTPFParams(self.dims, sigma)
+        tpf_params = TPFParams(self.dims, sigma)
+        return tpf_params.as_record()
+
+    @property
+    def cfc_spec(self) -> CFCSpec:
+        """"""
+        return CFCSpec(self.wf_params,
+                       self.tpf_params)
 
     def build_state(self, sys_conf: np.ndarray) -> State:
         # TODO: Implement
@@ -81,7 +78,7 @@ class NormalSampling(vmc_ndf.Sampling):
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':
         """The core functions of the sampling."""
-        return NormalCoreFuncs()
+        return core_funcs
 
 
 def init_get_sys_conf(dims: int):
@@ -89,24 +86,31 @@ def init_get_sys_conf(dims: int):
     return np.random.random_sample(dims)
 
 
-class CoreFuncs(vmc.CoreFuncs):
+class CoreFuncs(vmc_ndf.CoreFuncs):
     """Functions to sample a multidimensional gaussian pdf."""
 
-    @property
+    @cached_property
     def wf_abs_log(self):
         """The logarithm of the Gaussian pdf."""
 
         @nb.jit(nopython=True)
-        def _wf_abs_log(sys_conf: np.ndarray, wf_spec: WFSpec):
-            """"""
-            mu = wf_spec.mu
-            sigma = wf_spec.sigma
+        def _wf_abs_log(sys_conf: np.ndarray,
+                        cfc_spec: CFCSpec):
+            """
+
+            :param sys_conf:
+            :param cfc_spec:
+            :return:
+            """
+            wf_params = cfc_spec.wf_params
+            mu = wf_params.mu
+            sigma = wf_params.sigma
             vn = norm(sys_conf - mu)
             return -vn ** 2 / (2 * sigma ** 2)
 
         return _wf_abs_log
 
-    @property
+    @cached_property
     def ith_sys_conf_tpf(self):
         """"""
 
@@ -115,7 +119,7 @@ class CoreFuncs(vmc.CoreFuncs):
         @nb.jit(nopython=True)
         def _ith_sys_conf_ppf(i_: int, ini_sys_conf: np.ndarray,
                               prop_sys_conf: np.ndarray,
-                              tpf_params: NTPFParams):
+                              tpf_params: TPFParams):
             """"""
             z_i = ini_sys_conf[i_]
             rnd_spread = rand_displace(tpf_params)
@@ -123,95 +127,60 @@ class CoreFuncs(vmc.CoreFuncs):
 
         return _ith_sys_conf_ppf
 
-    @property
+    @cached_property
     def sys_conf_tpf(self):
         """Proposal probability function."""
 
         ith_sys_conf_tpf = self.ith_sys_conf_tpf
 
+        # noinspection PyShadowingNames
         @nb.jit(nopython=True)
-        def _sys_conf_ppf(ini_sys_conf: np.ndarray,
+        def _sys_conf_tpf(ini_sys_conf: np.ndarray,
                           prop_sys_conf: np.ndarray,
-                          tpf_params: NTPFParams):
+                          cfc_spec: CFCSpec):
             """Changes the current configuration of the system.
 
             :param ini_sys_conf: The current (initial) configuration.
             :param prop_sys_conf: The proposed configuration.
-            :param tpf_params: The parameters of the function.
+            :param cfc_spec: The parameters of the function.
             """
+            tpf_params = cfc_spec.tpf_params
             scs = tpf_params.dims  # Number of dimensions
             for i_ in range(scs):
                 ith_sys_conf_tpf(i_, ini_sys_conf, prop_sys_conf, tpf_params)
 
-        return _sys_conf_ppf
+        return _sys_conf_tpf
 
 
-class NormalCoreFuncs(CoreFuncs, vmc_ndf.CoreFuncs):
-    """Functions to sample a multidimensional Gaussian pdf."""
-    pass
+core_funcs = CoreFuncs()
+
+dims, mu, sigma = 10, 1, 1
+l_scale = sigma / 2
+time_step = l_scale ** 2
+ini_sys_conf = init_get_sys_conf(dims)
+sampling = NormalSampling(dims, mu, sigma, time_step,
+                          rng_seed=0)
 
 
-def test_core_funcs():
-    """"""
-    dims, mu, sigma = 10, 1, 1
-    wf_spec = WFSpec(dims, mu, sigma)
-    tpf_params = UTPFParams(dims, move_spread=0.5 * sigma)
-    num_steps = 4096 * 64
-    ini_sys_conf = init_get_sys_conf(dims)
-
-    core_funcs = CoreFuncs()
-    tpf_params = tpf_params.as_record()
-    chain = core_funcs.as_chain(wf_spec,
-                                tpf_params,
-                                num_steps=num_steps,
-                                ini_sys_conf=ini_sys_conf,
-                                rng_seed=0)
-    sys_conf_set = chain.confs
-
-    assert sys_conf_set.shape == (num_steps, dims)
-
-    ax = pyplot.gca()
-    ax.hist(sys_conf_set[:, 0], bins=100)
-    pyplot.show()
-    print(chain)
+def test_wf_abs_log():
+    """Test the wave function."""
+    wf_abs_log = core_funcs.wf_abs_log
+    v = wf_abs_log(ini_sys_conf, sampling.cfc_spec)
+    print(v)
 
 
-def test_normal_core_funcs():
-    """"""
-    dims, mu, sigma = 10, 1, 1
-    wf_spec = WFSpec(dims, mu, sigma)
-    tpf_params = NTPFParams(dims, 0.15 * sigma)
-    ini_sys_conf = np.random.random_sample(dims)
-    num_steps = 4096 * 64
-
-    core_funcs = NormalCoreFuncs()
-    tpf_params = tpf_params.as_record()
-    chain = core_funcs.as_chain(wf_spec, tpf_params,
-                                num_steps=num_steps,
-                                ini_sys_conf=ini_sys_conf,
-                                rng_seed=0)
-    sys_conf_set = chain.confs
-
-    assert sys_conf_set.shape == (num_steps, dims)
-
-    ax = pyplot.gca()
-    ax.hist(sys_conf_set[:, 0], bins=100)
-    pyplot.show()
-    print(chain)
+def test_sys_conf_tpf():
+    """Test the transition probability function."""
+    proc_sys_conf = np.zeros_like(ini_sys_conf)
+    sys_conf_tpf = core_funcs.sys_conf_tpf
+    sys_conf_tpf(ini_sys_conf, proc_sys_conf, sampling.cfc_spec)
+    print(proc_sys_conf - ini_sys_conf)
 
 
-def test_normal_sampling():
-    """"""
-    dims, mu, sigma = 10, 1, 1
-    l_scale = sigma / 2
-    time_step = l_scale ** 2
-    ini_sys_conf = init_get_sys_conf(dims)
-    num_steps = 4096 * 64
-    sampling = NormalSampling(dims, mu, sigma, time_step,
-                              ini_sys_conf=ini_sys_conf,
-                              rng_seed=0)
-
+def test_sampling():
+    """Test the sampling states."""
     ar = 0
+    num_steps = 4096 * 64
     for cj_, data in enumerate(sampling.states(ini_sys_conf)):
         stat = data.move_stat
         ar += stat
@@ -219,7 +188,6 @@ def test_normal_sampling():
             break
 
     ar /= num_steps
-
     chain_data = sampling.as_chain(num_steps, ini_sys_conf)
     sys_conf_set = chain_data.confs
     ar_ = chain_data.accept_rate
@@ -232,3 +200,26 @@ def test_normal_sampling():
     ax.hist(sys_conf_set[:, 0], bins=100)
     pyplot.show()
     print(sys_conf_set)
+
+
+def test_batches():
+    """Test the sampling batches of states."""
+    num_batches = 64
+    num_steps_batch = 4096
+    batches_enum: vmc_udf.T_E_SBatchesIter = \
+        enumerate(sampling.batches(num_steps_batch, ini_sys_conf))
+
+    ax = pyplot.gca()
+
+    for bj_, batch_data in batches_enum:
+        ar = batch_data.accept_rate
+        sys_conf_set = batch_data.confs
+
+        assert sys_conf_set.shape == (num_steps_batch, sampling.dims)
+        print(f"Sampling acceptance rate: {ar:.5g}")
+
+        ax.hist(sys_conf_set[:, 0], bins=100)
+        if bj_ + 1 >= num_batches:
+            break
+
+    pyplot.show()

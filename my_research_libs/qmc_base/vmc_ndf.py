@@ -1,25 +1,14 @@
 import typing as t
 from abc import ABCMeta, abstractmethod
 
-import numpy as np
 from cached_property import cached_property
 from numba import jit
 from numpy import random as random
 
-from . import model, vmc as vmc_udf
+from . import vmc as vmc_udf
 
 
-class WFSpec(t.NamedTuple):
-    """The parameters of the trial wave function.
-
-    We declare this class to help with typing and nothing more. A concrete
-    spec should be implemented for every concrete model. It is recommended
-    to inherit from this class to keep a logical sequence in the code.
-    """
-    pass
-
-
-class TPFParams(model.Params, metaclass=ABCMeta):
+class TPFParams:
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -27,14 +16,6 @@ class TPFParams(model.Params, metaclass=ABCMeta):
     """
     #: The standard deviation of the normal distribution.
     sigma: float
-
-
-class SamplingSpec(t.NamedTuple):
-    """The parameters to realize a sampling."""
-    wf_spec: WFSpec
-    tpf_params: TPFParams
-    ini_sys_conf: np.ndarray
-    rng_seed: int
 
 
 class Sampling(vmc_udf.SamplingBase):
