@@ -209,18 +209,19 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True)
         def _ith_wf_abs_log(i_: int, sys_conf: np.ndarray,
-                            cfc_spec: CFCSpec):
+                            model_params: Params,
+                            obf_params: OBFParams,
+                            tbf_params: TBFParams):
             """Computes the variational wave function of a system of bosons in
             a specific configuration.
 
             :param i_:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :param sys_conf:
-            :param cfc_spec:
             :return:
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
             ith_wf_abs_log = 0.
 
             if not model_params.is_free:
@@ -253,15 +254,18 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True, nogil=True)
         def _wf_abs_log(sys_conf: np.ndarray,
-                        cfc_spec: CFCSpec):
+                        model_params: Params,
+                        obf_params: OBFParams,
+                        tbf_params: TBFParams):
             """Computes the variational wave function of a system of bosons in
             a specific configuration.
 
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
-            model_params = cfc_spec.model_params
             wf_abs_log = 0.
 
             if model_params.is_free and model_params.is_ideal:
@@ -269,7 +273,8 @@ class CoreFuncs(model.CoreFuncs):
 
             nop = model_params.boson_number
             for i_ in range(nop):
-                wf_abs_log += ith_wf_abs_log(i_, sys_conf, cfc_spec)
+                wf_abs_log += ith_wf_abs_log(i_, sys_conf, model_params,
+                                             obf_params, tbf_params)
             return wf_abs_log
 
         return _wf_abs_log

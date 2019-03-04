@@ -9,6 +9,6 @@ from . import dmc, dmc_exec, vmc, vmc_exec, vmc_ndf, wf_opt
 
 #
 from .model import (
-    CFCSpecNT, CSWFOptimizer, CoreFuncs, OBFParams, Params, PhysicalFuncs,
+    CFCSpec, CSWFOptimizer, CoreFuncs, OBFParams, Params, PhysicalFuncs,
     Spec, TBFParams, core_funcs
 )

@@ -122,7 +122,7 @@ class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
         real_slot = int(SSFPartSlot.FDK_REAL)
         imag_slot = int(SSFPartSlot.FDK_IMAG)
 
-        cfc_spec_nt = model_spec.cfc_spec_nt
+        cfc_spec_nt = model_spec.cfc_spec
         fourier_density = model.core_funcs.fourier_density
 
         # noinspection PyUnusedLocal
@@ -464,7 +464,7 @@ class Sampling(qmc_base.dmc.Sampling):
         """"""
         model_spec = self.model_spec
         boundaries = model_spec.boundaries
-        cfc_spec_nt = model_spec.cfc_spec_nt
+        cfc_spec_nt = model_spec.cfc_spec
 
         ssf_est_spec = self.ssf_est_spec
         if ssf_est_spec is not None:
@@ -499,7 +499,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     boundaries: t.Tuple[float, float]
 
     #: The common (fixed) spec to pass to the core functions of the model.
-    cfc_spec_nt: model.CFCSpecNT
+    cfc_spec_nt: model.CFCSpec
 
     #: The static structure factor spec.
     ssf_est_spec_nt: SSFEstSpecNT = None

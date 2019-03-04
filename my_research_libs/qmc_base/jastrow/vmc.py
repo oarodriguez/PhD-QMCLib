@@ -25,6 +25,14 @@ class TPFParams(vmc.TPFParams, metaclass=ABCMeta):
     move_spread: float
 
 
+class CFCSpec(vmc.CFCSpec, t.NamedTuple):
+    """Represent the common spec of the core functions."""
+    model_params: model.Params
+    obf_params: model.OBFParams
+    tbf_params: model.TBFParams
+    tpf_params: TPFParams
+
+
 class Sampling(vmc.Sampling, metaclass=ABCMeta):
     """Spec for the VMC sampling of a Bijl-Jastrow model."""
 
@@ -88,14 +96,15 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         @jit(nopython=True)
         def _sys_conf_ppf(ini_sys_conf: np.ndarray,
                           prop_sys_conf: np.ndarray,
-                          tpf_params: TPFParams):
+                          cfc_spec: CFCSpec):
             """Move the current configuration of the system.
 
             :param ini_sys_conf: The current (initial) configuration.
             :param prop_sys_conf: The proposed configuration.
-            :param tpf_params:
+            :param cfc_spec:
             :return:
             """
+            tpf_params = cfc_spec.tpf_params
             nop = tpf_params.boson_number  # Number of particles
             for i_ in range(nop):
                 ith_sys_conf_tpf(i_, ini_sys_conf, prop_sys_conf, tpf_params)

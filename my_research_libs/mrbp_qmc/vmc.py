@@ -6,7 +6,9 @@ from cached_property import cached_property
 from numba import jit
 
 from my_research_libs import qmc_base, utils
+from my_research_libs.qmc_base.jastrow import vmc as vmc_base
 from my_research_libs.qmc_base.utils import recast_to_supercell
+from my_research_libs.util.attr import Record
 from . import model
 
 __all__ = [
@@ -23,15 +25,8 @@ StateProp = qmc_base.vmc.StateProp
 STAT_REJECTED = qmc_base.vmc.STAT_REJECTED
 
 
-class WFSpec(qmc_base.vmc.WFSpec, t.NamedTuple):
-    """""The parameters of the trial wave function."""
-    model_params: model.Params
-    obf_params: model.OBFParams
-    tbf_params: model.TBFParams
-
-
 @attr.s(auto_attribs=True, frozen=True)
-class TPFParams(qmc_base.jastrow.vmc.TPFParams):
+class TPFParams(qmc_base.jastrow.vmc.TPFParams, Record):
     """Parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -42,14 +37,18 @@ class TPFParams(qmc_base.jastrow.vmc.TPFParams):
     lower_bound: float
     upper_bound: float
 
-    @classmethod
-    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
 
-    def as_record(self) -> 'TPFParams':
-        """"""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
+class TPFSpec(t.NamedTuple):
+    """"""
+    tpf_params: TPFParams
+
+
+class CFCSpec(vmc_base.CFCSpec, t.NamedTuple):
+    """The spec of the core functions."""
+    model_params: model.Params
+    obf_params: model.OBFParams
+    tbf_params: model.TBFParams
+    tpf_params: TPFParams
 
 
 class StateError(ValueError):
@@ -62,7 +61,9 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
     """The spec of the VMC sampling."""
 
     model_spec: model.Spec
+
     move_spread: float
+
     rng_seed: t.Optional[int] = attr.ib(default=None)
 
     def __attrs_post_init__(self):
@@ -72,22 +73,23 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
             super().__setattr__('rng_seed', rng_seed)
 
     @property
-    def wf_spec(self):
-        """The trial wave function spec."""
-        model_spec = self.model_spec
-        params = model_spec.params.as_record()
-        obf_spec = model_spec.obf_params.as_record()
-        tbf_spec = model_spec.tbf_params.as_record()
-        return WFSpec(params, obf_spec, tbf_spec)
-
-    @property
     def tpf_params(self):
         """"""
         move_spread = self.move_spread
         boson_number = self.model_spec.boson_number
         z_min, z_max = self.model_spec.boundaries
-        return TPFParams(boson_number, move_spread=move_spread,
-                         lower_bound=z_min, upper_bound=z_max)
+        tpf_params = TPFParams(boson_number=boson_number,
+                               move_spread=move_spread,
+                               lower_bound=z_min,
+                               upper_bound=z_max)
+        return tpf_params.as_record()
+
+    @property
+    def cfc_spec(self) -> CFCSpec:
+        """"""
+        model_spec = self.model_spec
+        return CFCSpec(model_spec.params, model_spec.obf_params,
+                       model_spec.tbf_params, self.tpf_params)
 
     def build_state(self, sys_conf: np.ndarray) -> qmc_base.vmc.State:
         """Builds a state for the sampling.
@@ -103,8 +105,8 @@ class Sampling(qmc_base.jastrow.vmc.Sampling):
             raise StateError("sys_conf is not a valid configuration "
                              "of the model spec")
 
-        wf_spec = self.wf_spec
-        wf_abs_log = self.core_funcs.wf_abs_log(sys_conf, wf_spec)
+        cfc_spec = self.cfc_spec
+        wf_abs_log = self.core_funcs.wf_abs_log(sys_conf, cfc_spec)
         return qmc_base.vmc.State(sys_conf, wf_abs_log, STAT_REJECTED)
 
     @property
@@ -125,7 +127,21 @@ class CoreFuncs(qmc_base.jastrow.vmc.CoreFuncs):
     @property
     def wf_abs_log(self):
         """"""
-        return model.core_funcs.wf_abs_log
+        wf_abs_log = model.core_funcs.wf_abs_log
+
+        @jit(nopython=True)
+        def _wf_abs_log(actual_conf: np.ndarray,
+                        cfc_spec: CFCSpec):
+            """
+
+            :param actual_conf:
+            :param cfc_spec:
+            :return:
+            """
+            return wf_abs_log(actual_conf, cfc_spec.model_params,
+                              cfc_spec.obf_params, cfc_spec.tbf_params)
+
+        return _wf_abs_log
 
     @cached_property
     def recast(self):

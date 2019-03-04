@@ -2,15 +2,15 @@ import typing as t
 from math import sqrt
 
 import attr
-import numpy as np
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base import jastrow
+from my_research_libs.util.attr import Record
 from . import model, vmc as vmc_udf
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class TPFParams(qmc_base.jastrow.vmc_ndf.TPFParams):
+class TPFParams(qmc_base.jastrow.vmc_ndf.TPFParams, Record):
     """Parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -20,15 +20,6 @@ class TPFParams(qmc_base.jastrow.vmc_ndf.TPFParams):
     sigma: float
     lower_bound: float
     upper_bound: float
-
-    @classmethod
-    def get_dtype_fields(cls) -> t.Sequence[t.Tuple[str, np.dtype]]:
-        """"""
-        return [(f.name, f.type) for f in attr.fields(cls)]
-
-    def as_record(self) -> 'TPFParams':
-        """"""
-        return np.array([attr.astuple(self)], dtype=self.get_dtype())[0]
 
 
 @attr.s(auto_attribs=True, frozen=True)

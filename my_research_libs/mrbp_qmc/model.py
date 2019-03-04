@@ -1,6 +1,6 @@
+import typing as t
 from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from os import cpu_count
-from typing import Any, NamedTuple, Optional, Tuple
 
 import attr
 import dask
@@ -75,7 +75,7 @@ class TBFParams(qmc_base.jastrow.TBFParams, Record):
     param_am: float
 
 
-class CFCSpec(qmc_base.jastrow.CFCSpec, NamedTuple):
+class CFCSpec(qmc_base.jastrow.CFCSpec, t.NamedTuple):
     """"""
     # Does nothing, only for type hints
     model_params: Params
@@ -86,7 +86,7 @@ class CFCSpec(qmc_base.jastrow.CFCSpec, NamedTuple):
 # noinspection PyUnusedLocal
 def tbf_contact_cutoff_validator(model_inst: 'Spec',
                                  attribute: str,
-                                 value: Any):
+                                 value: t.Any):
     """Validator for the ``tbf_contact_cutoff`` attribute.
 
     :param model_inst: The model instance.
@@ -585,7 +585,7 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
     ini_wf_abs_log_set: np.ndarray = attr.ib(cmp=False)
 
     #: The energy of reference to minimize the variance of the local energy.
-    ref_energy: Optional[float] = attr.ib(cmp=False, default=None)
+    ref_energy: t.Optional[float] = attr.ib(cmp=False, default=None)
 
     #: Use threads or multiple process.
     use_threads: bool = attr.ib(default=True, cmp=False)
@@ -634,7 +634,7 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
         return __threaded_func
 
     def wf_abs_log_and_energy_set(self, cfc_spec: CFCSpec) -> \
-            Tuple[np.ndarray, np.ndarray]:
+            t.Tuple[np.ndarray, np.ndarray]:
         """"""
 
         # The function to execute in parallel. It return lists.
