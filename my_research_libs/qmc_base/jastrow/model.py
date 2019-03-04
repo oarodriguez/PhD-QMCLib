@@ -289,15 +289,20 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True, nogil=True)
         def _wf_abs(sys_conf: np.ndarray,
-                    cfc_spec: CFCSpec):
+                    model_params: Params,
+                    obf_params: OBFParams,
+                    tbf_params: TBFParams):
             """Computes the variational wave function of a system of
             bosons in a specific configuration.
 
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
-            wf_abs_log_ = wf_abs_log(sys_conf, cfc_spec)
+            wf_abs_log_ = wf_abs_log(sys_conf, model_params,
+                                     obf_params, tbf_params)
             return exp(wf_abs_log_)
 
         return _wf_abs
@@ -318,19 +323,20 @@ class CoreFuncs(model.CoreFuncs):
         def _delta_wf_abs_log_kth_move(k_: int,
                                        z_k_delta: float,
                                        sys_conf: np.ndarray,
-                                       cfc_spec: CFCSpec):
+                                       model_params: Params,
+                                       obf_params: OBFParams,
+                                       tbf_params: TBFParams):
             """Computes the change of the logarithm of the wave function
             after displacing the `k-th` particle by a distance ``z_k_delta``.
 
             :param k_:
             :param z_k_delta:
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
             delta_wf_abs_log = 0.
 
             # NOTE: Is it better to use this conditional from external loops?
@@ -381,7 +387,9 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True)
         def _ith_drift(i_: int,
                        sys_conf: np.ndarray,
-                       cfc_spec: CFCSpec):
+                       model_params: Params,
+                       obf_params: OBFParams,
+                       tbf_params: TBFParams):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -389,12 +397,11 @@ class CoreFuncs(model.CoreFuncs):
             :param i_:
             :param sys_conf: The current configuration of the positions of the
                    particles.
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return: The local energy.
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
             ith_drift = 0.
 
             # NOTE: Is it better to use this conditional from external loops?
@@ -442,12 +449,16 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True)
         def _drift(sys_conf: np.ndarray,
-                   cfc_spec: CFCSpec,
+                   model_params: Params,
+                   obf_params: OBFParams,
+                   tbf_params: TBFParams,
                    result: np.ndarray = None):
             """
 
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :param result:
             :return:
             """
@@ -457,9 +468,10 @@ class CoreFuncs(model.CoreFuncs):
             # Set the position first, then the drift.
             result[pos_slot, :] = sys_conf[pos_slot, :]
 
-            nop = cfc_spec.model_params.boson_number
+            nop = model_params.boson_number
             for i_ in range(nop):
-                result[drift_slot, i_] = ith_drift(i_, sys_conf, cfc_spec)
+                result[drift_slot, i_] = ith_drift(i_, sys_conf, model_params,
+                                                   obf_params, tbf_params)
 
             return result
 
@@ -481,7 +493,9 @@ class CoreFuncs(model.CoreFuncs):
         def _delta_ith_drift_kth_move(i_: int, k_: int,
                                       z_k_delta: float,
                                       sys_conf: np.ndarray,
-                                      cfc_spec: CFCSpec):
+                                      model_params: Params,
+                                      obf_params: OBFParams,
+                                      tbf_params: TBFParams):
             """Computes the change of the i-th component of the drift
             after displacing the k-th particle by a distance ``z_k_delta``.
 
@@ -489,13 +503,11 @@ class CoreFuncs(model.CoreFuncs):
             :param k_:
             :param z_k_delta:
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
-
             z_k = sys_conf[pos_slot, k_]
             z_k_upd = z_k + z_k_delta
 
@@ -580,7 +592,9 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True)
         def _ith_energy(i_: int,
                         sys_conf: np.ndarray,
-                        cfc_spec: CFCSpec):
+                        model_params: Params,
+                        obf_params: OBFParams,
+                        tbf_params: TBFParams):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -588,12 +602,11 @@ class CoreFuncs(model.CoreFuncs):
             :param i_:
             :param sys_conf: The current configuration of the positions of the
                    particles.
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return: The local energy.
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
             ith_energy = 0.
 
             if model_params.is_free and model_params.is_ideal:
@@ -653,17 +666,22 @@ class CoreFuncs(model.CoreFuncs):
 
         @jit(nopython=True, nogil=True)
         def _energy(sys_conf: np.ndarray,
-                    cfc_spec: CFCSpec):
+                    model_params: Params,
+                    obf_params: OBFParams,
+                    tbf_params: TBFParams):
             """
 
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
             energy = 0.
-            nop = cfc_spec.model_params.boson_number
+            nop = model_params.boson_number
             for i_ in range(nop):
-                energy += ith_energy(i_, sys_conf, cfc_spec)
+                energy += ith_energy(i_, sys_conf, model_params,
+                                     obf_params, tbf_params)
             return energy
 
         return _energy
@@ -686,7 +704,9 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True)
         def _ith_energy_and_drift(i_: int,
                                   sys_conf: np.ndarray,
-                                  cfc_spec: CFCSpec):
+                                  model_params: Params,
+                                  obf_params: OBFParams,
+                                  tbf_params: TBFParams):
             """Computes the local energy for a given configuration of the
             position of the bodies. The kinetic energy of the hamiltonian is
             computed through central finite differences.
@@ -694,12 +714,11 @@ class CoreFuncs(model.CoreFuncs):
             :param i_:
             :param sys_conf: The current configuration of the positions of the
                    particles.
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return: The local energy and the drift.
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
             ith_energy, ith_drift = 0., 0.
 
             if model_params.is_free and model_params.is_ideal:
@@ -764,7 +783,9 @@ class CoreFuncs(model.CoreFuncs):
         def _ith_one_body_density(i_: int,
                                   sz: float,
                                   sys_conf: np.ndarray,
-                                  cfc_spec: CFCSpec):
+                                  model_params: Params,
+                                  obf_params: OBFParams,
+                                  tbf_params: TBFParams):
             """Computes the logarithm of the local one-body density matrix
             for a given configuration of the position of the bodies and for a
             specified particle index.
@@ -772,12 +793,11 @@ class CoreFuncs(model.CoreFuncs):
             :param i_:
             :param sz:
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
             ith_obd_log = 0.
 
             if model_params.is_free and model_params.is_ideal:
@@ -833,20 +853,25 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True, nogil=True)
         def _one_body_density(sz: float,
                               sys_conf: np.ndarray,
-                              cfc_spec: CFCSpec):
+                              model_params: Params,
+                              obf_params: OBFParams,
+                              tbf_params: TBFParams):
             """Computes the logarithm of the local one-body density matrix
             for a given configuration of the position of the bodies and for a
             specified particle index.
 
             :param sz:
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
             obd = 0.
-            nop = cfc_spec.model_params.boson_number
+            nop = model_params.boson_number
             for i_ in range(nop):
-                obd += ith_one_body_density(i_, sz, sys_conf, cfc_spec)
+                obd += ith_one_body_density(i_, sz, sys_conf, model_params,
+                                            obf_params, tbf_params)
             return obd / nop
 
         return _one_body_density
@@ -863,7 +888,9 @@ class CoreFuncs(model.CoreFuncs):
         @jit(nopython=True)
         def _fourier_density(kz: float,
                              sys_conf: np.ndarray,
-                             cfc_spec: CFCSpec):
+                             model_params: Params,
+                             obf_params: OBFParams,
+                             tbf_params: TBFParams):
             """Fourier density component with momentum :math:`k`.
 
             This function corresponds to the Fourier transform of the
@@ -871,13 +898,14 @@ class CoreFuncs(model.CoreFuncs):
 
             :param kz:
             :param sys_conf:
-            :param cfc_spec:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
-            model_params = cfc_spec.model_params
             s_sin, s_cos = 0., 0.
 
-            nop = cfc_spec.model_params.boson_number
+            nop = model_params.boson_number
             for i_ in range(nop):
                 z_i = sys_conf[pos_slot, i_]
                 s_cos += cos(kz * z_i)
