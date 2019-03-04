@@ -142,36 +142,36 @@ class SamplingBase(metaclass=ABCMeta):
         pass
 
     def as_chain(self, num_steps: int,
-                 ini_sys_conf: np.ndarray):
+                 ini_state: State):
         """Returns the VMC sampling as an array object.
 
         :param num_steps: The number of states to generate.
-        :param ini_sys_conf: The initial configuration of the sampling.
+        :param ini_state: The initial configuration of the sampling.
         """
         return self.core_funcs.as_chain(num_steps,
-                                        ini_sys_conf,
+                                        ini_state,
                                         self.rng_seed,
                                         self.cfc_spec)
 
     def batches(self, num_steps_batch: int,
-                ini_sys_conf: np.ndarray):
+                ini_state: State):
         """
 
         :param num_steps_batch: The number of steps per batch to generate.
-        :param ini_sys_conf: The initial configuration of the sampling.
+        :param ini_state: The initial configuration of the sampling.
         :return:
         """
         return self.core_funcs.batches(num_steps_batch,
-                                       ini_sys_conf,
+                                       ini_state,
                                        self.rng_seed,
                                        self.cfc_spec)
 
-    def states(self, ini_sys_conf: np.ndarray) -> t.Iterator[State]:
+    def states(self, ini_state: State) -> t.Iterator[State]:
         """Generator of VMC States.
 
-        :param ini_sys_conf: The initial configuration of the sampling.
+        :param ini_state: The initial configuration of the sampling.
         """
-        return self.core_funcs.generator(ini_sys_conf,
+        return self.core_funcs.generator(ini_state,
                                          self.rng_seed,
                                          self.cfc_spec)
 
@@ -290,7 +290,7 @@ class CoreFuncs(metaclass=ABCMeta):
         sys_conf_tpf = self.sys_conf_tpf
 
         @jit(nopython=True, nogil=True)
-        def _generator(ini_sys_conf: np.ndarray,
+        def _generator(ini_state: State,
                        rng_seed: int,
                        cfc_spec: CFCSpec):
             """VMC sampling generator.
@@ -302,7 +302,7 @@ class CoreFuncs(metaclass=ABCMeta):
             accepted, the status is ``STAT_ACCEPTED``, otherwise is
             ``STAT_REJECTED``.
 
-            :param ini_sys_conf: The initial configuration of the particles.
+            :param ini_state: The initial configuration of the particles.
             :param rng_seed: The seed used to generate the random numbers.
             :param cfc_spec: The common spec of the core functions.
             """
@@ -315,6 +315,11 @@ class CoreFuncs(metaclass=ABCMeta):
             # Feed the numba random number generator with the given seed.
             random.seed(rng_seed)
 
+            # Initial configuration.
+            ini_sys_conf = ini_state.sys_conf
+            wf_abs_log_actual = ini_state.wf_abs_log
+            move_stat = ini_state.move_stat
+
             # Buffers
             main_conf = np.zeros_like(ini_sys_conf)
             aux_conf = np.zeros_like(ini_sys_conf)
@@ -324,13 +329,14 @@ class CoreFuncs(metaclass=ABCMeta):
             actual_conf[:] = ini_sys_conf[:]
 
             # Initial value of the p.d.f.
-            wf_abs_log_actual = wf_abs_log(actual_conf, cfc_spec)
+            # wf_abs_log_actual = wf_abs_log(actual_conf, cfc_spec)
 
             # Yield initial value.
             # TODO: Remove the sum from the expression STAT_REJECTED + 0 when
             #  numba project gets this bug resolved (version 0.42 apparently).
             #  See https://github.com/numba/numba/issues/3565
-            yield State(actual_conf, wf_abs_log_actual, STAT_REJECTED + 0)
+            # yield State(actual_conf, wf_abs_log_actual, STAT_REJECTED + 0)
+            yield ini_state
 
             # Iterate indefinitely.
             while True:
@@ -338,7 +344,7 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Just keep advancing...
                 sys_conf_tpf(actual_conf, next_conf, cfc_spec)
                 wf_abs_log_next = wf_abs_log(next_conf, cfc_spec)
-                move_stat = STAT_REJECTED
+                # move_stat = STAT_REJECTED
 
                 # Metropolis condition
                 if wf_abs_log_next > 0.5 * log(rand()) + wf_abs_log_actual:
@@ -367,14 +373,14 @@ class CoreFuncs(metaclass=ABCMeta):
 
         @jit(nopython=True, nogil=True)
         def _as_chain(num_steps: int,
-                      ini_sys_conf: np.ndarray,
+                      ini_state: State,
                       rng_seed: int,
                       cfc_spec: CFCSpec) -> SamplingBatch:
             """Returns the VMC sampling as a single batch.
 
             :return:
             :param num_steps: The number of samples of the Markov chain.
-            :param ini_sys_conf: The initial configuration of the particles.
+            :param ini_state: The initial configuration of the particles.
             :param rng_seed: The seed used to generate the random numbers.
             :param cfc_spec:
             :return: An array with the Markov chain configurations, the values
@@ -383,7 +389,7 @@ class CoreFuncs(metaclass=ABCMeta):
             num_steps_batch = num_steps
 
             # Return the only batch as the result.
-            return next(self_batches(num_steps_batch, ini_sys_conf, rng_seed,
+            return next(self_batches(num_steps_batch, ini_state, rng_seed,
                                      cfc_spec))
 
         return _as_chain
@@ -404,13 +410,13 @@ class CoreFuncs(metaclass=ABCMeta):
 
         @jit(nopython=True, nogil=True)
         def _batches(num_steps_batch: int,
-                     ini_sys_conf: np.ndarray,
+                     ini_state: State,
                      rng_seed: int,
                      cfc_spec: CFCSpec):
             """Returns the VMC sampling batches of states configurations.
 
             :param num_steps_batch: The number of steps per batch.
-            :param ini_sys_conf: The initial configuration of the particles.
+            :param ini_state: The initial configuration of the particles.
             :param rng_seed: The seed used to generate the random numbers.
             :param cfc_spec:
             :return: An array with the Markov chain configurations, the values
@@ -421,7 +427,7 @@ class CoreFuncs(metaclass=ABCMeta):
                 raise ValueError('num_steps_batch must be nonzero and '
                                  'positive')
 
-            scb_shape = (num_steps_batch,) + ini_sys_conf.shape
+            scb_shape = (num_steps_batch,) + ini_state.sys_conf.shape
             states_confs = np.zeros(scb_shape, dtype=np.float64)
             states_props = np.empty(num_steps_batch, dtype=states_props_dtype)
 
@@ -429,7 +435,7 @@ class CoreFuncs(metaclass=ABCMeta):
             move_stat_set = states_props[move_stat_field]
 
             accepted = 0
-            sampling_iter = generator(ini_sys_conf, rng_seed, cfc_spec)
+            sampling_iter = generator(ini_state, rng_seed, cfc_spec)
 
             # Enumerating the sampling iterator.
             enum_iter: T_E_SIter = enumerate(sampling_iter)

@@ -21,10 +21,11 @@ model_spec = mrbp_qmc.Spec(lattice_depth=LATTICE_DEPTH,
                            tbf_contact_cutoff=TBF_CONTACT_CUTOFF)
 
 move_spread = 0.25 * model_spec.well_width
-ini_sys_conf = model_spec.init_get_sys_conf()
 vmc_sampling = mrbp_qmc.vmc.Sampling(model_spec=model_spec,
                                      move_spread=move_spread,
                                      rng_seed=1)
+ini_sys_conf = model_spec.init_get_sys_conf()
+ini_state = vmc_sampling.build_state(ini_sys_conf)
 
 
 def test_sampling():
@@ -34,8 +35,8 @@ def test_sampling():
     """
     # TODO: Improve this test.
     ar = 0
-    num_steps = 4096 * 32
-    sampling_states = vmc_sampling.states(ini_sys_conf)
+    num_steps = 4096 * 1
+    sampling_states = vmc_sampling.states(ini_state)
     for cj_, data in enumerate(sampling_states):
         sys_conf, wfv, stat = data
         ar += stat
@@ -43,7 +44,7 @@ def test_sampling():
             break
     ar /= num_steps
 
-    states_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    states_data = vmc_sampling.as_chain(num_steps, ini_state)
     sys_confs_set = states_data.confs
     sys_props_set = states_data.props
     ar_ = states_data.accept_rate
@@ -73,7 +74,7 @@ def test_batches():
     :return:
     """
     # TODO: Improve this test.
-    num_batches = 128 + 1
+    num_batches = 2
     num_steps_batch = 4096
 
     # Both samplings (in batches and as_chain) have a total number
@@ -83,7 +84,7 @@ def test_batches():
     num_steps = num_batches * num_steps_batch
     eff_num_steps = (num_batches - 1) * num_steps_batch
 
-    sampling_batches = vmc_sampling.batches(num_steps_batch, ini_sys_conf)
+    sampling_batches = vmc_sampling.batches(num_steps_batch, ini_state)
     accepted = 0.
     for states_batch in islice(sampling_batches, 1, num_batches):
         accept_rate = states_batch.accept_rate
@@ -91,7 +92,7 @@ def test_batches():
     batches_accept_rate = accepted / eff_num_steps
 
     move_stat_field = mrbp_qmc.vmc.StateProp.MOVE_STAT
-    states_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    states_data = vmc_sampling.as_chain(num_steps, ini_state)
     sys_props_set = states_data.props[num_steps_batch:]
     accepted = np.count_nonzero(sys_props_set[move_stat_field])
     chain_accept_rate = accepted / eff_num_steps
