@@ -29,6 +29,7 @@ class Sampling(vmc_udf.Sampling, jastrow.vmc_ndf.Sampling):
     model_spec: model.Spec
     time_step: float
     rng_seed: t.Optional[int] = attr.ib(default=None)
+    ssf_est_spec: t.Optional[vmc_udf.SSFEstSpec] = None
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""

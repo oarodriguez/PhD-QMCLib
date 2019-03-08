@@ -1,5 +1,5 @@
 import typing as t
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 
 import numpy as np
 from cached_property import cached_property
@@ -25,12 +25,18 @@ class TPFParams(vmc.TPFParams, metaclass=ABCMeta):
     move_spread: float
 
 
+class SSFParams(vmc.SSFParams):
+    """Static structure factor parameters."""
+    num_modes: int
+
+
 class CFCSpec(vmc.CFCSpec, t.NamedTuple):
     """Represent the common spec of the core functions."""
     model_params: model.Params
     obf_params: model.OBFParams
     tbf_params: model.TBFParams
     tpf_params: TPFParams
+    ssf_params: t.Optional[SSFParams]
 
 
 class Sampling(vmc.Sampling, metaclass=ABCMeta):
@@ -53,6 +59,33 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
     """
     # The slots available in a single particle configuration.
     sys_conf_slots: t.ClassVar = model.SysConfSlot
+
+    @property
+    @abstractmethod
+    def model_core_funcs(self) -> model.CoreFuncs:
+        pass
+
+    @property
+    def wf_abs_log(self):
+        """
+
+        :return:
+        """
+        wf_abs_log = self.model_core_funcs.wf_abs_log
+
+        @jit(nopython=True)
+        def _wf_abs_log(actual_conf: np.ndarray,
+                        cfc_spec: CFCSpec):
+            """
+
+            :param actual_conf:
+            :param cfc_spec:
+            :return:
+            """
+            return wf_abs_log(actual_conf, cfc_spec.model_params,
+                              cfc_spec.obf_params, cfc_spec.tbf_params)
+
+        return _wf_abs_log
 
     @cached_property
     def ith_sys_conf_tpf(self):
@@ -110,3 +143,105 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
                 ith_sys_conf_tpf(i_, ini_sys_conf, prop_sys_conf, tpf_params)
 
         return _sys_conf_ppf
+
+    @cached_property
+    def energy(self):
+        """
+
+        :return:
+        """
+        energy = self.model_core_funcs.energy
+
+        @jit(nopython=True)
+        def _energy(sys_conf: np.ndarray,
+                    cfc_spec: CFCSpec):
+            """
+
+            :param sys_conf:
+            :param cfc_spec:
+            :return:
+            """
+            return energy(sys_conf, cfc_spec.model_params,
+                          cfc_spec.obf_params, cfc_spec.tbf_params)
+
+        return _energy
+
+    @cached_property
+    def one_body_density(self):
+        """
+
+        :return:
+        """
+        one_body_density = self.model_core_funcs.one_body_density
+
+        @jit(nopython=True)
+        def _one_body_density(step_idx: int,
+                              pos_offset: np.ndarray,
+                              sys_conf: np.ndarray,
+                              cfc_spec: CFCSpec,
+                              iter_obd_array: np.ndarray):
+            """
+
+            :param step_idx:
+            :param pos_offset:
+            :param sys_conf:
+            :param cfc_spec:
+            :param iter_obd_array:
+            :return:
+            """
+            actual_iter_obd = iter_obd_array[step_idx]
+
+            num_pos = pos_offset.shape[0]
+            # NOTE: This may be replaced by a numba prange.
+            for pos_idx in range(num_pos):
+                pos = pos_offset[pos_idx]
+                obd_idx = one_body_density(pos, sys_conf,
+                                           cfc_spec.model_params,
+                                           cfc_spec.obf_params,
+                                           cfc_spec.tbf_params)
+                actual_iter_obd[pos_idx] = obd_idx
+
+        return _one_body_density
+
+    @cached_property
+    def fourier_density(self):
+        """
+
+        :return:
+        """
+        # Slots to save data to  evaluate S(k).
+        sqr_abs_slot = int(vmc.SSFPartSlot.FDK_SQR_ABS)
+        real_slot = int(vmc.SSFPartSlot.FDK_REAL)
+        imag_slot = int(vmc.SSFPartSlot.FDK_IMAG)
+
+        fourier_density = self.model_core_funcs.fourier_density
+
+        @jit(nopython=True)
+        def _fourier_density(step_idx: int,
+                             momenta: np.ndarray,
+                             sys_conf: np.ndarray,
+                             cfc_spec: CFCSpec,
+                             iter_ssf_array: np.ndarray):
+            """
+
+            :param step_idx:
+            :param sys_conf:
+            :param cfc_spec:
+            :param iter_ssf_array:
+            :return:
+            """
+            actual_iter_ssf = iter_ssf_array[step_idx]
+
+            num_modes = momenta.shape[0]
+            for kz_idx in range(num_modes):
+                momentum = momenta[kz_idx]
+                sys_fdk_idx = fourier_density(momentum, sys_conf,
+                                              cfc_spec.model_params,
+                                              cfc_spec.obf_params,
+                                              cfc_spec.tbf_params)
+                fdk_sqr_abs = sys_fdk_idx * sys_fdk_idx.conjugate()
+                actual_iter_ssf[kz_idx, sqr_abs_slot] = fdk_sqr_abs.real
+                actual_iter_ssf[kz_idx, real_slot] = sys_fdk_idx.real
+                actual_iter_ssf[kz_idx, imag_slot] = sys_fdk_idx.imag
+
+        return _fourier_density

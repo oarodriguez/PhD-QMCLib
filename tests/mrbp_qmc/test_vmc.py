@@ -5,6 +5,7 @@ from matplotlib import pyplot
 
 from my_research_libs import mrbp_qmc
 from my_research_libs.qmc_base.jastrow import SysConfSlot
+from my_research_libs.qmc_base.vmc import IterProp
 
 LATTICE_DEPTH = 100
 LATTICE_RATIO = 1
@@ -21,14 +22,39 @@ model_spec = mrbp_qmc.Spec(lattice_depth=LATTICE_DEPTH,
                            tbf_contact_cutoff=TBF_CONTACT_CUTOFF)
 
 move_spread = 0.25 * model_spec.well_width
+ssf_est_spec = mrbp_qmc.vmc.SSFEstSpec(num_modes=BOSON_NUMBER)
 vmc_sampling = mrbp_qmc.vmc.Sampling(model_spec=model_spec,
                                      move_spread=move_spread,
-                                     rng_seed=1)
+                                     rng_seed=1,
+                                     ssf_est_spec=ssf_est_spec)
 ini_sys_conf = model_spec.init_get_sys_conf()
 ini_state = vmc_sampling.build_state(ini_sys_conf)
 
 
 def test_sampling():
+    """
+
+    :return:
+    """
+    # TODO: Improve this test.
+    num_batches = 8
+    num_steps_batch = 128
+    batches = vmc_sampling.batches(num_steps_batch, ini_state)
+    batch_idx = 0
+    energy_data = []
+    for batch_data in batches:
+        iter_props = batch_data.iter_props
+        energy_batch = iter_props[IterProp.ENERGY]
+        energy_data.append(energy_batch)
+        if batch_idx + 1 >= num_batches:
+            break
+        batch_idx += 1
+    energy_data = np.hstack(energy_data)
+
+    print(energy_data.mean(), energy_data.var(ddof=1))
+
+
+def test_confs_props_batches():
     """
 
     :return:
@@ -45,9 +71,9 @@ def test_sampling():
     ar /= num_steps
 
     states_data = vmc_sampling.as_chain(num_steps, ini_state)
-    sys_confs_set = states_data.confs
     sys_props_set = states_data.props
     ar_ = states_data.accept_rate
+    assert ar == ar_
 
     move_stat_field = mrbp_qmc.vmc.StateProp.MOVE_STAT
     accepted = np.count_nonzero(sys_props_set[move_stat_field])
@@ -55,8 +81,8 @@ def test_sampling():
 
     # noinspection PyTypeChecker
     num_slots = len(SysConfSlot)
+    sys_confs_set = states_data.confs
     assert sys_confs_set.shape == (num_steps, num_slots, BOSON_NUMBER)
-    assert ar == ar_
 
     print(f"Sampling acceptance rate: {ar:.5g}")
     pos_slot = SysConfSlot.pos
