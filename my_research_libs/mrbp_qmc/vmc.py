@@ -133,6 +133,22 @@ class Sampling(jsw_vmc_udf.Sampling):
                        self.tpf_params,
                        self.ssf_params)
 
+    @property
+    def ssf_momenta(self):
+        """Get the momenta to evaluate the static structure factor.
+
+        :return:
+        """
+        if self.ssf_est_spec is None:
+            raise TypeError('the static structure factor spec has no been '
+                            'specified')
+        else:
+            model_spec = self.model_spec
+            ssf_est_spec = self.ssf_est_spec
+            num_modes = ssf_est_spec.num_modes
+            supercell_size = model_spec.supercell_size
+            return np.arange(num_modes) * 2 * pi / supercell_size
+
     def build_state(self, sys_conf: np.ndarray) -> qmc_base.vmc.State:
         """Builds a state for the sampling.
 

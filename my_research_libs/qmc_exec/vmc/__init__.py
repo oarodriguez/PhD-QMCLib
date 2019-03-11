@@ -6,4 +6,9 @@
     calculation.
 """
 #
-from .proc import Proc, ProcInput, ProcInputError
+from . import data
+
+#
+from .proc import (
+    ModelSysConfSpec, Proc, ProcInput, ProcInputError, ProcResult, SSFEstSpec
+)

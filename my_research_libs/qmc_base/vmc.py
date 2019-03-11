@@ -178,12 +178,19 @@ class SamplingBase(metaclass=ABCMeta):
     @property
     @abstractmethod
     def ssf_params(self) -> SSFParams:
+        """Represent the static structure factor parameters."""
         pass
 
     @property
     @abstractmethod
     def cfc_spec(self) -> CFCSpec:
         """The common spec of parameters of the core functions."""
+        pass
+
+    @property
+    @abstractmethod
+    def ssf_momenta(self):
+        """Get the momenta to evaluate the static structure factor."""
         pass
 
     @abstractmethod
