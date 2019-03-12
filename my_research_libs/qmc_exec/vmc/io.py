@@ -101,6 +101,13 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         """
         self_path = self.location_path
         h5_file = h5py.File(self_path)
+
+        # Replace VMC group data.
+        if self.dump_replace:
+            base_group = h5_file.get(self.group, None)
+            if base_group is not None:
+                del base_group[VMC_BASE_GROUP]
+
         with h5_file:
             #
             self.init_main_groups(h5_file)
