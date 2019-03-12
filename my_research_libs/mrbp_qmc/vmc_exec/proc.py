@@ -172,7 +172,16 @@ class Proc(vmc_exec.Proc):
         model_spec_config = self_config.pop('model_spec')
         model_spec = model.Spec(**model_spec_config)
 
-        return cls(model_spec, **self_config)
+        # Extract the spec of the static structure factor.
+        ssf_est_config = self_config.pop('ssf_spec', None)
+        if ssf_est_config is not None:
+            ssf_est_spec = SSFEstSpec(**ssf_est_config)
+        else:
+            ssf_est_spec = None
+
+        return cls(model_spec=model_spec,
+                   ssf_spec=ssf_est_spec,
+                   **self_config)
 
     def evolve(self, config: t.Mapping):
         """

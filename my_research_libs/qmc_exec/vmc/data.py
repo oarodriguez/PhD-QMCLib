@@ -61,7 +61,7 @@ class EnergyBlocks(PropBlocks):
         """
         energy_data = data[vmc_udf_base.IterProp.ENERGY]
         if reduce_data:
-            totals = energy_data.sum(axis=1)
+            totals = energy_data.mean(axis=1)
         else:
             totals = energy_data
 
@@ -80,28 +80,22 @@ class SSFPartBlocks(PropBlocks):
 
     @classmethod
     def from_data(cls, num_blocks: int,
-                  num_time_steps_block: int,
-                  sf_data: np.ndarray,
-                  props_data: np.ndarray,
-                  reduce_data: bool = True,
-                  as_pure_est: bool = True,
-                  pure_est_reduce_factor: np.ndarray = None):
+                  num_steps_block: int,
+                  ssf_data: np.ndarray,
+                  reduce_data: bool = True):
         """
 
         :param reduce_data:
         :param num_blocks:
-        :param num_time_steps_block:
-        :param sf_data:
-        :param props_data:
-        :param as_pure_est:
-        :param pure_est_reduce_factor:
+        :param num_steps_block:
+        :param ssf_data:
         :return:
         """
         if reduce_data:
-            totals = sf_data.sum(axis=1)
+            totals = ssf_data.mean(axis=1)
         else:
-            totals = sf_data
-        return cls(num_blocks, num_time_steps_block, totals)
+            totals = ssf_data
+        return cls(num_blocks, num_steps_block, totals)
 
     @property
     def reblock(self):
@@ -125,20 +119,20 @@ class SSFBlocks:
     @classmethod
     def from_data(cls, num_blocks: int,
                   num_steps_block: int,
-                  sf_data: np.ndarray,
+                  ssf_data: np.ndarray,
                   reduce_data: bool = True):
         """
 
         :param reduce_data:
         :param num_blocks:
         :param num_steps_block:
-        :param sf_data:
+        :param ssf_data:
         :return:
         """
         if reduce_data:
-            totals = sf_data.sum(axis=1)
+            totals = ssf_data.mean(axis=1)
         else:
-            totals = sf_data
+            totals = ssf_data
 
         # The totals of every part.
         fdk_sqr_abs_totals = totals[:, :, SSFPartSlot.FDK_SQR_ABS]
@@ -191,7 +185,7 @@ class SSFBlocks:
 
 @attr.s(auto_attribs=True, frozen=True)
 class PropsDataSeries:
-    """The data from a DMC sampling."""
+    """The data from a VMC sampling."""
 
     #: The blocks of data of the sampling basic properties.
     iter_props_blocks: np.ndarray
@@ -206,29 +200,19 @@ class PropsDataSeries:
         return np.hstack(source_data)
 
     @property
+    def wf_abs_log(self):
+        """"""
+        return self.props[vmc_udf_base.IterProp.WF_ABS_LOG]
+
+    @property
     def energy(self):
         """"""
         return self.props[vmc_udf_base.IterProp.ENERGY]
 
     @property
-    def weight(self):
+    def move_state(self):
         """"""
-        return self.props[vmc_udf_base.IterProp.WEIGHT]
-
-    @property
-    def num_walkers(self):
-        """"""
-        return self.props[vmc_udf_base.IterProp.NUM_WALKERS]
-
-    @property
-    def ref_energy(self):
-        """"""
-        return self.props[vmc_udf_base.IterProp.REF_ENERGY]
-
-    @property
-    def accum_energy(self):
-        """"""
-        return self.props[vmc_udf_base.IterProp.ACCUM_ENERGY]
+        return self.props[vmc_udf_base.IterProp.MOVE_STAT]
 
     @cached_property
     def ss_factor(self):
@@ -257,6 +241,7 @@ class SamplingData:
     series: t.Optional[PropsDataSeries] = None
 
 
+# TODO: Delete this class.
 @attr.s(auto_attribs=True, frozen=True)
 class ProcResult:
     """Result of the DMC estimator sampling."""
