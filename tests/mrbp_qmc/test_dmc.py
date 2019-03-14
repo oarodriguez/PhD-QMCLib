@@ -1,10 +1,12 @@
 from itertools import islice
 
+import attr
 import numpy as np
 from numba.runtime import rtsys
 
 import my_research_libs.qmc_base.dmc as dmc_base
 from my_research_libs import mrbp_qmc
+from my_research_libs.qmc_base.jastrow import SysConfSlot
 from my_research_libs.qmc_exec import exec_logger
 
 LATTICE_DEPTH = 0
@@ -29,6 +31,7 @@ vmc_sampling = \
     mrbp_qmc.vmc.Sampling(model_spec=model_spec,
                           move_spread=move_spread,
                           rng_seed=1)
+vmc_ini_state = vmc_sampling.build_state(ini_sys_conf)
 
 time_step = 1e-3
 num_batches = 4
@@ -45,18 +48,36 @@ dmc_sampling = \
                           rng_seed=rng_seed)
 
 
-def test_dmc():
+def test_build_ini_state():
+    """Test the build process of the initial DMC state."""
+    ini_sys_conf_set = []
+    ini_num_walkers = 128
+    for idx in range(ini_num_walkers):
+        sys_conf = model_spec.init_get_sys_conf()
+        ini_sys_conf_set.append(sys_conf)
+    ini_sys_conf_set = np.array(ini_sys_conf_set)
+
+    dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set,
+                                             ini_ref_energy)
+    dmc_ini_sys_confs = dmc_ini_state.confs[:ini_num_walkers]
+
+    # Initial position data was copied correctly?
+    assert np.allclose(dmc_ini_sys_confs[:, SysConfSlot.pos],
+                       ini_sys_conf_set[:, SysConfSlot.pos])
+
+
+def test_states():
     """Testing the DMC sampling."""
-    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
     sys_conf_set = vmc_chain_data.confs
     ar_ = vmc_chain_data.accept_rate
     print(f"Acceptance ratio: {ar_:.5g}")
 
     ini_sys_conf_set = sys_conf_set[-100:]
     num_time_steps = num_batches * num_time_steps_batch
-    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+    dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
 
-    states = dmc_sampling.states(ini_state)
+    states = dmc_sampling.states(dmc_ini_state)
     dmc_sampling_slice = islice(states, num_time_steps)
     iter_enum: dmc_base.T_E_SIter = enumerate(dmc_sampling_slice)
 
@@ -68,19 +89,17 @@ def test_dmc():
         print(i_, state_props)
 
 
-def test_dmc_batches():
+def test_batches():
     """Testing the DMC sampling."""
-
-    # TODO: Improve this test.
-    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
     sys_conf_set = vmc_chain_data.confs
     ar_ = vmc_chain_data.accept_rate
     print(f"Acceptance ratio: {ar_:.5g}")
 
     ini_sys_conf_set = sys_conf_set[-100:]
-    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+    dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
     sampling_batches = \
-        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
+        dmc_sampling.batches(dmc_ini_state, num_time_steps_batch)
 
     dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
         islice(sampling_batches, num_batches)
@@ -93,7 +112,7 @@ def test_dmc_batches():
 def test_dmc_energy():
     """Testing the energy calculation during the DMC sampling."""
     # TODO: Improve this test.
-    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
     sys_conf_set = vmc_chain_data.confs
 
     # Alias.
@@ -158,7 +177,7 @@ def test_dmc_est_sampling():
     # TODO: Improve this test.
     exec_logger.info('Init VMC sampling...')
 
-    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
     sys_conf_set = vmc_chain_data.confs
     ar_ = vmc_chain_data.accept_rate
     print(f"Acceptance ratio: {ar_:.5g}")
@@ -166,8 +185,14 @@ def test_dmc_est_sampling():
     exec_logger.info('Finished sampling...')
 
     ini_sys_conf_set = sys_conf_set[-128:]
-    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
-    dmc_es_batches = dmc_sampling.batches(ini_state, num_time_steps_batch)
+    dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+
+    num_modes = 2 * BOSON_NUMBER
+
+    ssf_est_spec = mrbp_qmc.dmc.SSFEstSpec(num_modes)
+    dmc_ssf_sampling = attr.evolve(dmc_sampling, ssf_est_spec=ssf_est_spec)
+    dmc_es_batches = dmc_ssf_sampling.batches(dmc_ini_state,
+                                              num_time_steps_batch)
 
     es_batches: dmc_base.T_SBatchesIter = \
         islice(dmc_es_batches, num_batches)
@@ -180,7 +205,7 @@ def test_dmc_est_sampling():
         iter_ssf = batch.iter_ssf
         # print(state_props)
         ssf_batch_data = iter_ssf / nw_iter[:, np.newaxis, np.newaxis]
-        # print(ssf_batch_data)
+        print(ssf_batch_data)
         # print(nw_iter)
         # This helps to catch memory leaks in numba compiled functions.
         print(rtsys.get_allocation_stats())
@@ -190,5 +215,5 @@ def test_dmc_est_sampling():
 
 
 if __name__ == '__main__':
-    # test_dmc()
+    # test_states()
     test_dmc_est_sampling()

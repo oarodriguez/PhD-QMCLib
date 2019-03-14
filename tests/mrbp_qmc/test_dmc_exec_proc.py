@@ -1,3 +1,5 @@
+from matplotlib import pyplot
+
 from my_research_libs.mrbp_qmc import Spec, dmc_exec, vmc_exec
 
 
@@ -55,6 +57,11 @@ def test_proc():
     dmc_proc_input = \
         dmc_exec.ProcInput.from_model_sys_conf_spec(sys_conf_spec, dmc_proc)
     dmc_result = dmc_proc.exec(dmc_proc_input)
+
+    ssf_momenta = dmc_result.proc.sampling.ssf_momenta
+    ss_factor_mean = dmc_result.data.blocks.ss_factor.mean
+    pyplot.plot(ssf_momenta, ss_factor_mean)
+    pyplot.show()
 
 
 if __name__ == '__main__':

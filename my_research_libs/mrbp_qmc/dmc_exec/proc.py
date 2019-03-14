@@ -279,8 +279,7 @@ class Proc(dmc_exec.Proc):
         """
         if self.should_eval_ssf:
             ssf_spec = self.ssf_spec
-            ssf_est_spec = dmc.SSFEstSpec(self.model_spec,
-                                          ssf_spec.num_modes,
+            ssf_est_spec = dmc.SSFEstSpec(ssf_spec.num_modes,
                                           ssf_spec.as_pure_est,
                                           ssf_spec.pfw_num_time_steps)
 

@@ -18,22 +18,28 @@ from numpy import random
 CONF_INDEX = 0
 ENERGY_INDEX = 1
 
-__all__ = [
-    'BranchingSpecField',
-    'CoreFuncs',
-    'EstAuxData',
-    'SamplingBatch',
-    'IterProp',
-    'Sampling',
-    'SamplingConfsPropsBatch',
-    'State',
-    'StateProp',
-    'SSFEstSpec',
-    'SSFPartSlot',
-    'branching_spec_dtype',
-    'iter_props_dtype',
-    'dummy_pure_est_core_func'
-]
+
+class DDFParams:
+    """The parameters of the diffusion-and-drift process."""
+    time_step: float
+    sigma_spread: float
+
+
+class SSFParams:
+    """Static structure factor parameters."""
+    assume_none: bool
+
+
+class SSFExecData(t.NamedTuple):
+    """"""
+    momenta: np.ndarray
+    iter_ssf_array: np.ndarray
+    pfw_aux_ssf_array: np.ndarray
+
+
+class CFCSpec(t.NamedTuple):
+    """Represent the common spec of the core functions."""
+    ssf_params: t.Optional[SSFParams]
 
 
 @enum.unique
@@ -156,17 +162,17 @@ class SSFEstSpec(metaclass=ABCMeta):
     # estimator of S(k).
     pfw_num_time_steps: int = 512
 
-    @property
-    @abstractmethod
-    def momenta(self, *args, **kwargs):
-        """"""
-        pass
+    # @property
+    # @abstractmethod
+    # def momenta(self, *args, **kwargs):
+    #     """"""
+    #     pass
 
-    @property
-    @abstractmethod
-    def core_func(self, *args, **kwargs):
-        """"""
-        pass
+    # @property
+    # @abstractmethod
+    # def core_func(self, *args, **kwargs):
+    #     """"""
+    #     pass
 
 
 class Sampling(metaclass=ABCMeta):
@@ -207,13 +213,38 @@ class Sampling(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def state_confs_shape(self):
+    def ddf_params(self) -> DDFParams:
+        """Represent the diffusion-and-drift process parameters."""
         pass
 
     @property
     @abstractmethod
-    def state_props_shape(self):
+    def ssf_params(self) -> SSFParams:
+        """Represent the static structure factor parameters."""
         pass
+
+    @property
+    @abstractmethod
+    def cfc_spec(self) -> CFCSpec:
+        """The common spec of parameters of the core functions."""
+        pass
+
+    @property
+    @abstractmethod
+    def ssf_momenta(self):
+        """Get the momenta to evaluate the static structure factor."""
+        pass
+
+    @property
+    @abstractmethod
+    def state_confs_shape(self):
+        pass
+
+    @property
+    def state_props_shape(self):
+        """"""
+        max_num_walkers = self.max_num_walkers
+        return max_num_walkers,
 
     @abstractmethod
     def build_state(self, sys_conf_set: np.ndarray,
@@ -245,13 +276,12 @@ class Sampling(metaclass=ABCMeta):
         """
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
-        rng_seed = self.rng_seed
-
         return self.core_funcs.batches(time_step,
                                        ini_state,
                                        num_time_steps_batch,
                                        target_num_walkers,
-                                       rng_seed)
+                                       self.rng_seed,
+                                       self.cfc_spec)
 
     def confs_props_batches(self, ini_state: State,
                             num_time_steps_batch: int) -> T_SCPBatchesIter:
@@ -264,7 +294,6 @@ class Sampling(metaclass=ABCMeta):
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
         rng_seed = self.rng_seed
-
         return self.core_funcs.confs_props_batches(time_step,
                                                    ini_state,
                                                    num_time_steps_batch,
@@ -278,13 +307,12 @@ class Sampling(metaclass=ABCMeta):
         :return:
         """
         time_step = self.time_step
-        rng_seed = self.rng_seed
         target_num_walkers = self.target_num_walkers
-
         return self.core_funcs.states_generator(time_step,
                                                 ini_state,
                                                 target_num_walkers,
-                                                rng_seed)
+                                                self.rng_seed,
+                                                self.cfc_spec)
 
 
 iter_props_dtype = np.dtype([
@@ -301,13 +329,55 @@ branching_spec_dtype = np.dtype([
 ])
 
 
+# noinspection PyUnusedLocal
+def _recast_stub(z: float, ddf_params: DDFParams):
+    """Stub for the recast function."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _fourier_density_stub(step_idx: int,
+                          momenta: np.ndarray,
+                          state_confs: np.ndarray,
+                          num_walkers: int,
+                          max_num_walkers: int,
+                          branching_spec: np.ndarray,
+                          cfc_spec: CFCSpec,
+                          iter_ssf_array: np.ndarray,
+                          aux_states_sf_array: np.ndarray):
+    """Stub for the fourier density function (p.d.f.)."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _init_ssf_est_data_stub(num_time_steps_batch: int,
+                            max_num_walkers: int,
+                            cfc_spec: CFCSpec) -> SSFExecData:
+    """Stub for the energy function (p.d.f.)."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _evolve_state_stub(prev_state_confs: np.ndarray,
+                       prev_state_props: np.ndarray,
+                       actual_state_confs: np.ndarray,
+                       actual_state_props: np.ndarray,
+                       aux_next_state_confs: np.ndarray,
+                       aux_next_state_props: np.ndarray,
+                       actual_num_walkers: int,
+                       max_num_walkers: int,
+                       time_step: float,
+                       ref_energy: float,
+                       branching_spec: np.ndarray,
+                       cfc_spec: CFCSpec):
+    """Stub for the evolve_state function."""
+    pass
+
+
 class CoreFuncs(metaclass=ABCMeta):
     """The core functions for a DMC sampling."""
 
     __slots__ = ()
-
-    #:
-    ssf_est_spec_nt: t.Optional[SSFEstSpecNT]
 
     #: Parallel the execution where possible.
     jit_parallel: bool
@@ -317,9 +387,18 @@ class CoreFuncs(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def evolve_system(self):
-        """"""
-        pass
+    def recast(self):
+        return _recast_stub
+
+    @property
+    @abstractmethod
+    def fourier_density(self):
+        return _fourier_density_stub
+
+    @property
+    @abstractmethod
+    def init_ssf_est_data(self):
+        return _init_ssf_est_data_stub
 
     @cached_property
     def sync_branching_spec(self):
@@ -366,121 +445,11 @@ class CoreFuncs(metaclass=ABCMeta):
 
         return _sync_branching_spec
 
-    @cached_property
+    @property
+    @abstractmethod
     def evolve_state(self):
-        """
-
-        :return:
-        """
-        parallel = self.jit_parallel
-        fastmath = self.jit_fastmath
-        props_energy_field = StateProp.ENERGY.value
-        props_weight_field = StateProp.WEIGHT.value
-        props_mask_field = StateProp.MASK.value
-        branch_ref_field = BranchingSpecField.CLONING_REF.value
-
-        # JIT methods.
-        evolve_system = self.evolve_system
-
-        @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
-        def _evolve_state(prev_state_confs: np.ndarray,
-                          prev_state_props: np.ndarray,
-                          actual_state_confs: np.ndarray,
-                          actual_state_props: np.ndarray,
-                          aux_next_state_confs: np.ndarray,
-                          aux_next_state_props: np.ndarray,
-                          actual_num_walkers: int,
-                          max_num_walkers: int,
-                          time_step: float,
-                          ref_energy: float,
-                          branching_spec: np.ndarray):
-            """Realizes the diffusion-branching process.
-
-            This function realize a simple diffusion process over each
-            one of the walkers, followed by the branching process.
-
-            :param prev_state_confs:
-            :param prev_state_props:
-            :param actual_state_confs:
-            :param actual_state_props:
-            :param aux_next_state_confs:
-            :param aux_next_state_props:
-            :param max_num_walkers:
-            :param time_step:
-            :param ref_energy:
-            :return:
-            """
-            # Arrays of properties.
-            prev_state_energies = prev_state_props[props_energy_field]
-            actual_state_energies = actual_state_props[props_energy_field]
-            aux_next_state_energies = aux_next_state_props[props_energy_field]
-
-            prev_state_weights = prev_state_props[props_weight_field]
-            actual_state_weights = actual_state_props[props_weight_field]
-            aux_next_state_weights = aux_next_state_props[props_weight_field]
-
-            actual_state_masks = actual_state_props[props_mask_field]
-            cloning_refs = branching_spec[branch_ref_field]
-
-            # Total energy and weight of the next configuration.
-            # NOTE: This initialization causes a memory leak with
-            #  parallel=True
-            # state_energy = 0.
-            # state_weight = 0.
-
-            # Branching and diffusion process (parallel for).
-            for sys_idx in nb.prange(max_num_walkers):
-
-                # Beyond the actual number of walkers just pass to
-                # the next iteration.
-                if sys_idx >= actual_num_walkers:
-
-                    # Mask the configuration.
-                    actual_state_masks[sys_idx] = True
-
-                else:
-
-                    # Lookup which configuration should be cloned.
-                    cloning_ref_idx = cloning_refs[sys_idx]
-                    sys_energy = prev_state_energies[cloning_ref_idx]
-                    # sys_weight = prev_state_weights[ref_idx]
-
-                    # Evolve the system for the next iteration.
-                    # TODO: Can we return tuples inside a nb.prange?
-                    evolve_system(sys_idx, cloning_ref_idx,
-                                  prev_state_confs,
-                                  prev_state_energies,
-                                  prev_state_weights,
-                                  actual_state_confs,
-                                  actual_state_energies,
-                                  actual_state_weights,
-                                  time_step,
-                                  ref_energy,
-                                  aux_next_state_confs,
-                                  aux_next_state_energies,
-                                  aux_next_state_weights)
-
-                    # Cloning process. Actual states are not modified.
-                    actual_state_confs[sys_idx] \
-                        = prev_state_confs[cloning_ref_idx]
-                    actual_state_energies[sys_idx] = sys_energy
-
-                    # Basic algorithm of branching gives a unit weight to each
-                    # new walker. We set the value here. In addition, we unmask
-                    # the walker, i.e., we mark it as valid.
-                    actual_state_weights[sys_idx] = 1.
-                    actual_state_masks[sys_idx] = False
-
-                    # The contribution to the total energy and weight.
-                    # NOTE: See memory leak note above.
-                    # state_energy += sys_energy
-                    # state_weight += 1.
-
-                # NOTE: It is faster not returning anything.
-                # return EvoStateResult(state_energy, state_weight,
-                #                       actual_num_walkers)
-
-        return _evolve_state
+        """"""
+        return _evolve_state_stub
 
     @cached_property
     def states_generator(self):
@@ -500,7 +469,8 @@ class CoreFuncs(metaclass=ABCMeta):
         def _states_generator(time_step: float,
                               ini_state: State,
                               target_num_walkers: int,
-                              rng_seed: int = None):
+                              rng_seed: int,
+                              cfc_spec: CFCSpec):
             """Realizes the DMC sampling state-by-state.
 
             The sampling is done in batches, with each batch having a fixed
@@ -510,6 +480,9 @@ class CoreFuncs(metaclass=ABCMeta):
             :param ini_state:
             :param time_step:
             :param target_num_walkers:
+            :param rng_seed:
+            :param cfc_spec: The common spec to pass to the core functions
+                of the model.
             :return:
             """
             # The initial state fixes the arrays of the following states.
@@ -539,8 +512,8 @@ class CoreFuncs(metaclass=ABCMeta):
             state_weights = state_props[props_weight_field]
 
             # Seed the numba RNG.
-            if rng_seed:
-                random.seed(rng_seed)
+            # TODO: Handling of None seeds...
+            random.seed(rng_seed)
 
             # The total energy and weight, used to update the
             # energy of reference for population control.
@@ -580,7 +553,8 @@ class CoreFuncs(metaclass=ABCMeta):
                              max_num_walkers,
                              time_step,
                              state_ref_energy,
-                             state_branching_spec)
+                             state_branching_spec,
+                             cfc_spec)
 
                 # Update total energy and weight of the system.
                 state_energy = \
@@ -621,17 +595,6 @@ class CoreFuncs(metaclass=ABCMeta):
 
         return _states_generator
 
-    @property
-    @abstractmethod
-    def prepare_ini_state(self):
-        """"""
-        pass
-
-    @property
-    def should_eval_ssf_est(self):
-        """"""
-        return self.ssf_est_spec_nt.core_func is not dummy_pure_est_core_func
-
     @cached_property
     def batches(self):
         """
@@ -639,10 +602,6 @@ class CoreFuncs(metaclass=ABCMeta):
         :return:
         """
         fastmath = self.jit_fastmath
-        ssf_num_modes = self.ssf_est_spec_nt.num_modes
-
-        # noinspection PyTypeChecker
-        ssf_num_parts = len(SSFPartSlot)
 
         iter_energy_field = IterProp.ENERGY.value
         iter_weight_field = IterProp.WEIGHT.value
@@ -651,15 +610,17 @@ class CoreFuncs(metaclass=ABCMeta):
         accum_energy_field = IterProp.ACCUM_ENERGY.value
 
         # JIT routines.
-        eval_estimators = self.eval_estimators
         states_generator = self.states_generator
+        init_ssf_est_data = self.init_ssf_est_data
+        fourier_density = self.fourier_density
 
         @nb.jit(nopython=True, nogil=True, fastmath=fastmath)
         def _batches(time_step: float,
                      ini_state: State,
                      num_time_steps_batch: int,
                      target_num_walkers: int,
-                     rng_seed: int = None):
+                     rng_seed: int,
+                     cfc_spec: CFCSpec):
             """
 
             :param time_step:
@@ -667,8 +628,10 @@ class CoreFuncs(metaclass=ABCMeta):
             :param num_time_steps_batch:
             :param target_num_walkers:
             :param rng_seed:
+            :param cfc_spec:
             :return:
             """
+            ssf_params = cfc_spec.ssf_params
             max_num_walkers = ini_state.max_num_walkers
 
             # Alias :)...
@@ -677,30 +640,25 @@ class CoreFuncs(metaclass=ABCMeta):
             # The shape of the batches.
             ipb_shape = nts_batch,
 
-            # The shape of the structure factor array.
-            i_ssf_shape = nts_batch, ssf_num_modes, ssf_num_parts
-
-            # The shape of the auxiliary arrays to store the structure
-            # factor of a single state during the forward walking process.
-            pfw_aux_ssf_b_shape = \
-                2, max_num_walkers, ssf_num_modes, ssf_num_parts
-
             # Array to store the configuration data of a batch of states.
             iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
-            iter_ssf_array = np.zeros(i_ssf_shape, dtype=np.float64)
-            pfw_aux_ssf_array = np.zeros(pfw_aux_ssf_b_shape,
-                                         dtype=np.float64)
-
-            # Extract fields.
             iter_energies = iter_props_array[iter_energy_field]
             iter_weights = iter_props_array[iter_weight_field]
             iter_num_walkers = iter_props_array[iter_num_walkers_field]
             iter_ref_energies = iter_props_array[ref_energy_field]
             iter_accum_energies = iter_props_array[accum_energy_field]
 
+            # Static structure factor arrays.
+            ssf_est_data = \
+                init_ssf_est_data(nts_batch, max_num_walkers, cfc_spec)
+            ssf_momenta = ssf_est_data.momenta
+            iter_ssf_array = ssf_est_data.iter_ssf_array
+            pfw_aux_ssf_array = ssf_est_data.pfw_aux_ssf_array
+
             # Create a new sampling generator.
             generator = states_generator(time_step, ini_state,
-                                         target_num_walkers, rng_seed)
+                                         target_num_walkers,
+                                         rng_seed, cfc_spec)
 
             # Future reference to the last DMC state of each batch.
             state = ini_state
@@ -739,15 +697,18 @@ class CoreFuncs(metaclass=ABCMeta):
                     iter_ref_energies[step_idx] = state.ref_energy
                     iter_accum_energies[step_idx] = state.accum_energy
 
-                    # Evaluate the estimators.
-                    eval_estimators(step_idx,
-                                    state_confs,
-                                    num_walkers,
-                                    max_num_walkers,
-                                    branching_spec,
-                                    iter_props_array,
-                                    iter_ssf_array,
-                                    pfw_aux_ssf_array)
+                    # Evaluate the Static Structure Factor.
+                    if not ssf_params.assume_none:
+
+                        fourier_density(step_idx,
+                                        ssf_momenta,
+                                        state_confs,
+                                        num_walkers,
+                                        max_num_walkers,
+                                        branching_spec,
+                                        cfc_spec,
+                                        iter_ssf_array,
+                                        pfw_aux_ssf_array)
 
                     # Stop/pause the iteration.
                     if step_idx + 1 >= nts_batch:
@@ -773,110 +734,6 @@ class CoreFuncs(metaclass=ABCMeta):
                 yield batch_data
 
         return _batches
-
-    @cached_property
-    def eval_estimators(self):
-        """
-
-        :return:
-        """
-        fastmath = self.jit_fastmath
-        parallel = self.jit_parallel
-        branch_ref_field = BranchingSpecField.CLONING_REF.value
-
-        # Structure factor
-        # Flag to evaluate structure factor.
-        ssf_as_pure_est = self.ssf_est_spec_nt.as_pure_est
-        ssf_num_modes = self.ssf_est_spec_nt.num_modes
-        ssf_pfw_nts = self.ssf_est_spec_nt.pfw_num_time_steps
-        ssf_est_core_func = self.ssf_est_spec_nt.core_func
-        should_eval_ssf_est = self.should_eval_ssf_est
-
-        # noinspection PyUnusedLocal
-        @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
-        def _eval_estimators(step_idx: int,
-                             state_confs: np.ndarray,
-                             num_walkers: int,
-                             max_num_walkers: int,
-                             branching_spec: np.ndarray,
-                             iter_props_array: np.ndarray,
-                             iter_ssf_array: np.ndarray,
-                             aux_states_sf_array: np.ndarray):
-            """
-
-            :param step_idx:
-            :param state_confs:
-            :param num_walkers:
-            :param max_num_walkers:
-            :param branching_spec:
-            :param iter_props_array:
-            :param iter_ssf_array:
-            :param aux_states_sf_array:
-            :return:
-            """
-            # Cloning table. Needed for evaluate pure estimators.
-            cloning_refs = branching_spec[branch_ref_field]
-            actual_step_idx = step_idx % 2
-
-            actual_state_ssf = aux_states_sf_array[actual_step_idx]
-            actual_iter_ssf = iter_ssf_array[step_idx]
-
-            # Branching process (parallel for).
-            for sys_idx in nb.prange(max_num_walkers):
-
-                # Beyond the actual number of walkers just pass to
-                # the next iteration.
-                if sys_idx >= num_walkers:
-                    continue
-
-                # Lookup which configuration should be cloned.
-                clone_ref_idx = cloning_refs[sys_idx]
-
-                if should_eval_ssf_est:
-                    # Evaluate structure factor.
-                    ssf_est_core_func(step_idx,
-                                      sys_idx,
-                                      clone_ref_idx,
-                                      state_confs,
-                                      iter_ssf_array,
-                                      aux_states_sf_array)
-
-            # Accumulate the totals of the estimators.
-            # NOTE: Fix up a memory leak using range instead numba.prange.
-            # TODO: Compare speed of range vs numba.prange.
-            # for sys_idx in range(num_walkers):
-            #     # Accumulate S(k).
-            #     actual_iter_ssf += actual_state_ssf[sys_idx]
-
-            if should_eval_ssf_est:
-                #
-                if ssf_as_pure_est:
-                    if step_idx < ssf_pfw_nts:
-                        est_divisor = step_idx + 1
-                    else:
-                        est_divisor = ssf_pfw_nts
-                else:
-                    est_divisor = 1
-
-                for kz_idx in nb.prange(ssf_num_modes):
-                    #
-                    actual_iter_ssf[kz_idx] = \
-                        actual_state_ssf[:num_walkers, kz_idx].sum(axis=0)
-
-                    # Calculate structure factor pure estimator after the
-                    # forward sampling stage.
-                    if ssf_as_pure_est:
-                        actual_iter_ssf[kz_idx] /= est_divisor
-
-                # # Calculate structure factor pure estimator after the
-                # # forward sampling stage.
-                # if ssf_as_pure_est:
-                #     if step_idx < ssf_pfw_nts:
-                #         iter_ssf_array[step_idx] /= step_idx + 1
-                #     else:
-                #         iter_ssf_array[step_idx] /= ssf_pfw_nts
-
-        return _eval_estimators
 
     @cached_property
     def confs_props_batches(self):

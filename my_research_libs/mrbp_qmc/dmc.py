@@ -1,20 +1,20 @@
 import typing as t
-from math import exp, pi, sqrt
+from math import pi, sqrt
 
 import attr
 import numba as nb
 import numpy as np
 import numpy.ma as ma
 from cached_property import cached_property
-from numpy import random
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base.dmc import (
-    SSFPartSlot, SamplingConfsPropsBatch, branching_spec_dtype,
-    dummy_pure_est_core_func
+    SSFExecData, SSFPartSlot, SamplingConfsPropsBatch,
+    branching_spec_dtype
 )
-from my_research_libs.qmc_base.jastrow import SysConfSlot
+from my_research_libs.qmc_base.jastrow import dmc as jsw_dmc
 from my_research_libs.qmc_base.utils import recast_to_supercell
+from my_research_libs.util.attr import Record
 from . import model
 
 __all__ = [
@@ -68,19 +68,39 @@ class StateError(ValueError):
     pass
 
 
-class SSFEstSpecNT(qmc_base.dmc.SSFEstSpecNT, t.NamedTuple):
-    """"""
+@attr.s(auto_attribs=True)
+class DDFParams(jsw_dmc.DDFParams, Record):
+    """The parameters of the diffusion-and-drift process."""
+    boson_number: int
+    time_step: float
+    sigma_spread: float
+    lower_bound: float
+    upper_bound: float
+
+
+@attr.s(auto_attribs=True)
+class SSFParams(jsw_dmc.SSFParams, Record):
+    """Static structure factor parameters."""
     num_modes: int
-    as_pure_est: bool = True
-    pfw_num_time_steps: int = None
-    core_func: t.Callable = qmc_base.dmc.dummy_pure_est_core_func
+    as_pure_est: bool
+    pfw_num_time_steps: int
+    assume_none: bool
+
+
+class CFCSpec(jsw_dmc.CFCSpec, t.NamedTuple):
+    """The spec of the core functions."""
+    model_params: model.Params
+    obf_params: model.OBFParams
+    tbf_params: model.TBFParams
+    ddf_params: DDFParams
+    ssf_params: t.Optional[jsw_dmc.SSFParams] = None
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
     """Structure factor estimator."""
 
-    model_spec: model.Spec
+    # model_spec: model.Spec
     num_modes: int
     as_pure_est: bool = True
     pfw_num_time_steps: t.Optional[int] = None
@@ -93,116 +113,9 @@ class SSFEstSpec(qmc_base.dmc.SSFEstSpec):
             pfs_nts = 99999999
             object.__setattr__(self, 'pfw_num_time_steps', pfs_nts)
 
-    @cached_property
-    def momenta(self):
-        """
-
-        :return:
-        """
-        num_modes = self.num_modes
-        supercell_size = self.model_spec.supercell_size
-
-        # TODO: Should we exclude the momentum k = 0?
-        return np.arange(num_modes) * 2 * pi / supercell_size
-
-    @cached_property
-    def core_func(self):
-        """
-
-        :return:
-        """
-        model_spec = self.model_spec
-        num_modes = self.num_modes
-        as_pure_est = self.as_pure_est
-        pfs_nts = self.pfw_num_time_steps
-        momenta = self.momenta
-
-        # Slots to save data to  evaluate S(k).
-        sqr_abs_slot = int(SSFPartSlot.FDK_SQR_ABS)
-        real_slot = int(SSFPartSlot.FDK_REAL)
-        imag_slot = int(SSFPartSlot.FDK_IMAG)
-
-        cfc_spec_nt = model_spec.cfc_spec
-        fourier_density = model.core_funcs.fourier_density
-
-        # noinspection PyUnusedLocal
-        @nb.jit(nopython=True)
-        def _core_func(step_idx: int,
-                       sys_idx: int,
-                       clone_ref_idx: int,
-                       state_confs: np.ndarray,
-                       iter_ssf_array: np.ndarray,
-                       aux_states_ssf_array: np.ndarray):
-            """
-
-            :param step_idx:
-            :param sys_idx:
-            :param clone_ref_idx:
-            :param state_confs:
-            :param iter_ssf_array:
-            :param aux_states_ssf_array:
-            :return:
-            """
-            prev_step_idx = step_idx % 2 - 1
-            actual_step_idx = step_idx % 2
-
-            prev_state_ssf = aux_states_ssf_array[prev_step_idx]
-            actual_state_ssf = aux_states_ssf_array[actual_step_idx]
-
-            prev_sys_ssf = prev_state_ssf[clone_ref_idx]
-            actual_sys_ssf = actual_state_ssf[sys_idx]
-            sys_conf = state_confs[sys_idx]
-
-            if not as_pure_est:
-                # Mixed estimator.
-
-                for kz_idx in range(num_modes):
-                    momentum = momenta[kz_idx]
-                    sys_fdk_idx = \
-                        fourier_density(momentum, sys_conf, cfc_spec_nt)
-
-                    # Just update the actual state.
-                    fdk_sqr_abs = sys_fdk_idx * sys_fdk_idx.conjugate()
-
-                    actual_sys_ssf[kz_idx, sqr_abs_slot] = fdk_sqr_abs.real
-                    actual_sys_ssf[kz_idx, real_slot] = sys_fdk_idx.real
-                    actual_sys_ssf[kz_idx, imag_slot] = sys_fdk_idx.imag
-
-                # Finish.
-                return
-
-            # Pure estimator.
-            if step_idx >= pfs_nts:
-                # Just "transport" the structure factor parts of the previous
-                # configuration to the new one.
-                for kz_idx in range(num_modes):
-                    actual_state_ssf[sys_idx, kz_idx] = prev_sys_ssf[kz_idx]
-
-            else:
-                # Evaluate the structure factor for the actual
-                # system configuration.
-                for kz_idx in range(num_modes):
-                    momentum = momenta[kz_idx]
-                    sys_fdk_idx = \
-                        fourier_density(momentum, sys_conf, cfc_spec_nt)
-
-                    fdk_sqr_abs = sys_fdk_idx * sys_fdk_idx.conjugate()
-
-                    # Update with the previous state ("transport").
-                    actual_sys_ssf[kz_idx, sqr_abs_slot] = \
-                        fdk_sqr_abs.real + prev_sys_ssf[kz_idx, sqr_abs_slot]
-
-                    actual_sys_ssf[kz_idx, real_slot] = \
-                        sys_fdk_idx.real + prev_sys_ssf[kz_idx, real_slot]
-
-                    actual_sys_ssf[kz_idx, imag_slot] = \
-                        sys_fdk_idx.imag + prev_sys_ssf[kz_idx, imag_slot]
-
-        return _core_func
-
 
 @attr.s(auto_attribs=True, frozen=True)
-class Sampling(qmc_base.dmc.Sampling):
+class Sampling(jsw_dmc.Sampling):
     """A class to realize a DMC sampling."""
 
     #: The model instance.
@@ -226,17 +139,66 @@ class Sampling(qmc_base.dmc.Sampling):
             super().__setattr__('rng_seed', rng_seed)
 
     @property
-    def state_confs_shape(self):
-        """"""
-        max_num_walkers = self.max_num_walkers
-        sys_conf_shape = self.model_spec.sys_conf_shape
-        return (max_num_walkers,) + sys_conf_shape
+    def ddf_params(self) -> DDFParams:
+        """Represent the diffusion-and-drift process parameters."""
+        model_spec = self.model_spec
+        boson_number = model_spec.boson_number
+        time_step = self.time_step
+        sigma_spread = sqrt(2 * time_step)
+        z_min, z_max = model_spec.boundaries
+        ddf_params = DDFParams(boson_number,
+                               time_step=time_step,
+                               sigma_spread=sigma_spread,
+                               lower_bound=z_min,
+                               upper_bound=z_max)
+        return ddf_params.as_record()
 
     @property
-    def state_props_shape(self):
+    def ssf_params(self) -> SSFParams:
+        """Static structure factor parameters.
+
+        :return:
+        """
+        if self.ssf_est_spec is None:
+            num_modes = 1
+            as_pure_est = False
+            pfw_nts = 1
+            assume_none = True
+        else:
+            num_modes = self.ssf_est_spec.num_modes
+            as_pure_est = self.ssf_est_spec.as_pure_est
+            pfw_nts = self.ssf_est_spec.pfw_num_time_steps
+            assume_none = False
+
+        ssf_params = \
+            SSFParams(num_modes, as_pure_est, pfw_nts, assume_none)
+        return ssf_params.as_record()
+
+    @property
+    def cfc_spec(self) -> CFCSpec:
         """"""
-        max_num_walkers = self.max_num_walkers
-        return max_num_walkers,
+        model_spec = self.model_spec
+        return CFCSpec(model_spec.params,
+                       model_spec.obf_params,
+                       model_spec.tbf_params,
+                       self.ddf_params,
+                       self.ssf_params)
+
+    @property
+    def ssf_momenta(self):
+        """Get the momenta to evaluate the static structure factor.
+
+        :return:
+        """
+        if self.ssf_est_spec is None:
+            raise TypeError('the static structure factor spec has no been '
+                            'specified')
+        else:
+            model_spec = self.model_spec
+            ssf_est_spec = self.ssf_est_spec
+            num_modes = ssf_est_spec.num_modes
+            supercell_size = model_spec.supercell_size
+            return np.arange(num_modes) * 2 * pi / supercell_size
 
     def build_state(self, sys_conf_set: np.ndarray,
                     ref_energy: float = None) -> State:
@@ -249,9 +211,13 @@ class Sampling(qmc_base.dmc.Sampling):
         :param ref_energy:
         :return:
         """
+        cfc_spec = self.cfc_spec
         confs_shape = self.state_confs_shape
         props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
+        model_params = cfc_spec.model_params
+        obf_params = cfc_spec.obf_params
+        tbf_params = cfc_spec.tbf_params
 
         if len(confs_shape) == len(sys_conf_set.shape):
             # Equal number of dimensions, but...
@@ -269,7 +235,8 @@ class Sampling(qmc_base.dmc.Sampling):
 
         # Calculate the initial state arrays properties.
         self.core_funcs.prepare_ini_state(sys_conf_set, state_confs,
-                                          state_props)
+                                          state_props, model_params,
+                                          obf_params, tbf_params)
 
         state_energies = state_props[StateProp.ENERGY][:num_walkers]
         state_weights = state_props[StateProp.WEIGHT][:num_walkers]
@@ -462,47 +429,13 @@ class Sampling(qmc_base.dmc.Sampling):
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':
         """"""
-        model_spec = self.model_spec
-        boundaries = model_spec.boundaries
-        cfc_spec_nt = model_spec.cfc_spec
-
-        ssf_est_spec = self.ssf_est_spec
-        if ssf_est_spec is not None:
-            ssf_num_modes = ssf_est_spec.num_modes
-            ssf_as_pure_est = ssf_est_spec.as_pure_est
-            ssf_pfw_nts = ssf_est_spec.pfw_num_time_steps
-            ssf_core_func = ssf_est_spec.core_func
-
-        else:
-            ssf_num_modes = 1
-            ssf_as_pure_est = False
-            ssf_pfw_nts = 512
-            ssf_core_func = dummy_pure_est_core_func
-
-        ssf_est_spec_nt = SSFEstSpecNT(ssf_num_modes,
-                                       ssf_as_pure_est,
-                                       ssf_pfw_nts,
-                                       ssf_core_func)
-
-        return CoreFuncs(boundaries,
-                         cfc_spec_nt,
-                         ssf_est_spec_nt,
-                         self.jit_parallel,
-                         self.jit_fastmath)
+        core_funcs_id = self.jit_parallel, self.jit_fastmath
+        return core_funcs_table[core_funcs_id]
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class CoreFuncs(qmc_base.dmc.CoreFuncs):
+class CoreFuncs(jsw_dmc.CoreFuncs):
     """The DMC core functions for the Bloch-Phonon model."""
-
-    #: The boundaries of the QMC supercell.
-    boundaries: t.Tuple[float, float]
-
-    #: The common (fixed) spec to pass to the core functions of the model.
-    cfc_spec_nt: model.CFCSpec
-
-    #: The static structure factor spec.
-    ssf_est_spec_nt: SSFEstSpecNT = None
 
     #: Parallel the execution where possible.
     jit_parallel: bool = True
@@ -511,288 +444,155 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     jit_fastmath: bool = True
 
     @cached_property
+    def model_core_funcs(self) -> model.CoreFuncs:
+        """"""
+        return model.core_funcs
+
+    @cached_property
     def recast(self):
         """Apply the periodic boundary conditions on a configuration."""
         fastmath = self.jit_fastmath
-        z_min, z_max = self.boundaries
 
         @nb.jit(nopython=True, fastmath=fastmath)
-        def _recast(z: float):
+        def _recast(z: float, ddf_params: DDFParams):
             """Apply the periodic boundary conditions on a configuration.
 
             :param z:
+            :param ddf_params:
             :return:
             """
+            z_min = ddf_params.lower_bound
+            z_max = ddf_params.upper_bound
             return recast_to_supercell(z, z_min, z_max)
 
         return _recast
 
     @cached_property
-    def ith_diffusion(self):
+    def init_ssf_est_data(self):
         """
 
         :return:
         """
-        fastmath = self.jit_fastmath
-        pos_slot = int(SysConfSlot.pos)
-        drift_slot = int(SysConfSlot.drift)
-        recast = self.recast
-
-        @nb.jit(nopython=True, fastmath=fastmath)
-        def _ith_diffuse(i_: int, time_step: float, sys_conf: np.ndarray):
-            """
-
-            :param i_:
-            :param sys_conf:
-            :param time_step:
-            :return:
-            """
-            # Alias 🙂
-            normal = random.normal
-
-            # Standard deviation as a function of time step.
-            z_i = sys_conf[pos_slot, i_]
-            drift_i = sys_conf[drift_slot, i_]
-
-            # Diffuse current configuration.
-            sigma = sqrt(2 * time_step)
-            rnd_spread = normal(0, sigma)
-            z_i_next = z_i + 2 * drift_i * time_step + rnd_spread
-            z_i_next_recast = recast(z_i_next)
-
-            return z_i_next_recast
-
-        return _ith_diffuse
-
-    @cached_property
-    def evolve_system(self):
-        """
-
-        :return:
-        """
-        fastmath = self.jit_fastmath
-        cfc_spec = self.cfc_spec_nt
-        pos_slot = int(SysConfSlot.pos)
-        drift_slot = int(SysConfSlot.drift)
-
-        # JIT functions.
-        ith_diffusion = self.ith_diffusion
-        ith_energy_and_drift = model.core_funcs.ith_energy_and_drift
-
-        # noinspection PyUnusedLocal
-        @nb.jit(nopython=True, fastmath=fastmath)
-        def _evolve_system(sys_idx: int,
-                           cloning_ref_idx: int,
-                           prev_state_confs: np.ndarray,
-                           prev_state_energies: np.ndarray,
-                           prev_state_weights: np.ndarray,
-                           actual_state_confs: np.ndarray,
-                           actual_state_energies: np.ndarray,
-                           actual_state_weights: np.ndarray,
-                           time_step: float,
-                           ref_energy: float,
-                           next_state_confs: np.ndarray,
-                           next_state_energies: np.ndarray,
-                           next_state_weights: np.ndarray):
-            """Executes the diffusion process.
-
-            :param sys_idx: The index of the system.
-            :param actual_state_confs:
-            :param actual_state_energies:
-            :param actual_state_weights:
-            :param time_step:
-            :param ref_energy:
-            :param next_state_confs:
-            :param next_state_energies:
-            :param next_state_weights:
-            :return:
-            """
-            # Standard deviation as a function of time step.
-            # sigma = sqrt(2 * time_step)
-            prev_conf = prev_state_confs[cloning_ref_idx]
-            sys_conf = actual_state_confs[sys_idx]
-            next_conf = next_state_confs[sys_idx]
-
-            nop = cfc_spec.model_spec.boson_number
-            for i_ in range(nop):
-                # Diffuse current configuration. We can update the position
-                # of the next configuration.
-                z_i_next = ith_diffusion(i_, time_step, prev_conf)
-                sys_conf[pos_slot, i_] = z_i_next
-                next_conf[pos_slot, i_] = z_i_next
-
-            energy = actual_state_energies[sys_idx]
-            energy_next = 0.
-            for i_ in range(nop):
-                ith_energy_drift = ith_energy_and_drift(i_, sys_conf,
-                                                        cfc_spec)
-                ith_energy_next, ith_drift_next = ith_energy_drift
-                next_conf[drift_slot, i_] = ith_drift_next
-                energy_next += ith_energy_next
-
-            mean_energy = (energy_next + energy) / 2
-            weight_next = exp(-time_step * (mean_energy - ref_energy))
-
-            # Update the energy and weight of the next configuration.
-            next_state_energies[sys_idx] = energy_next
-            next_state_weights[sys_idx] = weight_next
-
-        return _evolve_system
-
-    @cached_property
-    def prepare_ini_ith_system(self):
-        """Prepare a system of the initial state of the sampling."""
-
-        fastmath = self.jit_fastmath
-        cfc_spec = self.cfc_spec_nt
-        nop = cfc_spec.model_spec.boson_number
-        pos_slot = int(SysConfSlot.pos)
-        drift_slot = int(SysConfSlot.drift)
-
-        # JIT functions.
-        ith_energy_and_drift = model.core_funcs.ith_energy_and_drift
-
-        @nb.jit(nopython=True, fastmath=fastmath)
-        def _prepare_ini_ith_system(sys_idx: int,
-                                    state_confs: np.ndarray,
-                                    state_energies: np.ndarray,
-                                    state_weights: np.ndarray,
-                                    ini_sys_conf_set: np.ndarray):
-            """Prepare a system of the initial state of the sampling.
-
-            :param sys_idx:
-            :param state_confs:
-            :param state_energies:
-            :param state_weights:
-            :param ini_sys_conf_set:
-            :return:
-            """
-            sys_conf = state_confs[sys_idx]
-            ini_sys_conf = ini_sys_conf_set[sys_idx]
-            energy_sum = 0.
-
-            for i_ in range(nop):
-                # Particle-by-particle loop.
-                energy_drift = ith_energy_and_drift(i_, ini_sys_conf, cfc_spec)
-                ith_energy, ith_drift = energy_drift
-
-                sys_conf[pos_slot, i_] = ini_sys_conf[pos_slot, i_]
-                sys_conf[drift_slot, i_] = ith_drift
-                energy_sum += ith_energy
-
-            # Store the energy and initialize all weights to unity
-            state_energies[sys_idx] = energy_sum
-            state_weights[sys_idx] = 1.
-
-        return _prepare_ini_ith_system
-
-    @cached_property
-    def prepare_ini_state(self):
-        """Prepare the initial state of the sampling. """
-
-        parallel = self.jit_parallel
-        fastmath = self.jit_fastmath
-
-        # Fields
-        state_props_fields = qmc_base.dmc.StateProp
-        energy_field = state_props_fields.ENERGY.value
-        weight_field = state_props_fields.WEIGHT.value
-        mask_field = state_props_fields.MASK.value
-
-        # JIT functions.
-        prepare_ini_ith_system = self.prepare_ini_ith_system
-
-        @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
-        def _prepare_ini_state(ini_sys_conf_set: np.ndarray,
-                               state_confs: np.ndarray,
-                               state_props: np.ndarray):
-            """Prepare the initial state of the sampling.
-
-            :param ini_sys_conf_set:
-            :param state_confs:
-            :param state_props:
-            :return:
-            """
-            ini_num_walkers = len(ini_sys_conf_set)
-            state_energy = state_props[energy_field]
-            state_weight = state_props[weight_field]
-            state_mask = state_props[mask_field]
-
-            # Initialize the mask.
-            state_mask[:] = True
-
-            for sys_idx in nb.prange(ini_num_walkers):
-                # Prepare each one of the configurations of the state.
-                prepare_ini_ith_system(sys_idx, state_confs, state_energy,
-                                       state_weight, ini_sys_conf_set)
-
-                # Unmask this walker.
-                state_mask[sys_idx] = False
-
-        return _prepare_ini_state
-
-    @cached_property
-    def one_body_density(self):
-        """"""
-
-        types = ['void(f8,f8[:,:],f8,b1,f8[:])']
-        signature = '(),(ns,nop),(),() -> ()'
-        cfc_spec = self.cfc_spec_nt
-
-        one_body_density = model.core_funcs.one_body_density
-
-        @nb.guvectorize(types, signature, nopython=True, target='parallel')
-        def _one_body_density(rel_dist: float,
-                              sys_conf: np.ndarray,
-                              sys_weight: float,
-                              sys_mask: bool,
-                              result: np.ndarray):
-            """
-
-            :param sys_conf:
-            :param sys_weight:
-            :param sys_mask:
-            :param result:
-            :return:
-            """
-            if not sys_mask:
-                sys_obd = one_body_density(rel_dist, sys_conf, cfc_spec)
-                result[0] = sys_weight * sys_obd
-            else:
-                result[0] = 0.
-
-        return _one_body_density
-
-    @cached_property
-    def fourier_density(self):
-        """The weighed structure factor."""
-
-        types = ['void(f8,f8[:,:],f8,b1,c16[:])']
-        signature = '(),(ns,nop),(),() -> ()'
-        cfc_spec = self.cfc_spec_nt
-
-        fourier_density = model.core_funcs.fourier_density
-
         # noinspection PyTypeChecker
-        @nb.guvectorize(types, signature, nopython=True, target='parallel')
-        def _fourier_density(momentum: float,
-                             sys_conf: np.ndarray,
-                             sys_weight: float,
-                             sys_mask: bool,
-                             result: np.ndarray) -> np.ndarray:
+        ssf_num_parts = len(SSFPartSlot)
+
+        @nb.jit(nopython=True)
+        def _init_ssf_est_data_stub(num_time_steps_batch: int,
+                                    max_num_walkers: int,
+                                    cfc_spec: CFCSpec) -> SSFExecData:
             """
 
-            :param sys_conf:
-            :param sys_weight:
-            :param sys_mask:
-            :param result:
+            :param num_time_steps_batch:
+            :param max_num_walkers:
+            :param cfc_spec:
             :return:
             """
-            # NOTE: We need if... else... to avoid bugs.
-            if not sys_mask:
-                sys_fdk = fourier_density(momentum, sys_conf, cfc_spec)
-                result[0] = sys_weight * sys_fdk
+            model_params = cfc_spec.model_params
+            ssf_params = cfc_spec.ssf_params
+            # Alias 😃...
+            nts_batch = num_time_steps_batch
+            supercell_size = model_params.supercell_size
+            if ssf_params.assume_none:
+                # A fake array will be created. It won't be used.
+                nts_batch, num_modes = 1, 1
             else:
-                result[0] = 0.
+                num_modes = ssf_params.num_modes
 
-        return _fourier_density
+            # The shape of the structure factor array.
+            i_ssf_shape = nts_batch, num_modes, ssf_num_parts
+
+            # The shape of the auxiliary arrays to store the structure
+            # factor of a single state during the forward walking process.
+            pfw_aux_ssf_b_shape = \
+                2, max_num_walkers, num_modes, ssf_num_parts
+
+            ssf_momenta = np.arange(num_modes) * 2 * pi / supercell_size
+            iter_ssf_array = np.empty(i_ssf_shape, dtype=np.float64)
+            pfw_aux_ssf_array = \
+                np.zeros(pfw_aux_ssf_b_shape, dtype=np.float64)
+            return SSFExecData(ssf_momenta,
+                               iter_ssf_array,
+                               pfw_aux_ssf_array)
+
+        return _init_ssf_est_data_stub
+
+    # @cached_property
+    # def one_body_density_guv(self):
+    #     """"""
+    #
+    #     types = ['void(f8,f8[:,:],f8,b1,f8[:])']
+    #     signature = '(),(ns,nop),(),() -> ()'
+    #     cfc_spec = self.cfc_spec_nt
+    #
+    #     one_body_density = model.core_funcs.one_body_density
+    #
+    #     @nb.guvectorize(types, signature, nopython=True, target='parallel')
+    #     def _one_body_density(rel_dist: float,
+    #                           sys_conf: np.ndarray,
+    #                           sys_weight: float,
+    #                           sys_mask: bool,
+    #                           result: np.ndarray):
+    #         """
+    #
+    #         :param sys_conf:
+    #         :param sys_weight:
+    #         :param sys_mask:
+    #         :param result:
+    #         :return:
+    #         """
+    #         if not sys_mask:
+    #             sys_obd = one_body_density(rel_dist, sys_conf, cfc_spec)
+    #             result[0] = sys_weight * sys_obd
+    #         else:
+    #             result[0] = 0.
+    #
+    #     return _one_body_density
+
+    # @cached_property
+    # def fourier_density_guv(self):
+    #     """The weighed structure factor."""
+    #
+    #     types = ['void(f8,f8[:,:],f8,b1,c16[:])']
+    #     signature = '(),(ns,nop),(),() -> ()'
+    #     cfc_spec = self.cfc_spec_nt
+    #
+    #     fourier_density = model.core_funcs.fourier_density
+    #
+    #     # noinspection PyTypeChecker
+    #     @nb.guvectorize(types, signature, nopython=True, target='parallel')
+    #     def _fourier_density(momentum: float,
+    #                          sys_conf: np.ndarray,
+    #                          sys_weight: float,
+    #                          sys_mask: bool,
+    #                          result: np.ndarray) -> np.ndarray:
+    #         """
+    #
+    #         :param sys_conf:
+    #         :param sys_weight:
+    #         :param sys_mask:
+    #         :param result:
+    #         :return:
+    #         """
+    #         # NOTE: We need if... else... to avoid bugs.
+    #         if not sys_mask:
+    #             sys_fdk = fourier_density(momentum, sys_conf, cfc_spec)
+    #             result[0] = sys_weight * sys_fdk
+    #         else:
+    #             result[0] = 0.
+    #
+    #     return _fourier_density
+
+
+# Variants of the core functions.
+par_fast_core_funcs = CoreFuncs(jit_parallel=True, jit_fastmath=True)
+par_nofast_core_funcs = CoreFuncs(jit_parallel=True, jit_fastmath=False)
+nopar_fast_core_funcs = CoreFuncs(jit_parallel=False, jit_fastmath=False)
+nopar_nofast_core_funcs = CoreFuncs(jit_parallel=False, jit_fastmath=False)
+
+# Table to organize the core functions.
+core_funcs_table = {
+    (True, True): par_fast_core_funcs,
+    (True, False): par_nofast_core_funcs,
+    (False, True): nopar_fast_core_funcs,
+    (False, False): nopar_nofast_core_funcs
+}
