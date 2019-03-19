@@ -627,8 +627,11 @@ class CSWFOptimizer(qmc_base.jastrow.CSWFOptimizer):
             :param cfc_spec: The spec of the core functions.
             :return:
             """
-            wf_abs_log_v = wf_abs_log(sys_conf, cfc_spec)
-            energy_v = energy(sys_conf, cfc_spec)
+            wf_abs_log_v = \
+                wf_abs_log(sys_conf, cfc_spec.model_params,
+                           cfc_spec.obf_params, cfc_spec.tbf_params)
+            energy_v = energy(sys_conf, cfc_spec.model_params,
+                              cfc_spec.obf_params, cfc_spec.tbf_params)
             return wf_abs_log_v, energy_v
 
         return __threaded_func
