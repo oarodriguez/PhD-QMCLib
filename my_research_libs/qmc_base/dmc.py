@@ -293,12 +293,12 @@ class Sampling(metaclass=ABCMeta):
         """
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
-        rng_seed = self.rng_seed
         return self.core_funcs.confs_props_batches(time_step,
                                                    ini_state,
                                                    num_time_steps_batch,
                                                    target_num_walkers,
-                                                   rng_seed)
+                                                   self.rng_seed,
+                                                   self.cfc_spec)
 
     def states(self, ini_state: State) -> T_SIter:
         """Generator object that yields DMC states.
@@ -755,7 +755,8 @@ class CoreFuncs(metaclass=ABCMeta):
                      ini_state: State,
                      num_time_steps_batch: int,
                      target_num_walkers: int,
-                     rng_seed: int = None):
+                     rng_seed: int,
+                     cfc_spec: CFCSpec):
             """The DMC sampling generator.
 
             :param time_step:
@@ -763,6 +764,7 @@ class CoreFuncs(metaclass=ABCMeta):
             :param ini_state:
             :param target_num_walkers:
             :param rng_seed:
+            :param cfc_spec:
             :return:
             """
             # Initial state properties.
@@ -799,30 +801,37 @@ class CoreFuncs(metaclass=ABCMeta):
             iter_accum_energies = iter_props_array[accum_energy_field]
 
             # Create a new sampling generator.
-            generator = states_generator(time_step, ini_state,
-                                         target_num_walkers, rng_seed)
+            states_gen_instance = \
+                states_generator(time_step, ini_state, target_num_walkers,
+                                 rng_seed, cfc_spec)
 
             # Yield batches indefinitely.
             while True:
+                # NOTE: Enumerate causes a memory leak in numba 0.40.
+                #   See https://github.com/numba/numba/issues/3473.
+                # enum_generator: T_E_SIter = enumerate(generator)
 
-                enum_generator: T_E_SIter = enumerate(generator)
+                # We use an initial index instead enumerate.
+                step_idx = 0
 
-                for sj_, state in enum_generator:
+                for state in states_gen_instance:
 
                     # Copy the data to the batch.
-                    states_confs_array[sj_] = state.confs[:]
-                    states_props_array[sj_] = state.props[:]
+                    states_confs_array[step_idx] = state.confs[:]
+                    states_props_array[step_idx] = state.props[:]
 
                     # Copy other data to keep track of the evolution.
-                    iter_energies[sj_] = state.energy
-                    iter_weights[sj_] = state.weight
-                    iter_num_walkers[sj_] = state.num_walkers
-                    iter_ref_energies[sj_] = state.ref_energy
-                    iter_accum_energies[sj_] = state.accum_energy
+                    iter_energies[step_idx] = state.energy
+                    iter_weights[step_idx] = state.weight
+                    iter_num_walkers[step_idx] = state.num_walkers
+                    iter_ref_energies[step_idx] = state.ref_energy
+                    iter_accum_energies[step_idx] = state.accum_energy
 
                     # Stop/pause the iteration.
-                    if sj_ + 1 >= nts_batch:
+                    if step_idx + 1 >= nts_batch:
                         break
+
+                    step_idx += 1
 
                 iter_data = SamplingConfsPropsBatch(states_confs_array,
                                                     states_props_array,

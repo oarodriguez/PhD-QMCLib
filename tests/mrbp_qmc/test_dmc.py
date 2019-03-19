@@ -109,6 +109,27 @@ def test_batches():
         print(state_props)
 
 
+def test_confs_props_batches():
+    """"""
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
+    sys_conf_set = vmc_chain_data.confs
+    ar_ = vmc_chain_data.accept_rate
+    print(f"Acceptance ratio: {ar_:.5g}")
+
+    ini_sys_conf_set = sys_conf_set[-100:]
+    dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+    sampling_batches = \
+        dmc_sampling.confs_props_batches(dmc_ini_state, num_time_steps_batch)
+
+    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
+        islice(sampling_batches, num_batches)
+
+    for batch in dmc_sampling_batches:
+        # state_props = batch.iter_props
+        states_confs = batch.states_confs
+        print(states_confs)
+
+
 def test_dmc_energy():
     """Testing the energy calculation during the DMC sampling."""
     # TODO: Improve this test.
