@@ -34,7 +34,6 @@ class SSFEstSpec(metaclass=ABCMeta):
     """Structure factor estimator basic config."""
     num_modes: int
     as_pure_est: bool
-    pfw_num_time_steps: int
 
 
 @attr.s(auto_attribs=True)

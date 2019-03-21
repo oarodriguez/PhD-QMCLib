@@ -75,10 +75,6 @@ class SSFEstSpec(dmc_exec.SSFEstSpec):
                                 converter=bool_converter,
                                 validator=bool_validator)
 
-    pfw_num_time_steps: int = attr.ib(default=99999999,
-                                      converter=int_converter,
-                                      validator=int_validator)
-
 
 ssf_validator = attr.validators.instance_of(SSFEstSpec)
 opt_ssf_validator = attr.validators.optional(ssf_validator)
@@ -277,11 +273,13 @@ class Proc(dmc_exec.Proc):
 
         :return:
         """
+        pfw_num_time_steps = self.num_time_steps_batch
+
         if self.should_eval_ssf:
             ssf_spec = self.ssf_spec
             ssf_est_spec = dmc.SSFEstSpec(ssf_spec.num_modes,
                                           ssf_spec.as_pure_est,
-                                          ssf_spec.pfw_num_time_steps)
+                                          pfw_num_time_steps)
 
         else:
             ssf_est_spec = None
