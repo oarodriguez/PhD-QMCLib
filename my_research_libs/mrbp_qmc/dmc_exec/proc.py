@@ -88,6 +88,9 @@ class SSFEstSpec(dmc_exec.SSFEstSpec):
                                 validator=bool_validator)
 
 
+density_validator = attr.validators.instance_of(DensityEstSpec)
+opt_density_validator = attr.validators.optional(density_validator)
+
 ssf_validator = attr.validators.instance_of(SSFEstSpec)
 opt_ssf_validator = attr.validators.optional(ssf_validator)
 
@@ -232,6 +235,13 @@ class Proc(dmc_exec.Proc):
         model_spec_config = self_config.pop('model_spec')
         model_spec = model.Spec(**model_spec_config)
 
+        # Extract the spec of the density.
+        density_est_config = self_config.pop('density_spec', None)
+        if density_est_config is not None:
+            density_est_spec = DensityEstSpec(**density_est_config)
+        else:
+            density_est_spec = None
+
         # Extract the spec of the static structure factor.
         ssf_est_config = self_config.pop('ssf_spec', None)
         if ssf_est_config is not None:
@@ -249,6 +259,7 @@ class Proc(dmc_exec.Proc):
             self_config['jit_fastmath'] = fastmath
 
         dmc_proc = cls(model_spec=model_spec,
+                       density_spec=density_est_spec,
                        ssf_spec=ssf_est_spec,
                        **self_config)
 

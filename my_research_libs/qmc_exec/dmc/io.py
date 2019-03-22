@@ -8,8 +8,8 @@ import h5py
 from my_research_libs.qmc_base import dmc as dmc_base
 from my_research_libs.util.attr import str_validator
 from .data import (
-    EnergyBlocks, NumWalkersBlocks, PropBlocks, PropsDataBlocks, SSFBlocks,
-    SSFPartBlocks, SamplingData, WeightBlocks
+    DensityBlocks, EnergyBlocks, NumWalkersBlocks, PropBlocks, PropsDataBlocks,
+    SSFBlocks, SSFPartBlocks, SamplingData, WeightBlocks
 )
 from .proc import Proc, ProcResult
 
@@ -157,6 +157,11 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         model_spec_group = proc_group.require_group('model_spec')
         model_spec_group.attrs.update(**model_spec)
 
+        density_spec_config = proc_config.pop('density_spec', None)
+        if density_spec_config is not None:
+            density_spec_group = proc_group.require_group('density_spec')
+            density_spec_group.attrs.update(**density_spec_config)
+
         ssf_spec_config = proc_config.pop('ssf_spec', None)
         if ssf_spec_config is not None:
             ssf_spec_group = proc_group.require_group('ssf_spec')
@@ -190,6 +195,13 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         num_walkers_group = blocks_group.require_group('num_walkers')
         self.save_prop_blocks(num_walkers_blocks, num_walkers_group,
                               has_weight_totals=False)
+
+        density_blocks = data_blocks.density
+        if density_blocks is not None:
+            # Save the density.
+            density_group = \
+                blocks_group.require_group('density')
+            self.save_prop_blocks(density_blocks, density_group)
 
         ssf_blocks = data_blocks.ss_factor
         if ssf_blocks is not None:
@@ -285,6 +297,13 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
                                                  has_weight_totals=False)
         num_walkers_blocks = NumWalkersBlocks(**blocks_data)
 
+        density_group = blocks_group.get('density', None)
+        if density_group is not None:
+            blocks_data = self.load_prop_blocks_data(density_group)
+            density_blocks = DensityBlocks(**blocks_data)
+        else:
+            density_blocks = None
+
         ss_factor_group = blocks_group.get('ss_factor', None)
         if ss_factor_group is not None:
             #
@@ -313,6 +332,7 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         return PropsDataBlocks(energy_blocks,
                                weight_blocks,
                                num_walkers_blocks,
+                               density_blocks,
                                ssf_blocks)
 
     @staticmethod

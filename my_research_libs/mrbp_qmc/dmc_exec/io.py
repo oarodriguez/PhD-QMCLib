@@ -1,3 +1,4 @@
+import pathlib
 import typing as t
 
 import attr
@@ -47,12 +48,17 @@ class RawHDF5FileHandler(dmc_exec.io.RawHDF5FileHandler):
         pass
 
 
+# A ``pathlib.Path`` instance is a valid location.
+valid_path_types = pathlib.Path, str
+loc_validator = attr.validators.instance_of(valid_path_types)
+
+
 @attr.s(auto_attribs=True, frozen=True)
 class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
     """A handler for structured HDF5 files to save DMC procedure results."""
 
     #: Path to the file.
-    location: str = attr.ib(validator=str_validator)
+    location: str = attr.ib(validator=loc_validator)
 
     #: The HDF5 group in the file to read and/or write data.
     group: str = attr.ib(validator=str_validator)
@@ -67,6 +73,10 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
         """Post initialization stage."""
         # This is the type tag, and must be fixed.
         object.__setattr__(self, 'type', 'HDF5_FILE')
+
+        location = self.location
+        if isinstance(location, pathlib.Path):
+            object.__setattr__(self, 'location', str(location))
 
         location_path = self.location_path
         if location_path.is_dir():
@@ -120,6 +130,12 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
         model_spec_group = proc_group.require_group('model_spec')
         model_spec_config = dict(model_spec_group.attrs.items())
 
+        density_spec_group: h5py.Group = proc_group.get('density_spec')
+        if density_spec_group is not None:
+            density_spec_config = dict(density_spec_group.attrs.items())
+        else:
+            density_spec_config = None
+
         ssf_spec_group: h5py.Group = proc_group.get('ssf_spec')
         if ssf_spec_group is not None:
             ssf_spec_config = dict(ssf_spec_group.attrs.items())
@@ -129,6 +145,7 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
         # Build a config object.
         proc_config = {
             'model_spec': model_spec_config,
+            'density_spec': density_spec_config,
             'ssf_spec': ssf_spec_config
         }
         proc_config.update(proc_group.attrs.items())
