@@ -2,6 +2,7 @@ import typing as t
 from abc import ABCMeta, abstractmethod
 
 import attr
+import h5py
 import numpy as np
 from cached_property import cached_property
 
@@ -37,6 +38,35 @@ class PropBlocks(metaclass=ABCMeta):
         """Reblocking of the totals of every block."""
         return reblock.OTFObject.from_non_obj_data(self.totals)
 
+    def hdf5_export(self, group: h5py.Group):
+        """Export the data to an HDF5 group object.
+
+        :param group:
+        :return:
+        """
+        # Array data go to a dataset.
+        group.create_dataset('totals', data=self.totals)
+
+        # Save attributes.
+        group.attrs.update({
+            'num_blocks': self.num_blocks,
+            'num_steps_block': self.num_steps_block
+        })
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """Create an instance from the data to an HDF5 group object.
+
+        :param group:
+        :return:
+        """
+        data = {
+            'totals': group.get('totals').value
+        }
+        data.update(group.attrs.items())
+        # noinspection PyArgumentList
+        return cls(**data)
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class EnergyBlocks(PropBlocks):
@@ -48,13 +78,13 @@ class EnergyBlocks(PropBlocks):
 
     @classmethod
     def from_data(cls, num_blocks: int,
-                  num_time_steps_block: int,
+                  num_steps_block: int,
                   data: np.ndarray,
                   reduce_data: bool = True):
         """
 
         :param num_blocks:
-        :param num_time_steps_block:
+        :param num_steps_block:
         :param data:
         :param reduce_data:
         :return:
@@ -64,10 +94,35 @@ class EnergyBlocks(PropBlocks):
             totals = energy_data.mean(axis=1)
         else:
             totals = energy_data
+        return cls(num_blocks, num_steps_block, totals)
 
-        return cls(num_blocks,
-                   num_time_steps_block,
-                   totals)
+
+@attr.s(auto_attribs=True, frozen=True)
+class DensityBlocks(PropBlocks):
+    """Density data in blocks."""
+
+    num_blocks: int
+    num_steps_block: int
+    totals: np.ndarray
+
+    @classmethod
+    def from_data(cls, num_blocks: int,
+                  num_steps_block: int,
+                  density_data: np.ndarray,
+                  reduce_data: bool = True):
+        """
+
+        :param num_blocks:
+        :param num_steps_block:
+        :param density_data:
+        :param reduce_data:
+        :return:
+        """
+        if reduce_data:
+            totals = density_data.mean(axis=1)
+        else:
+            totals = density_data
+        return cls(num_blocks, num_steps_block, totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -182,6 +237,39 @@ class SSFBlocks:
                 2 * (fdk_real_part_mean * rdk_real_part_mean_error +
                      fdk_imag_part_mean * fdk_imag_part_mean_error))
 
+    def hdf5_export(self, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        # Create the three groups.
+        fdk_sqr_abs_group = group.require_group('fdk_sqr_abs')
+        fdk_real_group = group.require_group('fdk_real')
+        fdk_imag_group = group.require_group('fdk_imag')
+
+        self.fdk_sqr_abs_part.hdf5_export(fdk_sqr_abs_group)
+        self.fdk_real_part.hdf5_export(fdk_real_group)
+        self.fdk_imag_part.hdf5_export(fdk_imag_group)
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        # Create the three groups.
+        fdk_sqr_abs_group = group.get('fdk_sqr_abs')
+        fdk_real_group = group.get('fdk_real')
+        fdk_imag_group = group.get('fdk_imag')
+
+        fdk_sqr_abs = SSFPartBlocks.from_hdf5_data(fdk_sqr_abs_group)
+        fdk_real = SSFPartBlocks.from_hdf5_data(fdk_real_group)
+        fdk_imag = SSFPartBlocks.from_hdf5_data(fdk_imag_group)
+
+        return cls(fdk_sqr_abs, fdk_real, fdk_imag)
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class PropsDataSeries:
@@ -227,7 +315,49 @@ class PropsDataBlocks:
     """Results of a DMC sampling grouped in block totals."""
 
     energy: EnergyBlocks
+    density: t.Optional[DensityBlocks] = None
     ss_factor: t.Optional[SSFBlocks] = None
+
+    def hdf5_export(self, group: h5py.Group):
+        """Export the data blocks to the given HDF5 group.
+
+        :param group:
+        :return:
+        """
+        energy_group = group.require_group('energy')
+        self.energy.hdf5_export(energy_group)
+
+        if self.density is not None:
+            density_group = group.require_group('density')
+            self.density.hdf5_export(density_group)
+
+        if self.ss_factor is not None:
+            ssf_group = group.require_group('ss_factor')
+            self.ss_factor.hdf5_export(ssf_group)
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        energy_group = group.get('energy')
+        energy_blocks = EnergyBlocks.from_hdf5_data(energy_group)
+
+        density_group = group.get('density')
+        if density_group is not None:
+            density_blocks = DensityBlocks.from_hdf5_data(density_group)
+        else:
+            density_blocks = None
+
+        ssf_group = group.get('ss_factor')
+        if ssf_group is not None:
+            ssf_blocks = SSFBlocks.from_hdf5_data(ssf_group)
+        else:
+            ssf_blocks = None
+
+        return cls(energy_blocks, density_blocks, ssf_blocks)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -239,6 +369,29 @@ class SamplingData:
 
     #: Full data.
     series: t.Optional[PropsDataSeries] = None
+
+    def hdf5_export(self, group: h5py.Group):
+        """Export the data blocks to the given HDF5 group.
+
+        :param group:
+        :return:
+        """
+        # TODO: Export series...
+        blocks_group = group.require_group('blocks')
+        self.blocks.hdf5_export(blocks_group)
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        # TODO: Load series...
+        blocks_group = group.get('blocks')
+        props_data_blocks = PropsDataBlocks.from_hdf5_data(blocks_group)
+
+        return cls(props_data_blocks, series=None)
 
 
 # TODO: Delete this class.
