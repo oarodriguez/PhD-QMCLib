@@ -130,66 +130,6 @@ def test_confs_props_batches():
         print(states_confs)
 
 
-def test_dmc_energy():
-    """Testing the energy calculation during the DMC sampling."""
-    # TODO: Improve this test.
-    vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
-    sys_conf_set = vmc_chain_data.confs
-
-    # Alias.
-    energy_batch = dmc_sampling.energy_batch
-    energy_field = mrbp_qmc.dmc.IterProp.ENERGY
-
-    ini_sys_conf_set = sys_conf_set[-128:]
-    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
-    sampling_batches = \
-        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
-
-    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
-        islice(sampling_batches, num_batches)
-
-    for iter_data in dmc_sampling_batches:
-        #
-        energy_result = energy_batch(iter_data)
-        egy = energy_result.func
-        iter_props = iter_data.iter_props
-        iter_energy = iter_props[energy_field]
-        print(np.stack((egy, iter_energy), axis=-1))
-        assert np.allclose(egy, iter_energy)
-
-
-def test_dmc_batch_func():
-    """Testing functions evaluated over DMC sampling data."""
-    vmc_chain_data = vmc_sampling.as_chain(num_steps, ini_sys_conf)
-    sys_conf_set = vmc_chain_data.confs
-
-    # The momentum range for the structure factor.
-    nop = model_spec.boson_number
-    sc_size = model_spec.supercell_size
-    kz = np.arange(1., nop + 1) * 2 * np.pi / sc_size
-
-    # Alias.
-    fourier_density_batch = dmc_sampling.fourier_density_batch
-    weight_field = mrbp_qmc.dmc.IterProp.WEIGHT.value
-
-    ini_sys_conf_set = sys_conf_set[-128:]
-    ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
-    sampling_batches = \
-        dmc_sampling.confs_props_batches(ini_state, num_time_steps_batch)
-
-    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
-        islice(sampling_batches, num_batches)
-
-    for iter_data in dmc_sampling_batches:
-        #
-        fdk_result = fourier_density_batch(kz, iter_data)
-        fdk = fdk_result.func
-        iter_props = fdk_result.iter_props
-        iter_weights = iter_props[weight_field]
-        fdk_average = fdk.sum(axis=0) / iter_weights.sum(axis=0) / nop
-        print(np.stack((kz, fdk_average), axis=-1))
-
-
 def test_density_est():
     """Testing the calculation of the density."""
 

@@ -161,7 +161,7 @@ class CoreFuncs(model.CoreFuncs):
     with a trial-wave function of the Bijl-Jastrow type.
     """
     #
-    sys_conf_slots = SysConfSlot
+    sys_conf_slots: t.ClassVar = SysConfSlot
 
     @property
     @abstractmethod

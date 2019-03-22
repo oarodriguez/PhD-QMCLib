@@ -4,13 +4,11 @@ from math import pi, sqrt
 import attr
 import numba as nb
 import numpy as np
-import numpy.ma as ma
 from cached_property import cached_property
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base.dmc import (
-    DensityExecData, SSFExecData, SSFPartSlot,
-    SamplingConfsPropsBatch, branching_spec_dtype
+    DensityExecData, SSFExecData, SSFPartSlot, branching_spec_dtype
 )
 from my_research_libs.qmc_base.jastrow import (
     dmc as jsw_dmc, model as jsw_model
@@ -22,7 +20,6 @@ from my_research_libs.util.attr import (
 from . import model
 
 __all__ = [
-    'BatchFuncResult',
     'CoreFuncs',
     'IterProp',
     'Sampling',
@@ -36,7 +33,6 @@ StateProp = qmc_base.dmc.StateProp
 IterProp = qmc_base.dmc.IterProp
 
 state_confs_dtype = np.float64
-
 state_props_dtype = np.dtype([
     (StateProp.ENERGY.value, np.float64),
     (StateProp.WEIGHT.value, np.float64),
@@ -59,12 +55,6 @@ class State(qmc_base.dmc.State, t.NamedTuple):
     accum_energy: float
     max_num_walkers: int
     branching_spec: t.Optional[np.ndarray] = None
-
-
-class BatchFuncResult(t.NamedTuple):
-    """The result of a function evaluated over a sampling batch."""
-    func: np.ndarray
-    iter_props: np.ndarray
 
 
 class StateError(ValueError):
@@ -345,167 +335,6 @@ class Sampling(jsw_dmc.Sampling):
                                   max_num_walkers=max_num_walkers,
                                   branching_spec=branching_spec)
 
-    def broadcast_with_iter_batch(self, ext_arrays: T_ExtArrays,
-                                  iter_batch: SamplingConfsPropsBatch) -> \
-            t.Tuple:
-        """
-
-        :param iter_batch:
-        :param ext_arrays:
-        :return:
-        """
-        # Broadcast the external arrays. We will use this object to
-        # construct an intermediate shape used to take advantage of
-        # broadcasting.
-        ext_broadcast = np.broadcast(*ext_arrays)
-        ext_broadcast_shape = tuple(1 for _ in ext_broadcast.shape)
-
-        states_confs_array = iter_batch.states_confs
-        states_props_array = iter_batch.states_props
-        iter_props_array = iter_batch.iter_props
-
-        spb_shape = states_props_array.shape
-        ipb_shape = iter_props_array.shape
-        sys_conf_shape = self.model_spec.sys_conf_shape
-
-        # Create new shapes to take advantage of broadcasting.
-        spb_bdc_shape = spb_shape + ext_broadcast_shape
-        scb_bdc_shape = spb_bdc_shape + sys_conf_shape
-        ipb_bdc_shape = ipb_shape + ext_broadcast_shape
-
-        states_confs_array = states_confs_array.reshape(scb_bdc_shape)
-        states_props_array = states_props_array.reshape(spb_bdc_shape)
-        iter_props_array = iter_props_array.reshape(ipb_bdc_shape)
-
-        # This array broadcasting is used to adjust the iteration
-        # properties with the external arrays.
-        iter_props_array, *_ = \
-            np.broadcast_arrays(iter_props_array, *ext_arrays)
-
-        # This array broadcasting is needed to adjust the mask of
-        # the batch data with the external arrays.
-        states_props_array, *_ext_arrays_ = \
-            np.broadcast_arrays(states_props_array, *ext_arrays)
-
-        return _ext_arrays_, SamplingConfsPropsBatch(states_confs_array,
-                                                     states_props_array,
-                                                     iter_props_array)
-
-    @staticmethod
-    def energy_batch(iter_data: SamplingConfsPropsBatch):
-        """
-
-        :param iter_data:
-        :return:
-        """
-        state_props_fields = qmc_base.dmc.StateProp
-        energy_field = state_props_fields.ENERGY.value
-        weight_field = state_props_fields.WEIGHT.value
-        mask_field = state_props_fields.MASK.value
-
-        states_props_array = iter_data.states_props
-
-        # Take the weighs and the masks.
-        states_energies_array = states_props_array[energy_field]
-        states_weights_array = states_props_array[weight_field]
-        states_masks_array = states_props_array[mask_field]
-
-        states_energies_array: ma.MaskedArray = \
-            ma.MaskedArray(states_energies_array, mask=states_masks_array)
-        states_weights_array: ma.MaskedArray = \
-            ma.masked_array(states_weights_array, mask=states_masks_array)
-
-        energy_array = states_energies_array * states_weights_array
-        # NOTE: How should we do this summation?
-        #   1. np.add doesn't handle masked arrays correctly.
-        #   2. ndarray.sum seems to handle masked arrays correctly.
-        #   3. ma.add exists. Is this a better option?
-        #   .
-        #   The same considerations apply for other batch functions.
-        total_energy_array = energy_array.sum(axis=1)
-        return BatchFuncResult(total_energy_array, iter_data.iter_props)
-
-    def one_body_density_batch(self, rel_dist: T_RelDist,
-                               iter_data: SamplingConfsPropsBatch,
-                               result: np.ndarray = None):
-        """Calculates the one-body density for a sampling batch.
-
-        :param rel_dist:
-        :param iter_data:
-        :param result:
-        :return:
-        """
-        core_funcs = self.core_funcs
-        state_props_fields = qmc_base.dmc.StateProp
-        weight_field = state_props_fields.WEIGHT.value
-        mask_field = state_props_fields.MASK.value
-
-        rel_dist = np.asarray(rel_dist)
-        (rel_dist,), iter_data = \
-            self.broadcast_with_iter_batch((rel_dist,), iter_data)
-
-        states_confs_array = iter_data.states_confs
-        states_props_array = iter_data.states_props
-
-        # Take the weighs and the masks.
-        states_weights_array: np.ndarray = states_props_array[weight_field]
-        states_masks_array: np.ndarray = states_props_array[mask_field]
-
-        # noinspection PyTypeChecker
-        obd_array = core_funcs.one_body_density(rel_dist,
-                                                states_confs_array,
-                                                states_weights_array,
-                                                states_masks_array,
-                                                result)
-
-        obd_masked_array: ma.MaskedArray = \
-            ma.MaskedArray(obd_array, mask=states_masks_array)
-
-        # Sum over the axis that indexes the walkers.
-        total_obd_array = obd_masked_array.sum(axis=1)
-        return BatchFuncResult(total_obd_array, iter_data.iter_props)
-
-    def fourier_density_batch(self, momentum: T_Momentum,
-                              batch_data: SamplingConfsPropsBatch,
-                              result: np.ndarray = None) -> BatchFuncResult:
-        """Evaluates the static structure factor for a sampling batch.
-
-        :param momentum:
-        :param batch_data:
-        :param result:
-        :return:
-        """
-        core_funcs = self.core_funcs
-        state_props_fields = qmc_base.dmc.StateProp
-        weight_field = state_props_fields.WEIGHT.value
-        mask_field = state_props_fields.MASK.value
-
-        momentum = np.asarray(momentum)
-        (momentum,), batch_data = \
-            self.broadcast_with_iter_batch((momentum,), batch_data)
-
-        states_confs_array = batch_data.states_confs
-        states_props_array = batch_data.states_props
-
-        # Take the weighs and the masks.
-        states_weights_array: np.ndarray = states_props_array[weight_field]
-        states_masks_array: np.ndarray = states_props_array[mask_field]
-
-        # noinspection PyTypeChecker
-        fdk_array = core_funcs.fourier_density(momentum,
-                                               states_confs_array,
-                                               states_weights_array,
-                                               states_masks_array,
-                                               result)
-
-        # Mask the resulting array
-        fdk_masked_array: ma.MaskedArray = \
-            ma.MaskedArray(fdk_array, mask=states_masks_array)
-
-        # Sum over the axis that indexes the walkers.
-        total_fdk_array = fdk_masked_array.sum(axis=1)
-        return BatchFuncResult(total_fdk_array, batch_data.iter_props)
-
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':
         """"""
@@ -680,9 +509,9 @@ class CoreFuncs(jsw_dmc.CoreFuncs):
         ssf_num_parts = len(SSFPartSlot)
 
         @nb.jit(nopython=True)
-        def _init_ssf_est_data_stub(num_time_steps_batch: int,
-                                    max_num_walkers: int,
-                                    cfc_spec: CFCSpec) -> SSFExecData:
+        def _init_ssf_est_data(num_time_steps_batch: int,
+                               max_num_walkers: int,
+                               cfc_spec: CFCSpec) -> SSFExecData:
             """
 
             :param num_time_steps_batch:
@@ -717,73 +546,7 @@ class CoreFuncs(jsw_dmc.CoreFuncs):
                                iter_ssf_array,
                                pfw_aux_ssf_array)
 
-        return _init_ssf_est_data_stub
-
-    # @cached_property
-    # def one_body_density_guv(self):
-    #     """"""
-    #
-    #     types = ['void(f8,f8[:,:],f8,b1,f8[:])']
-    #     signature = '(),(ns,nop),(),() -> ()'
-    #     cfc_spec = self.cfc_spec_nt
-    #
-    #     one_body_density = model.core_funcs.one_body_density
-    #
-    #     @nb.guvectorize(types, signature, nopython=True, target='parallel')
-    #     def _one_body_density(rel_dist: float,
-    #                           sys_conf: np.ndarray,
-    #                           sys_weight: float,
-    #                           sys_mask: bool,
-    #                           result: np.ndarray):
-    #         """
-    #
-    #         :param sys_conf:
-    #         :param sys_weight:
-    #         :param sys_mask:
-    #         :param result:
-    #         :return:
-    #         """
-    #         if not sys_mask:
-    #             sys_obd = one_body_density(rel_dist, sys_conf, cfc_spec)
-    #             result[0] = sys_weight * sys_obd
-    #         else:
-    #             result[0] = 0.
-    #
-    #     return _one_body_density
-
-    # @cached_property
-    # def fourier_density_guv(self):
-    #     """The weighed structure factor."""
-    #
-    #     types = ['void(f8,f8[:,:],f8,b1,c16[:])']
-    #     signature = '(),(ns,nop),(),() -> ()'
-    #     cfc_spec = self.cfc_spec_nt
-    #
-    #     fourier_density = model.core_funcs.fourier_density
-    #
-    #     # noinspection PyTypeChecker
-    #     @nb.guvectorize(types, signature, nopython=True, target='parallel')
-    #     def _fourier_density(momentum: float,
-    #                          sys_conf: np.ndarray,
-    #                          sys_weight: float,
-    #                          sys_mask: bool,
-    #                          result: np.ndarray) -> np.ndarray:
-    #         """
-    #
-    #         :param sys_conf:
-    #         :param sys_weight:
-    #         :param sys_mask:
-    #         :param result:
-    #         :return:
-    #         """
-    #         # NOTE: We need if... else... to avoid bugs.
-    #         if not sys_mask:
-    #             sys_fdk = fourier_density(momentum, sys_conf, cfc_spec)
-    #             result[0] = sys_weight * sys_fdk
-    #         else:
-    #             result[0] = 0.
-    #
-    #     return _fourier_density
+        return _init_ssf_est_data
 
 
 # Variants of the core functions.

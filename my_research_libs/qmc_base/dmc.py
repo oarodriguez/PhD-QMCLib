@@ -108,19 +108,6 @@ class State(t.NamedTuple):
     branching_spec: t.Optional[np.ndarray] = None
 
 
-class SamplingConfsPropsBatch(t.NamedTuple):
-    """"""
-    states_confs: np.ndarray
-    states_props: np.ndarray
-    iter_props: np.ndarray
-
-
-T_SIter = t.Iterator[State]
-T_E_SIter = t.Iterator[t.Tuple[int, State]]
-T_SCPBatchesIter = t.Iterator[SamplingConfsPropsBatch]
-T_E_SCPBatchesIter = t.Iterator[t.Tuple[int, SamplingConfsPropsBatch]]
-
-
 class SamplingBatch(t.NamedTuple):
     """"""
     #: Properties data.
@@ -130,15 +117,20 @@ class SamplingBatch(t.NamedTuple):
     last_state: t.Optional[State] = None
 
 
-class EstAuxData(t.NamedTuple):
+class SamplingConfsPropsBatch(t.NamedTuple):
     """"""
-    #: Properties data.
-    structure_factor: np.ndarray = None
+    states_confs: np.ndarray
+    states_props: np.ndarray
+    iter_props: np.ndarray
 
 
 # Variables for type-hints.
+T_SIter = t.Iterator[State]
+T_E_SIter = t.Iterator[t.Tuple[int, State]]
 T_SBatchesIter = t.Iterator[SamplingBatch]
 T_E_SBatchesIter = t.Iterator[t.Tuple[int, SamplingBatch]]
+T_SCPBatchesIter = t.Iterator[SamplingConfsPropsBatch]
+T_E_SCPBatchesIter = t.Iterator[t.Tuple[int, SamplingConfsPropsBatch]]
 
 
 # noinspection PyUnusedLocal
@@ -151,16 +143,6 @@ def dummy_pure_est_core_func(step_idx: int,
                              aux_states_sf_array: np.ndarray):
     """Dummy pure estimator core function."""
     return
-
-
-class SSFEstSpecNT(t.NamedTuple):
-    """"""
-
-    #: Number of modes to evaluate the structure factor S(k).
-    num_modes: int
-    as_pure_est: bool = True
-    pfw_num_time_steps: int = None
-    core_func: t.Callable = dummy_pure_est_core_func
 
 
 class DensityEstSpec(metaclass=ABCMeta):
@@ -187,20 +169,8 @@ class SSFEstSpec(metaclass=ABCMeta):
     as_pure_est: bool = False
 
     #: Number of time steps of the forward walking to accumulate the pure
-    # estimator of S(k).
+    #: estimator of S(k).
     pfw_num_time_steps: int = 512
-
-    # @property
-    # @abstractmethod
-    # def momenta(self, *args, **kwargs):
-    #     """"""
-    #     pass
-
-    # @property
-    # @abstractmethod
-    # def core_func(self, *args, **kwargs):
-    #     """"""
-    #     pass
 
 
 class Sampling(metaclass=ABCMeta):
@@ -303,11 +273,19 @@ class Sampling(metaclass=ABCMeta):
         """
         pass
 
-    @property
-    @abstractmethod
-    def core_funcs(self) -> 'CoreFuncs':
-        """The sampling core functions."""
-        pass
+    def states(self, ini_state: State) -> T_SIter:
+        """Generator object that yields DMC states.
+
+        :param ini_state: The initial state of the sampling.
+        :return:
+        """
+        time_step = self.time_step
+        target_num_walkers = self.target_num_walkers
+        return self.core_funcs.states_generator(time_step,
+                                                ini_state,
+                                                target_num_walkers,
+                                                self.rng_seed,
+                                                self.cfc_spec)
 
     def batches(self, ini_state: State,
                 num_time_steps_batch: int) -> T_SBatchesIter:
@@ -343,19 +321,11 @@ class Sampling(metaclass=ABCMeta):
                                                    self.rng_seed,
                                                    self.cfc_spec)
 
-    def states(self, ini_state: State) -> T_SIter:
-        """Generator object that yields DMC states.
-
-        :param ini_state: The initial state of the sampling.
-        :return:
-        """
-        time_step = self.time_step
-        target_num_walkers = self.target_num_walkers
-        return self.core_funcs.states_generator(time_step,
-                                                ini_state,
-                                                target_num_walkers,
-                                                self.rng_seed,
-                                                self.cfc_spec)
+    @property
+    @abstractmethod
+    def core_funcs(self) -> 'CoreFuncs':
+        """The sampling core functions."""
+        pass
 
 
 iter_props_dtype = np.dtype([
@@ -417,7 +387,7 @@ def _fourier_density_stub(step_idx: int,
 def _init_ssf_est_data_stub(num_time_steps_batch: int,
                             max_num_walkers: int,
                             cfc_spec: CFCSpec) -> SSFExecData:
-    """Stub for the energy function (p.d.f.)."""
+    """Stub for the init_ssf_est_data function (p.d.f.)."""
     pass
 
 

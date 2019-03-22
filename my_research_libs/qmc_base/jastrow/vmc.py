@@ -11,7 +11,8 @@ from .. import vmc
 __all__ = [
     'CoreFuncs',
     'Sampling',
-    'TPFParams',
+    'SSFParams',
+    'TPFParams'
 ]
 
 

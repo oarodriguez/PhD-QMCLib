@@ -330,12 +330,6 @@ class Spec(qmc_base.jastrow.Spec):
                        self.obf_params,
                        self.tbf_params)
 
-    @cached_property
-    def phys_funcs(self):
-        """Functions to calculate the main physical properties of a model."""
-        # NOTE: Should we use a new PhysicalFuncs instance?
-        return PhysicalFuncs.from_model_spec(self)
-
 
 @jit(nopython=True)
 def _one_body_func(z: float, obf_params: OBFParams) -> float:
@@ -493,14 +487,11 @@ def _real_distance(z_i, z_j, params: Params):
     return min_distance(z_i, z_j, sc_size)
 
 
+@attr.s(auto_attribs=True, frozen=True)
 class CoreFuncs(qmc_base.jastrow.CoreFuncs):
     """Functions of a QMC model for a system with a trial wave function
     of the Bijl-Jastrow type.
     """
-
-    def __init__(self):
-        """"""
-        super().__init__()
 
     @cached_property
     def real_distance(self):

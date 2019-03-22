@@ -32,7 +32,6 @@ __all__ = [
     'T_SBatchesIter',
     'T_E_SBatchesIter',
     'TPFParams',
-    'WFSpec',
     'rand_displace'
 ]
 
@@ -69,16 +68,6 @@ class SSFPartSlot(enum.IntEnum):
 
     #: Imaginary part of the Fourier density component.
     FDK_IMAG = 2
-
-
-class WFSpec(t.NamedTuple):
-    """Represent the spec of parameters of the trial wave function.
-
-    We declare this class to help with typing and nothing more. A concrete
-    spec should be implemented for every concrete model. It is recommended
-    to inherit from this class to keep a logical sequence in the code.
-    """
-    pass
 
 
 class TPFParams:
@@ -289,13 +278,13 @@ def _wf_abs_log_stub(sys_conf: np.ndarray,
 # noinspection PyUnusedLocal
 def _energy_stub(sys_conf: np.ndarray,
                  cfc_spec: CFCSpec) -> float:
-    """Stub for the energy function (p.d.f.)."""
+    """Stub for the energy function."""
     pass
 
 
 # noinspection PyUnusedLocal
 def _obd_pos_offset_stub(cfc_spec: CFCSpec):
-    """Stub for the energy function (p.d.f.)."""
+    """Stub for the obd_pos_offset function."""
     pass
 
 
@@ -305,20 +294,20 @@ def _one_body_density_stub(step_idx: int,
                            sys_conf: np.ndarray,
                            cfc_spec: CFCSpec,
                            iter_obd_array: np.ndarray) -> float:
-    """Stub for the energy function (p.d.f.)."""
+    """Stub for the one_body_density function."""
     pass
 
 
 # noinspection PyUnusedLocal
 def _ssf_momenta_stub(cfc_spec: CFCSpec) -> np.ndarray:
-    """Stub for the energy function (p.d.f.)."""
+    """Stub for the energy function."""
     pass
 
 
 # noinspection PyUnusedLocal
-def _ssf_est_exec_data_stub(num_steps_batch: int,
+def _init_ssf_est_data_stub(num_steps_batch: int,
                             cfc_spec: CFCSpec) -> SSFExecData:
-    """Stub for the energy function (p.d.f.)."""
+    """Stub for the init_ssf_est_data function."""
     pass
 
 
@@ -328,7 +317,7 @@ def _fourier_density_stub(step_idx: int,
                           sys_conf: np.ndarray,
                           cfc_spec: CFCSpec,
                           iter_ssf_array: np.ndarray):
-    """Stub for the energy function (p.d.f.)."""
+    """Stub for the fourier_density function."""
     pass
 
 
@@ -408,7 +397,7 @@ class CoreFuncs(metaclass=ABCMeta):
     @property
     @abstractmethod
     def init_ssf_est_data(self):
-        return _ssf_est_exec_data_stub
+        return _init_ssf_est_data_stub
 
     @property
     @abstractmethod
@@ -458,6 +447,7 @@ class CoreFuncs(metaclass=ABCMeta):
             log = math.log
 
             # Feed the numba random number generator with the given seed.
+            # TODO: Handling of None seeds...
             random.seed(rng_seed)
 
             # Initial configuration.
@@ -471,9 +461,6 @@ class CoreFuncs(metaclass=ABCMeta):
             # Initial configuration
             actual_conf, next_conf = main_conf, aux_conf
             actual_conf[:] = ini_sys_conf[:]
-
-            # Initial value of the p.d.f.
-            # wf_abs_log_actual = wf_abs_log(actual_conf, cfc_spec)
 
             # Yield initial value.
             # TODO: Remove the sum from the expression STAT_REJECTED + 0 when
@@ -620,7 +607,7 @@ class CoreFuncs(metaclass=ABCMeta):
         :return: The JIT compiled function that execute the Monte Carlo
             integration.
         """
-        self_batches = self.confs_props_batches
+        confs_props_batches = self.confs_props_batches
 
         @jit(nopython=True, nogil=True)
         def _as_chain(num_steps: int,
@@ -640,8 +627,9 @@ class CoreFuncs(metaclass=ABCMeta):
             num_steps_batch = num_steps
 
             # Return the only batch as the result.
-            return next(self_batches(num_steps_batch, ini_state, rng_seed,
-                                     cfc_spec))
+            return next(confs_props_batches(num_steps_batch,
+                                            ini_state, rng_seed,
+                                            cfc_spec))
 
         return _as_chain
 
@@ -660,10 +648,10 @@ class CoreFuncs(metaclass=ABCMeta):
         generator = self.generator
 
         @jit(nopython=True, nogil=True)
-        def _batches(num_steps_batch: int,
-                     ini_state: State,
-                     rng_seed: int,
-                     cfc_spec: CFCSpec):
+        def _confs_props_batches(num_steps_batch: int,
+                                 ini_state: State,
+                                 rng_seed: int,
+                                 cfc_spec: CFCSpec):
             """Returns the VMC sampling batches of states configurations.
 
             :param num_steps_batch: The number of steps per batch.
@@ -731,4 +719,4 @@ class CoreFuncs(metaclass=ABCMeta):
                     # Reset accepted counter.
                     accepted = 0
 
-        return _batches
+        return _confs_props_batches

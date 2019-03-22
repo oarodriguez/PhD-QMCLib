@@ -66,12 +66,6 @@ class Spec(metaclass=SpecMeta):
         """
         pass
 
-    @property
-    @abstractmethod
-    def phys_funcs(self):
-        """Functions to calculate the main physical properties of a model."""
-        pass
-
 
 class CoreFuncsMeta(ABCMeta):
     """Metaclass for :class:`CoreFuncs` abstract base class."""

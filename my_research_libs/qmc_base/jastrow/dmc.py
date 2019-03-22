@@ -59,12 +59,6 @@ class Sampling(dmc.Sampling, metaclass=ABCMeta):
         sys_conf_shape = self.model_spec.sys_conf_shape
         return (max_num_walkers,) + sys_conf_shape
 
-    @property
-    def state_props_shape(self):
-        """"""
-        max_num_walkers = self.max_num_walkers
-        return max_num_walkers,
-
 
 # noinspection PyUnusedLocal
 def _density_core_stub(step_idx: int,

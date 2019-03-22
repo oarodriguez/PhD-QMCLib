@@ -39,11 +39,6 @@ class TPFParams(jsw_vmc_udf.TPFParams, Record):
     upper_bound: float
 
 
-class TPFSpec(t.NamedTuple):
-    """"""
-    tpf_params: TPFParams
-
-
 @attr.s(auto_attribs=True)
 class SSFParams(jsw_vmc_udf.SSFParams, Record):
     """Static structure factor parameters."""

@@ -49,7 +49,7 @@ def test_wf_abs_log():
 
     wf_abs_log = core_funcs.wf_abs_log
     sys_conf = model_spec.init_get_sys_conf(DIST_REGULAR)
-    wf_abs_log_v = wf_abs_log(sys_conf, model_spec.cfc_spec)
+    wf_abs_log_v = wf_abs_log(sys_conf, *model_spec.cfc_spec)
     print(wf_abs_log_v)
 
 
@@ -66,11 +66,11 @@ def test_qmc_funcs():
 
     # Testing a scalar function with own arguments
     energy_func = core_funcs.energy
-    energy_v = energy_func(sys_conf, cfc_spec)
+    energy_v = energy_func(sys_conf, *cfc_spec)
 
     # Testing an array function with no own arguments
     drift = core_funcs.drift
-    out_sys_conf = drift(sys_conf, cfc_spec)
+    out_sys_conf = drift(sys_conf, *cfc_spec)
 
     epp = energy_v / BOSON_NUMBER
     print("The energy per particle is: {:.6g}".format(epp))
