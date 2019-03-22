@@ -2,6 +2,7 @@ import typing as t
 from abc import ABCMeta, abstractmethod
 
 import attr
+import h5py
 import numpy as np
 from cached_property import cached_property
 
@@ -20,6 +21,7 @@ __all__ = [
     'SamplingData',
     'SSFBlocks',
     'SSFPartBlocks',
+    'UnWeightedPropBlocks',
     'WeightBlocks'
 ]
 
@@ -106,9 +108,95 @@ class PropBlocks(metaclass=ABCMeta):
         cross_totals = totals * weight_totals
         return reblock.OTFObject.from_non_obj_data(cross_totals)
 
+    def hdf5_export(self, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        # Array data go to a dataset.
+        group.create_dataset('totals', data=self.totals)
+        group.create_dataset('weight_totals', data=self.weight_totals)
+
+        # Save attributes.
+        group.attrs.update({
+            'num_blocks': self.num_blocks,
+            'num_time_steps_block': self.num_time_steps_block
+        })
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        data = {
+            'totals': group.get('totals').value,
+            'weight_totals': group.get('weight_totals').value
+        }
+        data.update(group.attrs.items())
+        # noinspection PyArgumentList
+        return cls(**data)
+
+
+class UnWeightedPropBlocks(metaclass=ABCMeta):
+    """Abstract class to represent data in blocks."""
+
+    num_blocks: int
+    num_time_steps_block: int
+    totals: np.ndarray
+
+    @classmethod
+    @abstractmethod
+    def from_data(cls, *args, **kwargs):
+        pass
+
+    @property
+    def mean(self):
+        """Mean value of the blocks."""
+        return self.reblock.mean
+
+    @property
+    def mean_error(self):
+        """Error of the mean value of the blocks."""
+        return self.reblock.mean_eff_error
+
+    @property
+    def reblock(self):
+        """Reblocking of the totals of every block."""
+        return reblock.OTFObject.from_non_obj_data(self.totals)
+
+    def hdf5_export(self, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        # Create the necessary data sets and export data.
+        group.create_dataset('totals', data=self.totals)
+        group.attrs.update({
+            'num_blocks': self.num_blocks,
+            'num_time_steps_block': self.num_time_steps_block
+        })
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        data = {
+            'totals': group.get('totals').value,
+        }
+        data.update(group.attrs.items())
+        # noinspection PyArgumentList
+        return cls(**data)
+
 
 @attr.s(auto_attribs=True, frozen=True)
-class NumWalkersBlocks(PropBlocks):
+class NumWalkersBlocks(UnWeightedPropBlocks):
     """Number of walkers data in blocks."""
 
     num_blocks: int
@@ -140,7 +228,7 @@ class NumWalkersBlocks(PropBlocks):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class WeightBlocks(PropBlocks):
+class WeightBlocks(UnWeightedPropBlocks):
     """Weight data in blocks."""
 
     num_blocks: int
@@ -485,6 +573,39 @@ class SSFBlocks:
                 2 * (fdk_real_part_mean * rdk_real_part_mean_error +
                      fdk_imag_part_mean * fdk_imag_part_mean_error))
 
+    def hdf5_export(self, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        # Create the three groups.
+        fdk_sqr_abs_group = group.require_group('fdk_sqr_abs')
+        fdk_real_group = group.require_group('fdk_real')
+        fdk_imag_group = group.require_group('fdk_imag')
+
+        self.fdk_sqr_abs_part.hdf5_export(fdk_sqr_abs_group)
+        self.fdk_real_part.hdf5_export(fdk_real_group)
+        self.fdk_imag_part.hdf5_export(fdk_imag_group)
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        # Create the three groups.
+        fdk_sqr_abs_group = group.get('fdk_sqr_abs')
+        fdk_real_group = group.get('fdk_real')
+        fdk_imag_group = group.get('fdk_imag')
+
+        fdk_sqr_abs = SSFPartBlocks.from_hdf5_data(fdk_sqr_abs_group)
+        fdk_real = SSFPartBlocks.from_hdf5_data(fdk_real_group)
+        fdk_imag = SSFPartBlocks.from_hdf5_data(fdk_imag_group)
+
+        return cls(fdk_sqr_abs, fdk_real, fdk_imag)
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class PropsDataSeries:
@@ -545,6 +666,60 @@ class PropsDataBlocks:
     density: t.Optional[DensityBlocks] = None
     ss_factor: t.Optional[SSFBlocks] = None
 
+    def hdf5_export(self, group: h5py.Group):
+        """Export the data blocks to the given HDF5 group.
+
+        :param group:
+        :return:
+        """
+        energy_group = group.require_group('energy')
+        self.energy.hdf5_export(energy_group)
+
+        weight_group = group.require_group('weight')
+        self.weight.hdf5_export(weight_group)
+
+        num_walkers_group = group.require_group('num_walkers')
+        self.num_walkers.hdf5_export(num_walkers_group)
+
+        if self.density is not None:
+            density_group = group.require_group('density')
+            self.density.hdf5_export(density_group)
+
+        if self.ss_factor is not None:
+            ssf_group = group.require_group('ss_factor')
+            self.ss_factor.hdf5_export(ssf_group)
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        energy_group = group.get('energy')
+        energy_blocks = EnergyBlocks.from_hdf5_data(energy_group)
+
+        weight_group = group.get('weight')
+        weight_blocks = WeightBlocks.from_hdf5_data(weight_group)
+
+        num_walkers_group = group.get('num_walkers')
+        num_walkers_blocks = NumWalkersBlocks.from_hdf5_data(num_walkers_group)
+
+        density_group = group.get('density')
+        if density_group is not None:
+            density_blocks = DensityBlocks.from_hdf5_data(density_group)
+        else:
+            density_blocks = None
+
+        ssf_group = group.get('ss_factor')
+        if ssf_group is not None:
+            ssf_block = SSFBlocks.from_hdf5_data(ssf_group)
+        else:
+            ssf_block = None
+
+        return cls(energy_blocks, weight_blocks,
+                   num_walkers_blocks, density_blocks, ssf_block)
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class SamplingData:
@@ -555,6 +730,29 @@ class SamplingData:
 
     #: Full data.
     series: t.Optional[PropsDataSeries] = None
+
+    def hdf5_export(self, group: h5py.Group):
+        """Export the data blocks to the given HDF5 group.
+
+        :param group:
+        :return:
+        """
+        # TODO: Export series...
+        blocks_group = group.require_group('blocks')
+        self.blocks.hdf5_export(blocks_group)
+
+    @classmethod
+    def from_hdf5_data(cls, group: h5py.Group):
+        """
+
+        :param group:
+        :return:
+        """
+        # TODO: Load series...
+        blocks_group = group.get('blocks')
+        props_data_blocks = PropsDataBlocks.from_hdf5_data(blocks_group)
+
+        return cls(props_data_blocks, series=None)
 
 
 @attr.s(auto_attribs=True, frozen=True)
