@@ -172,6 +172,12 @@ class Proc(vmc_exec.Proc):
         model_spec_config = self_config.pop('model_spec')
         model_spec = model.Spec(**model_spec_config)
 
+        # Extract the spec of the density.
+        # TODO: Implement density.
+        density_est_config = self_config.pop('density_spec', None)
+        if density_est_config is not None:
+            pass
+
         # Extract the spec of the static structure factor.
         ssf_est_config = self_config.pop('ssf_spec', None)
         if ssf_est_config is not None:
@@ -182,6 +188,10 @@ class Proc(vmc_exec.Proc):
         return cls(model_spec=model_spec,
                    ssf_spec=ssf_est_spec,
                    **self_config)
+
+    def as_config(self):
+        """Converts the procedure to a dictionary / mapping object."""
+        return attr.asdict(self, filter=attr.filters.exclude(type(None)))
 
     def evolve(self, config: t.Mapping):
         """

@@ -97,40 +97,38 @@ class HDF5FileHandler(vmc_exec.io.HDF5FileHandler):
 
         :return:
         """
-        file_path = self.location_path
-        h5_file = h5py.File(file_path, 'r')
+        h5_file = h5py.File(self.location_path, 'r')
         with h5_file:
-            state = self.load_state(h5_file)
-            proc = self.load_proc(h5_file)
-            data_blocks = self.load_data_blocks(h5_file)
+            #
+            vmc_group = h5_file.get(f'{self.group}/vmc')
+            state_group = vmc_group.get('state')
+            proc_group = vmc_group.get('proc_spec')
+            data_group = vmc_group.get('data')
+
+            state = self.load_state(state_group)
+            proc = self.load_proc(proc_group)
+            blocks = vmc_exec.data.SamplingData.from_hdf5_data(data_group)
 
         data_series = None  # For now...
-        sampling_data = vmc_exec.data.SamplingData(data_blocks,
-                                                   series=data_series)
+        sampling_data = vmc_exec.data.SamplingData(blocks, series=data_series)
         return ProcResult(state, proc, sampling_data)
 
-    def get_proc_config(self, proc: 'Proc'):
-        """Converts the procedure to a dictionary / mapping object.
-
-        :param proc:
-        :return:
-        """
-        return attr.asdict(proc, filter=attr.filters.exclude(type(None)))
-
-    def load_proc(self, h5_file: h5py.File):
+    def load_proc(self, group: h5py.Group):
         """Load the procedure results from the file.
 
-        :param h5_file:
+        :param group:
         :return:
         """
-        group_name = self.group
-        base_group = h5_file.require_group(group_name)
-        proc_group = base_group.require_group(vmc_exec.VMC_PROC_SPEC)
-
-        model_spec_group = proc_group.require_group('model_spec')
+        model_spec_group = group.get('model_spec')
         model_spec_config = dict(model_spec_group.attrs.items())
 
-        ssf_spec_group: h5py.Group = proc_group.get('ssf_spec')
+        density_spec_group: h5py.Group = group.get('density_spec')
+        if density_spec_group is not None:
+            density_spec_config = dict(density_spec_group.attrs.items())
+        else:
+            density_spec_config = None
+
+        ssf_spec_group: h5py.Group = group.get('ssf_spec')
         if ssf_spec_group is not None:
             ssf_spec_config = dict(ssf_spec_group.attrs.items())
         else:
@@ -139,8 +137,9 @@ class HDF5FileHandler(vmc_exec.io.HDF5FileHandler):
         # Build a config object.
         proc_config = {
             'model_spec': model_spec_config,
+            'density_spec': density_spec_config,
             'ssf_spec': ssf_spec_config
         }
-        proc_config.update(proc_group.attrs.items())
+        proc_config.update(group.attrs.items())
 
         return Proc.from_config(proc_config)

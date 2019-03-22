@@ -78,6 +78,11 @@ class Proc(metaclass=ABCMeta):
     # *** Estimators configuration ***
     ssf_spec: t.Optional[SSFEstSpec]
 
+    @abstractmethod
+    def as_config(self) -> t.Dict:
+        """Converts the procedure to a dictionary / mapping object."""
+        pass
+
     @property
     def should_eval_ssf(self):
         """Whether or not to evaluate the static structure factor."""
