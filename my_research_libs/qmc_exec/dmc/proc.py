@@ -147,6 +147,11 @@ class Proc(metaclass=ABCMeta):
     def from_config(cls, config: t.Mapping):
         pass
 
+    @abstractmethod
+    def as_config(self) -> t.Dict:
+        """Converts the procedure to a dictionary / mapping object."""
+        pass
+
     @classmethod
     @abstractmethod
     def evolve(cls, config: t.Mapping):

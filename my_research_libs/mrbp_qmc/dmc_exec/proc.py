@@ -265,6 +265,13 @@ class Proc(dmc_exec.Proc):
 
         return dmc_proc
 
+    def as_config(self):
+        """
+
+        :return:
+        """
+        return attr.asdict(self, filter=attr.filters.exclude(type(None)))
+
     def evolve(self, config: t.Mapping):
         """
 
