@@ -9,12 +9,16 @@ from cached_property import cached_property
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base.dmc import (
-    SSFExecData, SSFPartSlot, SamplingConfsPropsBatch,
-    branching_spec_dtype
+    DensityExecData, SSFExecData, SSFPartSlot,
+    SamplingConfsPropsBatch, branching_spec_dtype
 )
-from my_research_libs.qmc_base.jastrow import dmc as jsw_dmc
+from my_research_libs.qmc_base.jastrow import (
+    dmc as jsw_dmc, model as jsw_model
+)
 from my_research_libs.qmc_base.utils import recast_to_supercell
-from my_research_libs.util.attr import Record
+from my_research_libs.util.attr import (
+    Record, bool_converter, bool_validator, int_converter, int_validator
+)
 from . import model
 
 __all__ = [
@@ -79,6 +83,24 @@ class DDFParams(jsw_dmc.DDFParams, Record):
 
 
 @attr.s(auto_attribs=True)
+class Params(jsw_dmc.DensityParams, Record):
+    """Static structure factor parameters."""
+    num_bins: int
+    as_pure_est: bool
+    pfw_num_time_steps: int
+    assume_none: bool
+
+
+@attr.s(auto_attribs=True)
+class DensityParams(jsw_dmc.DensityParams, Record):
+    """Static structure factor parameters."""
+    num_bins: int
+    as_pure_est: bool
+    pfw_num_time_steps: int
+    assume_none: bool
+
+
+@attr.s(auto_attribs=True)
 class SSFParams(jsw_dmc.SSFParams, Record):
     """Static structure factor parameters."""
     num_modes: int
@@ -93,7 +115,30 @@ class CFCSpec(jsw_dmc.CFCSpec, t.NamedTuple):
     obf_params: model.OBFParams
     tbf_params: model.TBFParams
     ddf_params: DDFParams
+    density_params: t.Optional[DensityParams]
     ssf_params: t.Optional[jsw_dmc.SSFParams] = None
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class DensityEstSpec(qmc_base.dmc.DensityEstSpec):
+    """Structure factor estimator."""
+
+    # model_spec: model.Spec
+    num_bins: int = attr.ib(converter=int_converter, validator=int_validator)
+    as_pure_est: bool = attr.ib(default=True,
+                                converter=bool_converter,
+                                validator=bool_validator)
+    pfw_num_time_steps: int = attr.ib(default=99999999,
+                                      converter=int_converter,
+                                      validator=int_validator)
+
+    def __attrs_post_init__(self):
+        """Post-initialization stage."""
+
+        if self.pfw_num_time_steps is None:
+            # A very large integer 🤔.
+            pfs_nts = 99999999
+            object.__setattr__(self, 'pfw_num_time_steps', pfs_nts)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -128,6 +173,7 @@ class Sampling(jsw_dmc.Sampling):
     rng_seed: t.Optional[int] = None
 
     # *** Estimators configuration ***
+    density_est_spec: t.Optional[DensityEstSpec] = None
     ssf_est_spec: t.Optional[SSFEstSpec] = None
     jit_parallel: bool = True
     jit_fastmath: bool = False
@@ -136,7 +182,7 @@ class Sampling(jsw_dmc.Sampling):
         """Post-initialization stage."""
         if self.rng_seed is None:
             rng_seed = int(utils.get_random_rng_seed())
-            super().__setattr__('rng_seed', rng_seed)
+            object.__setattr__(self, 'rng_seed', rng_seed)
 
     @property
     def ddf_params(self) -> DDFParams:
@@ -152,6 +198,25 @@ class Sampling(jsw_dmc.Sampling):
                                lower_bound=z_min,
                                upper_bound=z_max)
         return ddf_params.as_record()
+
+    @property
+    def density_params(self) -> DensityParams:
+        """"""
+        density_est_spec = self.density_est_spec
+        if density_est_spec is None:
+            num_bins = 1
+            as_pure_est = False
+            pfw_nts = 1
+            assume_none = True
+        else:
+            num_bins = density_est_spec.num_bins
+            as_pure_est = density_est_spec.as_pure_est
+            pfw_nts = density_est_spec.pfw_num_time_steps
+            assume_none = False
+
+        density_params = \
+            DensityParams(num_bins, as_pure_est, pfw_nts, assume_none)
+        return density_params.as_record()
 
     @property
     def ssf_params(self) -> SSFParams:
@@ -182,7 +247,22 @@ class Sampling(jsw_dmc.Sampling):
                        model_spec.obf_params,
                        model_spec.tbf_params,
                        self.ddf_params,
+                       self.density_params,
                        self.ssf_params)
+
+    @property
+    def density_bins_edges(self) -> np.ndarray:
+        """
+
+        :return:
+        """
+        density_est_spec = self.density_est_spec
+        if density_est_spec is None:
+            raise TypeError('the density spec has no been specified')
+        model_spec = self.model_spec
+        supercell_size = model_spec.supercell_size
+        num_bins = density_est_spec.num_bins
+        return np.linspace(0, supercell_size, num_bins + 1)
 
     @property
     def ssf_momenta(self):
@@ -466,6 +546,129 @@ class CoreFuncs(jsw_dmc.CoreFuncs):
             return recast_to_supercell(z, z_min, z_max)
 
         return _recast
+
+    @cached_property
+    def density_core(self):
+        """
+
+        :return:
+        """
+
+        fastmath = self.jit_fastmath
+
+        # Slots to save data to evaluate the density.
+        density_slot = int(jsw_model.DensityPartSlot.MAIN)
+        pos_slot = int(jsw_model.SysConfSlot.pos)
+
+        # noinspection PyUnusedLocal
+        @nb.jit(nopython=True, fastmath=fastmath)
+        def _density_core(step_idx: int,
+                          sys_idx: int,
+                          clone_ref_idx: int,
+                          state_confs: np.ndarray,
+                          model_params: model.Params,
+                          obf_params: model.OBFParams,
+                          tbf_params: model.TBFParams,
+                          density_params: DensityParams,
+                          iter_density_array: np.ndarray,
+                          aux_states_density_array: np.ndarray):
+            """
+
+            :param step_idx:
+            :param sys_idx:
+            :param clone_ref_idx:
+            :param state_confs:
+            :param iter_density_array:
+            :param aux_states_density_array:
+            :return:
+            """
+            prev_step_idx = step_idx % 2 - 1
+            actual_step_idx = step_idx % 2
+
+            prev_state_density = aux_states_density_array[prev_step_idx]
+            actual_state_density = aux_states_density_array[actual_step_idx]
+
+            # System to be "moved-forward" and current system.
+            prev_sys_density = prev_state_density[clone_ref_idx]
+            actual_sys_density = actual_state_density[sys_idx]
+            sys_conf = state_confs[sys_idx]
+
+            # Density parameters.
+            num_bins = density_params.num_bins
+            pfw_nts = density_params.pfw_num_time_steps
+
+            # The bin size.
+            boson_number = model_params.boson_number
+            bin_size = model_params.supercell_size / num_bins
+
+            if not density_params.as_pure_est:
+                # Mixed estimator.
+                for idx in range(boson_number):
+                    # Just update the actual state.
+                    z_i = sys_conf[pos_slot, idx]
+                    bin_idx = int(z_i // bin_size)
+                    actual_sys_density[bin_idx, density_slot] += 1
+
+                # Finish.
+                return
+
+            # Pure estimator.
+            if step_idx >= pfw_nts:
+                pass
+
+            else:
+                # Evaluate the density for the actual # system configuration.
+                for idx in range(boson_number):
+                    z_i = sys_conf[pos_slot, idx]
+                    bin_idx = int(z_i // bin_size)
+                    actual_sys_density[bin_idx, density_slot] += 1
+
+        return _density_core
+
+    @cached_property
+    def init_density_est_data(self):
+        """
+
+        :return:
+        """
+        # noinspection PyTypeChecker
+        density_num_parts = len(jsw_model.DensityPartSlot)
+
+        @nb.jit(nopython=True)
+        def _init_density_est_data(num_time_steps_batch: int,
+                                   max_num_walkers: int,
+                                   cfc_spec: CFCSpec) -> DensityExecData:
+            """Initialize the buffers to store the density data.
+
+            :param num_time_steps_batch:
+            :param max_num_walkers:
+            :param cfc_spec:
+            :return:
+            """
+            density_params = cfc_spec.density_params
+            # Alias 😃...
+            nts_batch = num_time_steps_batch
+            if density_params.assume_none:
+                # A fake array will be created. It won't be used.
+                nts_batch, num_bins = 1, 1
+            else:
+                num_bins = density_params.num_bins
+
+            # The shape of the density array.
+            i_density_shape = nts_batch, num_bins, density_num_parts
+
+            # The shape of the auxiliary arrays to store the density of a
+            # single state during the forward walking process.
+            pfw_aux_density_b_shape = \
+                2, max_num_walkers, num_bins, density_num_parts
+
+            iter_density_array = np.empty(i_density_shape, dtype=np.float64)
+            pfw_aux_density_array = \
+                np.zeros(pfw_aux_density_b_shape, dtype=np.float64)
+            return DensityExecData(iter_density_array,
+                                   pfw_aux_density_array)
+
+        return _init_density_est_data
 
     @cached_property
     def init_ssf_est_data(self):

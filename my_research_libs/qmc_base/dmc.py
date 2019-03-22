@@ -25,13 +25,25 @@ class DDFParams:
     sigma_spread: float
 
 
+class DensityParams:
+    """Density parameters."""
+    num_bins: int
+    assume_none: bool
+
+
 class SSFParams:
     """Static structure factor parameters."""
     assume_none: bool
 
 
+class DensityExecData(t.NamedTuple):
+    """Buffers to store the density results and other data."""
+    iter_density_array: np.ndarray
+    pfw_aux_density_array: np.ndarray
+
+
 class SSFExecData(t.NamedTuple):
-    """"""
+    """Buffers to store the static structure factor results."""
     momenta: np.ndarray
     iter_ssf_array: np.ndarray
     pfw_aux_ssf_array: np.ndarray
@@ -39,6 +51,7 @@ class SSFExecData(t.NamedTuple):
 
 class CFCSpec(t.NamedTuple):
     """Represent the common spec of the core functions."""
+    density_params: t.Optional[DensityParams]
     ssf_params: t.Optional[SSFParams]
 
 
@@ -112,6 +125,7 @@ class SamplingBatch(t.NamedTuple):
     """"""
     #: Properties data.
     iter_props: np.ndarray
+    iter_density: np.ndarray
     iter_ssf: np.ndarray = None
     last_state: t.Optional[State] = None
 
@@ -147,6 +161,20 @@ class SSFEstSpecNT(t.NamedTuple):
     as_pure_est: bool = True
     pfw_num_time_steps: int = None
     core_func: t.Callable = dummy_pure_est_core_func
+
+
+class DensityEstSpec(metaclass=ABCMeta):
+    """Density estimator spec."""
+
+    #: Number of bins to evaluate the density n(z).
+    num_bins: int
+
+    #: Evaluate the pure estimator.
+    as_pure_est: bool
+
+    #: Number of time steps of the forward walking to accumulate the pure
+    #: estimator.
+    pfw_num_time_steps: int
 
 
 class SSFEstSpec(metaclass=ABCMeta):
@@ -202,6 +230,9 @@ class Sampling(metaclass=ABCMeta):
     # *** *** Configuration of the estimators. *** ***
 
     #: Spec of the static structure factor estimator.
+    density_est_spec: t.Optional[DensityEstSpec]
+
+    #: Spec of the static structure factor estimator.
     ssf_est_spec: t.Optional[SSFEstSpec]
 
     #: Parallel execution where possible.
@@ -219,6 +250,12 @@ class Sampling(metaclass=ABCMeta):
 
     @property
     @abstractmethod
+    def density_params(self) -> DensityParams:
+        """Represent the density parameters."""
+        pass
+
+    @property
+    @abstractmethod
     def ssf_params(self) -> SSFParams:
         """Represent the static structure factor parameters."""
         pass
@@ -227,6 +264,12 @@ class Sampling(metaclass=ABCMeta):
     @abstractmethod
     def cfc_spec(self) -> CFCSpec:
         """The common spec of parameters of the core functions."""
+        pass
+
+    @property
+    @abstractmethod
+    def density_bins_edges(self):
+        """Get the edges of the bins to evaluate the density."""
         pass
 
     @property
@@ -336,6 +379,27 @@ def _recast_stub(z: float, ddf_params: DDFParams):
 
 
 # noinspection PyUnusedLocal
+def _density_stub(step_idx: int,
+                  state_confs: np.ndarray,
+                  num_walkers: int,
+                  max_num_walkers: int,
+                  branching_spec: np.ndarray,
+                  cfc_spec: CFCSpec,
+                  iter_density_array: np.ndarray,
+                  aux_states_density_array: np.ndarray):
+    """Stub for the density function (p.d.f.)."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _init_density_est_data_stub(num_time_steps_batch: int,
+                                max_num_walkers: int,
+                                cfc_spec: CFCSpec) -> DensityExecData:
+    """Stub for the init_density_est_data function (p.d.f.)."""
+    pass
+
+
+# noinspection PyUnusedLocal
 def _fourier_density_stub(step_idx: int,
                           momenta: np.ndarray,
                           state_confs: np.ndarray,
@@ -392,8 +456,18 @@ class CoreFuncs(metaclass=ABCMeta):
 
     @property
     @abstractmethod
+    def density(self):
+        return _density_stub
+
+    @property
+    @abstractmethod
     def fourier_density(self):
         return _fourier_density_stub
+
+    @property
+    @abstractmethod
+    def init_density_est_data(self):
+        return _init_density_est_data_stub
 
     @property
     @abstractmethod
@@ -611,6 +685,8 @@ class CoreFuncs(metaclass=ABCMeta):
 
         # JIT routines.
         states_generator = self.states_generator
+        density = self.density
+        init_density_est_data = self.init_density_est_data
         init_ssf_est_data = self.init_ssf_est_data
         fourier_density = self.fourier_density
 
@@ -631,6 +707,7 @@ class CoreFuncs(metaclass=ABCMeta):
             :param cfc_spec:
             :return:
             """
+            density_params = cfc_spec.density_params
             ssf_params = cfc_spec.ssf_params
             max_num_walkers = ini_state.max_num_walkers
 
@@ -647,6 +724,12 @@ class CoreFuncs(metaclass=ABCMeta):
             iter_num_walkers = iter_props_array[iter_num_walkers_field]
             iter_ref_energies = iter_props_array[ref_energy_field]
             iter_accum_energies = iter_props_array[accum_energy_field]
+
+            # Density arrays.
+            density_est_data = \
+                init_density_est_data(nts_batch, max_num_walkers, cfc_spec)
+            iter_density_array = density_est_data.iter_density_array
+            pfw_aux_density_array = density_est_data.pfw_aux_density_array
 
             # Static structure factor arrays.
             ssf_est_data = \
@@ -670,15 +753,18 @@ class CoreFuncs(metaclass=ABCMeta):
                 #   See https://github.com/numba/numba/issues/3473.
                 # enum_generator: T_E_SIter = enumerate(generator)
 
-                # Reset the zero the accumulated S(k) of all the states.
+                # Reset the zero the accumulated density, S(k) and other
+                # properties of all the states.
                 # This is very important, as the elements of this array are
                 # modified in place during the sampling of the estimator.
+                iter_density_array[:] = 0
                 iter_ssf_array[:] = 0
 
                 # Reset to zero the auxiliary states after the end of
                 # each batch to accumulate new values during the forward
                 # walking to sampling pure estimator. This has to be done
                 # in order to gather new data in the next batch/block.
+                pfw_aux_density_array[:] = 0.
                 pfw_aux_ssf_array[:] = 0.
 
                 # We use an initial index instead enumerate.
@@ -697,9 +783,21 @@ class CoreFuncs(metaclass=ABCMeta):
                     iter_ref_energies[step_idx] = state.ref_energy
                     iter_accum_energies[step_idx] = state.accum_energy
 
+                    # Evaluate the Density.
+                    if not density_params.assume_none:
+                        #
+                        density(step_idx,
+                                state_confs,
+                                num_walkers,
+                                max_num_walkers,
+                                branching_spec,
+                                cfc_spec,
+                                iter_density_array,
+                                pfw_aux_density_array)
+
                     # Evaluate the Static Structure Factor.
                     if not ssf_params.assume_none:
-
+                        #
                         fourier_density(step_idx,
                                         ssf_momenta,
                                         state_confs,
@@ -729,6 +827,7 @@ class CoreFuncs(metaclass=ABCMeta):
                                    state.branching_spec)
 
                 batch_data = SamplingBatch(iter_props_array,
+                                           iter_density_array,
                                            iter_ssf_array,
                                            last_state)
                 yield batch_data

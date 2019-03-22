@@ -65,6 +65,18 @@ class ModelSysConfSpec(dmc_exec.proc.ModelSysConfSpec):
 
 
 @attr.s(auto_attribs=True, frozen=True)
+class DensityEstSpec(dmc_exec.DensityEstSpec):
+    """Structure factor estimator basic config."""
+
+    num_bins: int = \
+        attr.ib(converter=int_converter, validator=int_validator)
+
+    as_pure_est: bool = attr.ib(default=True,
+                                converter=bool_converter,
+                                validator=bool_validator)
+
+
+@attr.s(auto_attribs=True, frozen=True)
 class SSFEstSpec(dmc_exec.SSFEstSpec):
     """Structure factor estimator basic config."""
 
@@ -182,6 +194,10 @@ class Proc(dmc_exec.Proc):
                                    validator=bool_validator)
 
     # *** Estimators configuration ***
+    # *** Estimators configuration ***
+    density_spec: t.Optional[DensityEstSpec] = \
+        attr.ib(default=None, validator=None)
+
     ssf_spec: t.Optional[SSFEstSpec] = \
         attr.ib(default=None, validator=None)
 
@@ -275,6 +291,15 @@ class Proc(dmc_exec.Proc):
         """
         pfw_num_time_steps = self.num_time_steps_batch
 
+        if self.should_eval_density:
+            density_spec = self.density_spec
+            density_est_spec = \
+                dmc.DensityEstSpec(density_spec.num_bins,
+                                   density_spec.as_pure_est,
+                                   pfw_num_time_steps)
+        else:
+            density_est_spec = None
+
         if self.should_eval_ssf:
             ssf_spec = self.ssf_spec
             ssf_est_spec = dmc.SSFEstSpec(ssf_spec.num_modes,
@@ -290,6 +315,7 @@ class Proc(dmc_exec.Proc):
                                 self.target_num_walkers,
                                 self.num_walkers_control_factor,
                                 self.rng_seed,
+                                density_est_spec=density_est_spec,
                                 ssf_est_spec=ssf_est_spec)
         return sampling
 

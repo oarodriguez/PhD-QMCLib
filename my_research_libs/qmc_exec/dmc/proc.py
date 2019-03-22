@@ -10,8 +10,9 @@ from my_research_libs.qmc_base import (
     dmc as dmc_base, model as model_base
 )
 from my_research_libs.qmc_base.dmc import SSFPartSlot
+from my_research_libs.qmc_base.jastrow.model import DensityPartSlot
 from .data import (
-    EnergyBlocks, NumWalkersBlocks, PropsDataBlocks,
+    DensityBlocks, EnergyBlocks, NumWalkersBlocks, PropsDataBlocks,
     PropsDataSeries, SSFBlocks, SamplingData, WeightBlocks
 )
 from ..logging import exec_logger
@@ -28,6 +29,12 @@ class ModelSysConfSpec(metaclass=ABCMeta):
 
     #:
     num_sys_conf: t.Optional[int]
+
+
+class DensityEstSpec(metaclass=ABCMeta):
+    """Structure factor estimator basic config."""
+    num_bins: int
+    as_pure_est: bool
 
 
 class SSFEstSpec(metaclass=ABCMeta):
@@ -123,6 +130,10 @@ class Proc(metaclass=ABCMeta):
     remaining_batches: t.Optional[int]
 
     # *** Estimators configuration ***
+    #:
+    density_spec: t.Optional[DensityEstSpec]
+
+    #:
     ssf_spec: t.Optional[SSFEstSpec]
 
     def __attrs_post_init__(self):
@@ -140,6 +151,11 @@ class Proc(metaclass=ABCMeta):
     @abstractmethod
     def evolve(cls, config: t.Mapping):
         pass
+
+    @property
+    def should_eval_density(self):
+        """"""
+        return False if self.density_spec is None else True
 
     @property
     def should_eval_ssf(self):
@@ -188,6 +204,10 @@ class Proc(metaclass=ABCMeta):
 
         # Alias 😐.
         nts_batch = num_time_steps_batch
+
+        # Density configuration.
+        density_spec = self.density_spec
+        should_eval_density = self.should_eval_density
 
         # Structure factor configuration.
         ssf_spec = self.ssf_spec
@@ -251,6 +271,25 @@ class Proc(metaclass=ABCMeta):
         props_ref_energy = props_blocks_data[ref_energy_field]
         props_accum_energy = props_blocks_data[accum_energy_field]
 
+        if should_eval_density:
+            # The shape of the structure factor array.
+            density_num_bins = density_spec.num_bins
+            # noinspection PyTypeChecker
+            density_num_parts = len(DensityPartSlot)
+
+            if keep_iter_data:
+                density_shape = \
+                    num_batches, nts_batch, density_num_bins, density_num_parts
+            else:
+                density_shape = \
+                    num_batches, density_num_bins, density_num_parts
+
+            # Density batch.
+            density_blocks_data = np.zeros(density_shape, dtype=np.float64)
+
+        else:
+            density_blocks_data = None
+
         if should_eval_ssf:
             # The shape of the structure factor array.
             ssf_num_modes = ssf_spec.num_modes
@@ -310,6 +349,16 @@ class Proc(metaclass=ABCMeta):
                     # Store all the information of the DMC sampling.
                     props_blocks_data[batch_idx] = batch_props[:]
 
+                    # Handling the density results.
+                    if should_eval_density:
+                        iter_density_array = batch_data.iter_density
+                        density_blocks_data[batch_idx] = iter_density_array[:]
+
+                    # Handling the structure factor results.
+                    if should_eval_ssf:
+                        iter_ssf_array = batch_data.iter_ssf
+                        ssf_blocks_data[batch_idx] = iter_ssf_array[:]
+
                 else:
 
                     weight_sum = weight.sum()
@@ -319,19 +368,28 @@ class Proc(metaclass=ABCMeta):
                     props_ref_energy[batch_idx] = ref_energy[-1]
                     props_accum_energy[batch_idx] = accum_energy[-1]
 
-                    reduce_fac = num_walkers[-1] / weight_sum
+                    reduce_fac = num_walkers[nts_batch - 1] / weight_sum
                     pure_est_reduce_factor[batch_idx] = reduce_fac
 
-                # Handling the structure factor results.
-                if should_eval_ssf:
+                    # Handling the density factor results.
+                    if should_eval_density:
 
-                    iter_ssf_array = batch_data.iter_ssf
+                        iter_density_array = batch_data.iter_density
 
-                    if keep_iter_data:
-                        # Keep a copy of the generated data of the sampling.
-                        ssf_blocks_data[batch_idx] = iter_ssf_array[:]
+                        if density_spec.as_pure_est:
+                            # Get only the last element of the batch.
+                            density_blocks_data[batch_idx] = \
+                                iter_density_array[nts_batch - 1]
 
-                    else:
+                        else:
+                            # Make the reduction.
+                            density_blocks_data[batch_idx] = \
+                                iter_density_array.sum(axis=0)
+
+                    # Handling the structure factor results.
+                    if should_eval_ssf:
+
+                        iter_ssf_array = batch_data.iter_ssf
 
                         if ssf_spec.as_pure_est:
                             # Get only the last element of the batch.
@@ -373,6 +431,19 @@ class Proc(metaclass=ABCMeta):
             NumWalkersBlocks.from_data(num_batches, nts_batch,
                                        props_blocks_data, reduce_data)
 
+        if should_eval_density:
+            main_slot = DensityPartSlot.MAIN
+            density_data = density_blocks_data[..., main_slot]
+            density_blocks = \
+                DensityBlocks.from_data(num_batches, nts_batch,
+                                        density_data,
+                                        props_blocks_data, reduce_data,
+                                        density_spec.as_pure_est,
+                                        pure_est_reduce_factor)
+
+        else:
+            density_blocks = None
+
         if should_eval_ssf:
 
             ssf_blocks = \
@@ -388,6 +459,7 @@ class Proc(metaclass=ABCMeta):
         data_blocks = PropsDataBlocks(energy_blocks,
                                       weight_blocks,
                                       num_walkers_blocks,
+                                      density_blocks,
                                       ssf_blocks)
 
         if keep_iter_data:

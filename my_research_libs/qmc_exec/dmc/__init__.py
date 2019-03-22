@@ -15,5 +15,6 @@ from .io import (
 
 #
 from .proc import (
-    ModelSysConfSpec, Proc, ProcInput, ProcInputError, ProcResult, SSFEstSpec
+    DensityEstSpec, ModelSysConfSpec, Proc, ProcInput, ProcInputError,
+    ProcResult, SSFEstSpec
 )

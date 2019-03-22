@@ -10,6 +10,7 @@ from my_research_libs.qmc_base.dmc import SSFPartSlot
 from my_research_libs.stats import reblock
 
 __all__ = [
+    'DensityBlocks',
     'DMCProcResult',
     'EnergyBlocks',
     'NumWalkersBlocks',
@@ -205,6 +206,90 @@ class EnergyBlocks(PropBlocks):
                    num_time_steps_block,
                    totals,
                    weight_totals)
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class DensityBlocks(PropBlocks):
+    """Density data in blocks."""
+
+    num_blocks: int
+    num_time_steps_block: int
+    totals: np.ndarray
+    weight_totals: np.ndarray
+    as_pure_est: bool = True  # NOTE: Maybe we do not need this.
+
+    @classmethod
+    def from_data(cls, num_blocks: int,
+                  num_time_steps_block: int,
+                  density_data: np.ndarray,
+                  props_data: np.ndarray,
+                  reduce_data: bool = True,
+                  as_pure_est: bool = True,
+                  pure_est_reduce_factor: np.ndarray = None):
+        """
+
+        :param reduce_data:
+        :param num_blocks:
+        :param num_time_steps_block:
+        :param density_data:
+        :param props_data:
+        :param as_pure_est:
+        :param pure_est_reduce_factor:
+        :return:
+        """
+        nts_block = num_time_steps_block
+        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+
+        if not as_pure_est:
+
+            if reduce_data:
+                totals = density_data.sum(axis=1)
+                weight_totals = weight_data.sum(axis=1)
+
+            else:
+                totals = density_data
+                weight_totals = weight_data
+
+        else:
+            # Normalize the pure estimator.
+            if reduce_data:
+
+                # Reductions are not used in pure estimators.
+                # We just take the last element.
+                totals = density_data[:, nts_block - 1, :]
+                weight_totals = weight_data[:, nts_block - 1]
+
+            else:
+                totals = density_data
+                weight_totals = weight_data * pure_est_reduce_factor
+
+        # Add an extra dimension.
+        weight_totals = weight_totals[:, np.newaxis]
+
+        return cls(num_blocks, num_time_steps_block,
+                   totals, weight_totals, as_pure_est)
+
+    @property
+    def reblock(self):
+        """Reblocking of the totals of every block."""
+        return reblock.OTFSet.from_non_obj_data(self.totals)
+
+    @property
+    def weight_reblock(self):
+        """Reblocking of the totals of the weights of every block."""
+        if self.weight_totals is None:
+            return None
+        return reblock.OTFSet.from_non_obj_data(self.weight_totals)
+
+    @property
+    def cross_weight_reblock(self):
+        """Reblocking of the total * weight_total of every block."""
+        totals = self.totals
+        weight_totals = self.weight_totals
+        if weight_totals is None:
+            return None
+        cross_totals = totals * weight_totals
+        return reblock.OTFSet.from_non_obj_data(cross_totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -457,6 +542,7 @@ class PropsDataBlocks:
     energy: EnergyBlocks
     weight: WeightBlocks
     num_walkers: NumWalkersBlocks
+    density: t.Optional[DensityBlocks] = None
     ss_factor: t.Optional[SSFBlocks] = None
 
 

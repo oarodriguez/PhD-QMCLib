@@ -20,6 +20,14 @@ class DDFParams(dmc.DDFParams, metaclass=ABCMeta):
     sigma_spread: float
 
 
+class DensityParams(dmc.DensityParams):
+    """Static structure factor parameters."""
+    num_bins: int
+    as_pure_est: bool
+    pfw_num_time_steps: int
+    assume_none: bool
+
+
 class SSFParams(dmc.SSFParams):
     """Static structure factor parameters."""
     num_modes: int
@@ -34,6 +42,7 @@ class CFCSpec(dmc.CFCSpec, t.NamedTuple):
     obf_params: model.OBFParams
     tbf_params: model.TBFParams
     ddf_params: DDFParams
+    density_params: t.Optional[DensityParams]
     ssf_params: t.Optional[SSFParams]
 
 
@@ -57,6 +66,21 @@ class Sampling(dmc.Sampling, metaclass=ABCMeta):
         return max_num_walkers,
 
 
+# noinspection PyUnusedLocal
+def _density_core_stub(step_idx: int,
+                       sys_idx: int,
+                       clone_ref_idx: int,
+                       state_confs: np.ndarray,
+                       model_params: model.Params,
+                       obf_params: model.OBFParams,
+                       tbf_params: model.TBFParams,
+                       density_params: DensityParams,
+                       iter_density_array: np.ndarray,
+                       aux_states_density_array: np.ndarray):
+    """Stub for density_core function."""
+    pass
+
+
 @attr.s(auto_attribs=True, frozen=True)
 class CoreFuncs(qmc_base.dmc.CoreFuncs):
     """The DMC core functions for the Bloch-Phonon model."""
@@ -71,6 +95,166 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
     @abstractmethod
     def model_core_funcs(self) -> model.CoreFuncs:
         pass
+
+    @property
+    @abstractmethod
+    def density_core(self):
+        return _density_core_stub
+
+    @cached_property
+    def density_inner(self):
+        """
+
+        :return:
+        """
+        fastmath = self.jit_fastmath
+        parallel = self.jit_parallel
+        branch_ref_field = dmc.BranchingSpecField.CLONING_REF.value
+
+        # Structure factor
+        density_core = self.density_core
+
+        @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
+        def _density_inner(step_idx: int,
+                           state_confs: np.ndarray,
+                           num_walkers: int,
+                           max_num_walkers: int,
+                           branching_spec: np.ndarray,
+                           model_params: model.Params,
+                           obf_params: model.OBFParams,
+                           tbf_params: model.TBFParams,
+                           density_params: DensityParams,
+                           iter_density_array: np.ndarray,
+                           aux_states_density_array: np.ndarray):
+            """
+
+            :param step_idx:
+            :param state_confs:
+            :param num_walkers:
+            :param max_num_walkers:
+            :param branching_spec:
+            :param iter_density_array:
+            :param aux_states_density_array:
+            :return:
+            """
+            # Cloning table. Needed for evaluate pure estimators.
+            cloning_refs = branching_spec[branch_ref_field]
+            prev_step_idx = step_idx % 2 - 1  #
+            actual_step_idx = step_idx % 2
+
+            prev_state_density = aux_states_density_array[prev_step_idx]  #
+            actual_state_density = aux_states_density_array[actual_step_idx]
+            actual_iter_density = iter_density_array[step_idx]
+
+            # Hack to use this arrays inside the parallel for.
+            model_params_nd = np.array((model_params,))
+            obf_params_nd = np.array((obf_params,))
+            tbf_params_nd = np.array((tbf_params,))
+            density_params_nd = np.array((density_params,))
+
+            num_bins = density_params.num_bins
+            as_pure_est = density_params.as_pure_est
+            pfw_nts = density_params.pfw_num_time_steps
+
+            if as_pure_est:
+                # Copy previous auxiliary state data to current auxiliary
+                # state array. This is the "transport" of properties to
+                # calculate the pure estimator.
+                for bin_idx in nb.prange(num_bins):
+                    actual_state_density[:, bin_idx] = \
+                        prev_state_density[:, bin_idx]
+
+            # Estimator evaluation (parallel for).
+            for sys_idx in nb.prange(max_num_walkers):
+
+                # Beyond the actual number of walkers just pass to
+                # the next iteration.
+                if sys_idx >= num_walkers:
+                    continue
+
+                # Lookup which configuration should be cloned.
+                clone_ref_idx = cloning_refs[sys_idx]
+
+                # Evaluate structure factor.
+                density_core(step_idx,
+                             sys_idx,
+                             clone_ref_idx,
+                             state_confs,
+                             model_params_nd[0],
+                             obf_params_nd[0],
+                             tbf_params_nd[0],
+                             density_params_nd[0],
+                             iter_density_array,
+                             aux_states_density_array)
+
+            if as_pure_est:
+                if step_idx < pfw_nts:
+                    est_divisor = step_idx + 1
+                else:
+                    est_divisor = pfw_nts
+            else:
+                est_divisor = 1
+
+            # Accumulate the totals of the estimators.
+            for bin_idx in nb.prange(num_bins):
+                #
+                actual_iter_density[bin_idx] = \
+                    actual_state_density[:num_walkers, bin_idx].sum(axis=0)
+
+                # Calculate structure factor pure estimator after the
+                # forward sampling stage.
+                if as_pure_est:
+                    actual_iter_density[bin_idx] /= est_divisor
+
+        return _density_inner
+
+    @cached_property
+    def density(self):
+        """
+
+        :return:
+        """
+        fastmath = self.jit_fastmath
+        density_inner = self.density_inner
+
+        @nb.jit(nopython=True, fastmath=fastmath)
+        def _density(step_idx: int,
+                     state_confs: np.ndarray,
+                     num_walkers: int,
+                     max_num_walkers: int,
+                     branching_spec: np.ndarray,
+                     cfc_spec: CFCSpec,
+                     iter_density_array: np.ndarray,
+                     aux_states_density_array: np.ndarray):
+            """
+
+            :param step_idx:
+            :param state_confs:
+            :param num_walkers:
+            :param max_num_walkers:
+            :param branching_spec:
+            :param iter_density_array:
+            :param aux_states_density_array:
+            :return:
+            """
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
+            density_params = cfc_spec.density_params
+
+            density_inner(step_idx,
+                          state_confs,
+                          num_walkers,
+                          max_num_walkers,
+                          branching_spec,
+                          model_params,
+                          obf_params,
+                          tbf_params,
+                          density_params,
+                          iter_density_array,
+                          aux_states_density_array)
+
+        return _density
 
     @cached_property
     def fourier_density_core(self):

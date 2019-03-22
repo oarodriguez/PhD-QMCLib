@@ -1,3 +1,4 @@
+import enum
 import typing as t
 from abc import ABCMeta, abstractmethod
 from enum import Enum, IntEnum, unique
@@ -14,6 +15,7 @@ __all__ = [
     'CFCSpec',
     'CoreFuncs',
     'CSWFOptimizer',
+    'DensityPartSlot',
     'OBFParams',
     'Params',
     'PhysicalFuncs',
@@ -39,6 +41,14 @@ class SysConfDistType(Enum):
     """The ways to arrange the positions of the system configuration."""
     RANDOM = 'random'
     REGULAR = 'regular'
+
+
+@enum.unique
+class DensityPartSlot(enum.IntEnum):
+    """Contributions to density."""
+
+    #: Density Z component.
+    MAIN = 0
 
 
 DIST_RAND = SysConfDistType.RANDOM

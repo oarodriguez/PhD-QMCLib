@@ -35,7 +35,7 @@ vmc_ini_state = vmc_sampling.build_state(ini_sys_conf)
 
 time_step = 1e-3
 num_batches = 4
-num_time_steps_batch = 128
+num_time_steps_batch = 512
 target_num_walkers = 480
 max_num_walkers = 512
 ini_ref_energy = None
@@ -188,6 +188,49 @@ def test_dmc_batch_func():
         iter_weights = iter_props[weight_field]
         fdk_average = fdk.sum(axis=0) / iter_weights.sum(axis=0) / nop
         print(np.stack((kz, fdk_average), axis=-1))
+
+
+def test_density_est():
+    """Testing the calculation of the density."""
+
+    exec_logger.info('Init sampling...')
+
+    # TODO: Improve this test.
+    exec_logger.info('Init VMC sampling...')
+
+    vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
+    sys_conf_set = vmc_chain_data.confs
+    ar_ = vmc_chain_data.accept_rate
+    print(f"Acceptance ratio: {ar_:.5g}")
+
+    exec_logger.info('Finished sampling...')
+
+    ini_sys_conf_set = sys_conf_set[-128:]
+    dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
+
+    num_bins = SUPERCELL_SIZE * 16
+
+    density_est_spec = mrbp_qmc.dmc.DensityEstSpec(num_bins)
+    dmc_density_sampling = attr.evolve(dmc_sampling,
+                                       density_est_spec=density_est_spec)
+    dmc_es_batches = dmc_density_sampling.batches(dmc_ini_state,
+                                                  num_time_steps_batch)
+
+    es_batches: dmc_base.T_SBatchesIter = \
+        islice(dmc_es_batches, num_batches)
+
+    exec_logger.info('Init DMC sampling...')
+
+    for batch in es_batches:
+        state_props = batch.iter_props
+        nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
+        iter_density = batch.iter_density
+        print(iter_density.shape)
+        density_batch_data = iter_density / nw_iter[:, np.newaxis, np.newaxis]
+        print(density_batch_data)
+        # print(nw_iter)
+
+    exec_logger.info('Finish DMC sampling.')
 
 
 def test_dmc_est_sampling():
