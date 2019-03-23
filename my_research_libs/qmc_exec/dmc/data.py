@@ -12,7 +12,7 @@ from my_research_libs.stats import reblock
 
 __all__ = [
     'DensityBlocks',
-    'DMCProcResult',
+    'ProcResult',
     'EnergyBlocks',
     'NumWalkersBlocks',
     'PropBlocks',
@@ -109,7 +109,7 @@ class PropBlocks(metaclass=ABCMeta):
         return reblock.OTFObject.from_non_obj_data(cross_totals)
 
     def hdf5_export(self, group: h5py.Group):
-        """
+        """Export the data to an HDF5 group object.
 
         :param group:
         :return:
@@ -126,7 +126,7 @@ class PropBlocks(metaclass=ABCMeta):
 
     @classmethod
     def from_hdf5_data(cls, group: h5py.Group):
-        """
+        """Create an instance from the data to an HDF5 group object.
 
         :param group:
         :return:
@@ -756,7 +756,7 @@ class SamplingData:
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class DMCProcResult:
+class ProcResult:
     """Result of the DMC estimator sampling."""
 
     #: The last state of the sampling.
