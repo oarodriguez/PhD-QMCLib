@@ -53,4 +53,4 @@ class Template(config.Template):
     @property
     def vars(self):
         """"""
-        return Variables()
+        return attr.asdict(Variables())
