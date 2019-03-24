@@ -220,8 +220,9 @@ class CLIApp:
             exec_logger.info("*** *** ->> ")
             exec_logger.info(f'Starting procedure ID{proc_num}...')
 
+            # noinspection PyUnusedLocal
             result = app_spec.exec()
-            print(result)
+            # print(result)
 
             exec_logger.info(f'Procedure ID{proc_num} completed.')
             exec_logger.info("<<- *** ***")
