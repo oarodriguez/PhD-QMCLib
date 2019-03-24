@@ -103,11 +103,11 @@ class HDF5FileHandler(dmc_exec.io.HDF5FileHandler):
             dmc_group = h5_file.get(f'{self.group}/dmc')
             state_group = dmc_group.get('state')
             proc_group = dmc_group.get('proc_spec')
-            data_group = dmc_group.get('data')
+            data_group = dmc_group.get('data/blocks')
 
             state = self.load_state(state_group)
             proc = self.load_proc(proc_group)
-            blocks = dmc_exec.data.SamplingData.from_hdf5_data(data_group)
+            blocks = dmc_exec.data.PropsDataBlocks.from_hdf5_data(data_group)
 
         data_series = None  # For now...
         sampling_data = dmc_exec.data.SamplingData(blocks, series=data_series)
