@@ -245,6 +245,8 @@ class Proc(dmc_exec.Proc):
         # Extract the spec of the static structure factor.
         ssf_est_config = self_config.pop('ssf_spec', None)
         if ssf_est_config is not None:
+            # NOTE: This item was removed from SSFEstSpec constructor.
+            ssf_est_config.pop('pfw_num_time_steps', None)
             ssf_est_spec = SSFEstSpec(**ssf_est_config)
         else:
             ssf_est_spec = None
