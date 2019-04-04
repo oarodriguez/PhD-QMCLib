@@ -550,6 +550,34 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         return _ith_diffuse
 
     @cached_property
+    def init_state_gen_data(self):
+        """Initialize the data arrays for the DMC states generator."""
+
+        # noinspection PyUnusedLocal
+        @nb.njit
+        def _init_state_gen_data(ini_state: dmc.State,
+                                 cfc_spec: CFCSpec,
+                                 copy_ini_state: bool = False):
+            """
+
+            :param ini_state:
+            :param cfc_spec:
+            :param copy_ini_state:
+            :return:
+            """
+            state_confs = np.zeros_like(ini_state.confs)
+            state_props = np.zeros_like(ini_state.props)
+
+            if copy_ini_state:
+                # Initial configuration.
+                state_confs[:] = ini_state.confs[:]
+                state_props[:] = ini_state.props[:]
+
+            return dmc.StateGenData(state_confs, state_props)
+
+        return _init_state_gen_data
+
+    @cached_property
     def evolve_system(self):
         """
 
@@ -778,12 +806,9 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         evolve_state_inner = self.evolve_state_inner
 
         @nb.jit(nopython=True)
-        def _evolve_state(prev_state_confs: np.ndarray,
-                          prev_state_props: np.ndarray,
-                          actual_state_confs: np.ndarray,
-                          actual_state_props: np.ndarray,
-                          aux_next_state_confs: np.ndarray,
-                          aux_next_state_props: np.ndarray,
+        def _evolve_state(prev_state_data: dmc.StateGenData,
+                          actual_state_data: dmc.StateGenData,
+                          next_state_data: dmc.StateGenData,
                           actual_num_walkers: int,
                           max_num_walkers: int,
                           time_step: float,
@@ -795,12 +820,9 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             This function realize a simple diffusion process over each
             one of the walkers, followed by the branching process.
 
-            :param prev_state_confs:
-            :param prev_state_props:
-            :param actual_state_confs:
-            :param actual_state_props:
-            :param aux_next_state_confs:
-            :param aux_next_state_props:
+            :param prev_state_data:
+            :param actual_state_data:
+            :param next_state_data:
             :param actual_num_walkers:
             :param max_num_walkers:
             :param time_step:
@@ -813,6 +835,13 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             obf_params = cfc_spec.obf_params
             tbf_params = cfc_spec.tbf_params
             diff_params = cfc_spec.ddf_params
+
+            actual_state_confs = actual_state_data.confs
+            actual_state_props = actual_state_data.props
+            prev_state_confs = prev_state_data.confs
+            prev_state_props = prev_state_data.props
+            aux_next_state_confs = next_state_data.confs
+            aux_next_state_props = next_state_data.props
 
             evolve_state_inner(prev_state_confs,
                                prev_state_props,

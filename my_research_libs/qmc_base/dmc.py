@@ -342,6 +342,12 @@ branching_spec_dtype = np.dtype([
 ])
 
 
+class StateGenData(t.NamedTuple):
+    """Represent the data necessary to execute the DMC states generator."""
+    confs: np.ndarray
+    props: np.ndarray
+
+
 # noinspection PyUnusedLocal
 def _recast_stub(z: float, ddf_params: DDFParams):
     """Stub for the recast function."""
@@ -392,12 +398,17 @@ def _init_ssf_est_data_stub(num_time_steps_batch: int,
 
 
 # noinspection PyUnusedLocal
-def _evolve_state_stub(prev_state_confs: np.ndarray,
-                       prev_state_props: np.ndarray,
-                       actual_state_confs: np.ndarray,
-                       actual_state_props: np.ndarray,
-                       aux_next_state_confs: np.ndarray,
-                       aux_next_state_props: np.ndarray,
+def _init_state_gen_data_stub(ini_state: State,
+                              cfc_spec: CFCSpec,
+                              copy_ini_state: bool = False) -> StateGenData:
+    """Stub for the _init_state_gen_data function."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _evolve_state_stub(prev_state_data: StateGenData,
+                       actual_state_data: StateGenData,
+                       next_state_data: StateGenData,
                        actual_num_walkers: int,
                        max_num_walkers: int,
                        time_step: float,
@@ -444,6 +455,12 @@ class CoreFuncs(metaclass=ABCMeta):
     def init_ssf_est_data(self):
         return _init_ssf_est_data_stub
 
+    @property
+    @abstractmethod
+    def init_state_gen_data(self):
+        """"""
+        return _init_state_gen_data_stub
+
     @cached_property
     def sync_branching_spec(self):
         """
@@ -455,7 +472,7 @@ class CoreFuncs(metaclass=ABCMeta):
         clone_ref_field = BranchingSpecField.CLONING_REF.value
 
         @nb.jit(nopython=True, fastmath=fastmath)
-        def _sync_branching_spec(prev_state_props: np.ndarray,
+        def _sync_branching_spec(prev_state_data: StateGenData,
                                  prev_num_walkers: int,
                                  max_num_walkers: int,
                                  branching_spec: np.ndarray):
@@ -464,6 +481,7 @@ class CoreFuncs(metaclass=ABCMeta):
             :param branching_spec:
             :return:
             """
+            prev_state_props = prev_state_data.props
             prev_state_weights = prev_state_props[props_weight_field]
             cloning_refs = branching_spec[clone_ref_field]
 
@@ -507,6 +525,7 @@ class CoreFuncs(metaclass=ABCMeta):
 
         # JIT functions.
         evolve_state = self.evolve_state
+        init_state_gen_data = self.init_state_gen_data
         sync_branching_spec = self.sync_branching_spec
 
         @nb.jit(nopython=True, fastmath=fastmath)
@@ -530,30 +549,30 @@ class CoreFuncs(metaclass=ABCMeta):
             :return:
             """
             # The initial state fixes the arrays of the following states.
-            ini_state_confs = ini_state.confs
-            ini_state_props = ini_state.props
             max_num_walkers = ini_state.max_num_walkers
+            prev_num_walkers = ini_state.num_walkers
 
             # Configurations and properties of the current
             # state of the sampling (the one that will be yielded).
-            state_confs = np.zeros_like(ini_state_confs)
-            state_props = np.zeros_like(ini_state_props)
+            actual_state_data = init_state_gen_data(ini_state, cfc_spec)
+
+            # Auxiliary data for the previous state.
+            aux_prev_state_data = init_state_gen_data(ini_state, cfc_spec,
+                                                      copy_ini_state=True)
+
+            # Auxiliary data for the next state.
+            aux_next_state_data = init_state_gen_data(ini_state, cfc_spec)
 
             # Table to control the branching process.
             state_branching_spec = \
                 np.zeros(max_num_walkers, dtype=branching_spec_dtype)
 
-            # Auxiliary arrays for the previous state.
-            aux_prev_state_confs = np.zeros_like(ini_state_confs)
-            aux_prev_state_props = np.zeros_like(ini_state_props)
-
-            # Auxiliary arrays for the next state.
-            aux_next_state_confs = np.zeros_like(ini_state_confs)
-            aux_next_state_props = np.zeros_like(ini_state_props)
-
             # Current state properties.
+            state_confs = actual_state_data.confs
+            state_props = actual_state_data.props
             state_energies = state_props[props_energy_field]
             state_weights = state_props[props_weight_field]
+            state_ref_energy = ini_state.ref_energy
 
             # Seed the numba RNG.
             # TODO: Handling of None seeds...
@@ -563,18 +582,6 @@ class CoreFuncs(metaclass=ABCMeta):
             # energy of reference for population control.
             total_energy = 0.
             total_weight = 0.
-            state_ref_energy = ini_state.ref_energy
-
-            # Initial configuration.
-            aux_prev_state_confs[:] = ini_state.confs[:]
-            aux_prev_state_props[:] = ini_state.props[:]
-            prev_num_walkers = ini_state.num_walkers
-
-            prev_state_confs, prev_state_props = \
-                aux_prev_state_confs, aux_prev_state_props
-
-            next_state_confs, next_state_props = \
-                aux_next_state_confs, aux_next_state_props
 
             # The philosophy of the generator is simple: keep sampling
             # new states until the loop is broken from an outer scope.
@@ -582,17 +589,14 @@ class CoreFuncs(metaclass=ABCMeta):
 
                 # We now have the effective number of walkers after branching.
                 state_num_walkers = \
-                    sync_branching_spec(prev_state_props,
+                    sync_branching_spec(aux_prev_state_data,
                                         prev_num_walkers,
                                         max_num_walkers,
                                         state_branching_spec)
 
-                evolve_state(prev_state_confs,
-                             prev_state_props,
-                             state_confs,
-                             state_props,
-                             next_state_confs,
-                             next_state_props,
+                evolve_state(aux_prev_state_data,
+                             actual_state_data,
+                             aux_next_state_data,
                              state_num_walkers,
                              max_num_walkers,
                              time_step,
@@ -626,15 +630,9 @@ class CoreFuncs(metaclass=ABCMeta):
                             max_num_walkers=max_num_walkers,
                             branching_spec=state_branching_spec)
 
-                # Exchange previous and next states arrays.
-                # NOTE: I'm not sure if Numba is copying the data from one
-                #  array to the other.
-                prev_state_confs, next_state_confs = \
-                    next_state_confs, prev_state_confs
-
-                prev_state_props, next_state_props = \
-                    next_state_props, prev_state_props
-
+                # Exchange previous and next states data.
+                aux_prev_state_data, aux_next_state_data = \
+                    aux_next_state_data, aux_prev_state_data
                 prev_num_walkers = state_num_walkers
 
         return _states_generator

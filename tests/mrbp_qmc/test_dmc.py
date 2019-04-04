@@ -101,7 +101,7 @@ def test_batches():
     sampling_batches = \
         dmc_sampling.batches(dmc_ini_state, num_time_steps_batch)
 
-    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
+    dmc_sampling_batches: dmc_base.T_SBatchesIter = \
         islice(sampling_batches, num_batches)
 
     for batch in dmc_sampling_batches:
