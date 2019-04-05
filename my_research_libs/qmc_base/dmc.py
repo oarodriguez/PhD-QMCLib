@@ -383,13 +383,9 @@ def _recast_stub(z: float, ddf_params: DDFParams):
 
 # noinspection PyUnusedLocal
 def _density_stub(step_idx: int,
-                  state_confs: np.ndarray,
-                  num_walkers: int,
-                  max_num_walkers: int,
-                  branching_spec: np.ndarray,
+                  gen_state: GenState,
                   cfc_spec: CFCSpec,
-                  iter_density_array: np.ndarray,
-                  aux_states_density_array: np.ndarray):
+                  density_data: DensityExecData):
     """Stub for the density function (p.d.f.)."""
     pass
 
@@ -404,14 +400,9 @@ def _init_density_est_data_stub(num_time_steps_batch: int,
 
 # noinspection PyUnusedLocal
 def _fourier_density_stub(step_idx: int,
-                          momenta: np.ndarray,
-                          state_confs: np.ndarray,
-                          num_walkers: int,
-                          max_num_walkers: int,
-                          branching_spec: np.ndarray,
+                          gen_state: GenState,
                           cfc_spec: CFCSpec,
-                          iter_ssf_array: np.ndarray,
-                          aux_states_sf_array: np.ndarray):
+                          ssf_exec_data: SSFExecData):
     """Stub for the fourier density function (p.d.f.)."""
     pass
 
@@ -698,6 +689,8 @@ class CoreFuncs(metaclass=ABCMeta):
         accum_energy_field = IterProp.ACCUM_ENERGY.value
 
         # JIT routines.
+        init_gen_state_data = self.init_gen_state_data
+        build_gen_state = self.build_gen_state
         states_generator = self.states_generator
         density = self.density
         init_density_est_data = self.init_density_est_data
@@ -748,7 +741,6 @@ class CoreFuncs(metaclass=ABCMeta):
             # Static structure factor arrays.
             ssf_est_data = \
                 init_ssf_est_data(nts_batch, max_num_walkers, cfc_spec)
-            ssf_momenta = ssf_est_data.momenta
             iter_ssf_array = ssf_est_data.iter_ssf_array
             pfw_aux_ssf_array = ssf_est_data.pfw_aux_ssf_array
 
@@ -758,7 +750,18 @@ class CoreFuncs(metaclass=ABCMeta):
                                          rng_seed, cfc_spec)
 
             # Future reference to the last DMC state of each batch.
-            state = ini_state
+            state_data = init_gen_state_data(ini_state, cfc_spec,
+                                             copy_ini_state=True)
+
+            # We need a new ``GenState`` instance.
+            gen_state = build_gen_state(state_data,
+                                        ini_state.energy,
+                                        ini_state.weight,
+                                        ini_state.num_walkers,
+                                        ini_state.ref_energy,
+                                        ini_state.accum_energy,
+                                        ini_state.max_num_walkers,
+                                        ini_state.branching_spec)
 
             # Yield indefinitely 🤔.
             while True:
@@ -784,43 +787,26 @@ class CoreFuncs(metaclass=ABCMeta):
                 # We use an initial index instead enumerate.
                 step_idx = 0
 
-                for state in generator:
-
-                    state_confs = state.confs
-                    num_walkers = state.num_walkers
-                    branching_spec = state.branching_spec
+                for gen_state in generator:
 
                     # Copy other data to keep track of the evolution.
-                    iter_energies[step_idx] = state.energy
-                    iter_weights[step_idx] = state.weight
-                    iter_num_walkers[step_idx] = num_walkers
-                    iter_ref_energies[step_idx] = state.ref_energy
-                    iter_accum_energies[step_idx] = state.accum_energy
+                    iter_energies[step_idx] = gen_state.energy
+                    iter_weights[step_idx] = gen_state.weight
+                    iter_num_walkers[step_idx] = gen_state.num_walkers
+                    iter_ref_energies[step_idx] = gen_state.ref_energy
+                    iter_accum_energies[step_idx] = gen_state.accum_energy
 
                     # Evaluate the Density.
                     if not density_params.assume_none:
                         #
-                        density(step_idx,
-                                state_confs,
-                                num_walkers,
-                                max_num_walkers,
-                                branching_spec,
-                                cfc_spec,
-                                iter_density_array,
-                                pfw_aux_density_array)
+                        density(step_idx, gen_state,
+                                cfc_spec, density_est_data)
 
                     # Evaluate the Static Structure Factor.
                     if not ssf_params.assume_none:
                         #
-                        fourier_density(step_idx,
-                                        ssf_momenta,
-                                        state_confs,
-                                        num_walkers,
-                                        max_num_walkers,
-                                        branching_spec,
-                                        cfc_spec,
-                                        iter_ssf_array,
-                                        pfw_aux_ssf_array)
+                        fourier_density(step_idx, gen_state,
+                                        cfc_spec, ssf_est_data)
 
                     # Stop/pause the iteration.
                     if step_idx + 1 >= nts_batch:
@@ -830,15 +816,15 @@ class CoreFuncs(metaclass=ABCMeta):
                     step_idx += 1
 
                 # NOTE: A copy. It is not so ugly 🤔.
-                last_state = State(state.confs,
-                                   state.props,
-                                   state.energy,
-                                   state.weight,
-                                   state.num_walkers,
-                                   state.ref_energy,
-                                   state.accum_energy,
-                                   state.max_num_walkers,
-                                   state.branching_spec)
+                last_state = State(gen_state.confs,
+                                   gen_state.props,
+                                   gen_state.energy,
+                                   gen_state.weight,
+                                   gen_state.num_walkers,
+                                   gen_state.ref_energy,
+                                   gen_state.accum_energy,
+                                   gen_state.max_num_walkers,
+                                   gen_state.branching_spec)
 
                 batch_data = SamplingBatch(iter_props_array,
                                            iter_density_array,
@@ -927,18 +913,18 @@ class CoreFuncs(metaclass=ABCMeta):
                 # We use an initial index instead enumerate.
                 step_idx = 0
 
-                for state in states_gen_instance:
+                for gen_state in states_gen_instance:
 
                     # Copy the data to the batch.
-                    states_confs_array[step_idx] = state.confs[:]
-                    states_props_array[step_idx] = state.props[:]
+                    states_confs_array[step_idx] = gen_state.confs[:]
+                    states_props_array[step_idx] = gen_state.props[:]
 
                     # Copy other data to keep track of the evolution.
-                    iter_energies[step_idx] = state.energy
-                    iter_weights[step_idx] = state.weight
-                    iter_num_walkers[step_idx] = state.num_walkers
-                    iter_ref_energies[step_idx] = state.ref_energy
-                    iter_accum_energies[step_idx] = state.accum_energy
+                    iter_energies[step_idx] = gen_state.energy
+                    iter_weights[step_idx] = gen_state.weight
+                    iter_num_walkers[step_idx] = gen_state.num_walkers
+                    iter_ref_energies[step_idx] = gen_state.ref_energy
+                    iter_accum_energies[step_idx] = gen_state.accum_energy
 
                     # Stop/pause the iteration.
                     if step_idx + 1 >= nts_batch:

@@ -213,28 +213,31 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         @nb.jit(nopython=True, fastmath=fastmath)
         def _density(step_idx: int,
-                     state_confs: np.ndarray,
-                     num_walkers: int,
-                     max_num_walkers: int,
-                     branching_spec: np.ndarray,
+                     gen_state: dmc.GenState,
                      cfc_spec: CFCSpec,
-                     iter_density_array: np.ndarray,
-                     aux_states_density_array: np.ndarray):
+                     density_exec_data: dmc.DensityExecData):
             """
-
+            
             :param step_idx:
-            :param state_confs:
-            :param num_walkers:
-            :param max_num_walkers:
-            :param branching_spec:
-            :param iter_density_array:
-            :param aux_states_density_array:
+            :param gen_state:
+            :param cfc_spec:
+            :param density_exec_data:
             :return:
             """
             model_params = cfc_spec.model_params
             obf_params = cfc_spec.obf_params
             tbf_params = cfc_spec.tbf_params
             density_params = cfc_spec.density_params
+
+            # State data attributes.
+            state_confs = gen_state.confs
+            num_walkers = gen_state.num_walkers
+            max_num_walkers = gen_state.max_num_walkers
+            branching_spec = gen_state.branching_spec
+
+            # Density data attributes.
+            iter_density_array = density_exec_data.iter_density_array
+            aux_states_density_array = density_exec_data.pfw_aux_density_array
 
             density_inner(step_idx,
                           state_confs,
@@ -468,29 +471,30 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         @nb.jit(nopython=True, fastmath=fastmath)
         def _fourier_density(step_idx: int,
-                             momenta: np.ndarray,
-                             state_confs: np.ndarray,
-                             num_walkers: int,
-                             max_num_walkers: int,
-                             branching_spec: np.ndarray,
+                             gen_state: dmc.GenState,
                              cfc_spec: CFCSpec,
-                             iter_ssf_array: np.ndarray,
-                             aux_states_sf_array: np.ndarray):
+                             ssf_exec_data: dmc.SSFExecData):
             """
 
             :param step_idx:
-            :param state_confs:
-            :param num_walkers:
-            :param max_num_walkers:
-            :param branching_spec:
-            :param iter_ssf_array:
-            :param aux_states_sf_array:
+            :param gen_state:
+            :param cfc_spec:
+            :param ssf_exec_data:
             :return:
             """
             model_params = cfc_spec.model_params
             obf_params = cfc_spec.obf_params
             tbf_params = cfc_spec.tbf_params
             ssf_params = cfc_spec.ssf_params
+
+            state_confs = gen_state.confs
+            num_walkers = gen_state.num_walkers
+            max_num_walkers = gen_state.max_num_walkers
+            branching_spec = gen_state.branching_spec
+
+            momenta = ssf_exec_data.momenta
+            iter_ssf_array = ssf_exec_data.iter_ssf_array
+            aux_states_ssf_array = ssf_exec_data.pfw_aux_ssf_array
 
             fourier_density_inner(step_idx,
                                   momenta,
@@ -503,7 +507,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                                   tbf_params,
                                   ssf_params,
                                   iter_ssf_array,
-                                  aux_states_sf_array)
+                                  aux_states_ssf_array)
 
         return _fourier_density
 
