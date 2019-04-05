@@ -550,12 +550,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         return _ith_diffuse
 
     @cached_property
-    def init_state_gen_data(self):
+    def init_gen_state_data(self):
         """Initialize the data arrays for the DMC states generator."""
 
         # noinspection PyUnusedLocal
         @nb.njit
-        def _init_state_gen_data(ini_state: dmc.State,
+        def _init_gen_state_data(ini_state: dmc.State,
                                  cfc_spec: CFCSpec,
                                  copy_ini_state: bool = False):
             """
@@ -573,9 +573,49 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                 state_confs[:] = ini_state.confs[:]
                 state_props[:] = ini_state.props[:]
 
-            return dmc.StateGenData(state_confs, state_props)
+            return dmc.GenStateData(state_confs, state_props)
 
-        return _init_state_gen_data
+        return _init_gen_state_data
+
+    @cached_property
+    def build_gen_state(self):
+        """"""
+
+        @nb.njit
+        def _build_gen_state(state_data: dmc.GenStateData,
+                             state_energy: float,
+                             state_weight: float,
+                             state_num_walkers: int,
+                             state_ref_energy: float,
+                             state_accum_energy: float,
+                             max_num_walkers: int,
+                             state_branching_spec: np.ndarray = None):
+            """
+
+            :param state_data:
+            :param state_energy:
+            :param state_weight:
+            :param state_num_walkers:
+            :param state_ref_energy:
+            :param state_accum_energy:
+            :param max_num_walkers:
+            :param state_branching_spec:
+            :return:
+            """
+
+            state_confs = state_data.confs
+            state_props = state_data.props
+            return dmc.GenState(confs=state_confs,
+                                props=state_props,
+                                energy=state_energy,
+                                weight=state_weight,
+                                num_walkers=state_num_walkers,
+                                ref_energy=state_ref_energy,
+                                accum_energy=state_accum_energy,
+                                max_num_walkers=max_num_walkers,
+                                branching_spec=state_branching_spec)
+
+        return _build_gen_state
 
     @cached_property
     def evolve_system(self):
@@ -806,9 +846,9 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         evolve_state_inner = self.evolve_state_inner
 
         @nb.jit(nopython=True)
-        def _evolve_state(prev_state_data: dmc.StateGenData,
-                          actual_state_data: dmc.StateGenData,
-                          next_state_data: dmc.StateGenData,
+        def _evolve_state(prev_state_data: dmc.GenStateData,
+                          actual_state_data: dmc.GenStateData,
+                          next_state_data: dmc.GenStateData,
                           actual_num_walkers: int,
                           max_num_walkers: int,
                           time_step: float,

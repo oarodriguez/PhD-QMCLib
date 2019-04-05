@@ -95,8 +95,24 @@ class BranchingSpecField(str, enum.Enum):
     MASK = 'MASK'
 
 
+# NOTE: The base version of a State is equal to a GenState. This may be
+#  changed by subclassing GenState, if additional data is needed internally
+#  by the generator.
+class GenState(t.NamedTuple):
+    """A DMC state, used in the states generator only."""
+    confs: np.ndarray
+    props: np.ndarray
+    energy: float
+    weight: float
+    num_walkers: int
+    ref_energy: float
+    accum_energy: float
+    max_num_walkers: int
+    branching_spec: t.Optional[np.ndarray] = None
+
+
 class State(t.NamedTuple):
-    """The """
+    """A DMC state."""
     confs: np.ndarray
     props: np.ndarray
     energy: float
@@ -281,11 +297,22 @@ class Sampling(metaclass=ABCMeta):
         """
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
-        return self.core_funcs.states_generator(time_step,
-                                                ini_state,
-                                                target_num_walkers,
-                                                self.rng_seed,
-                                                self.cfc_spec)
+        states_generator = \
+            self.core_funcs.states_generator(time_step, ini_state,
+                                             target_num_walkers,
+                                             self.rng_seed,
+                                             self.cfc_spec)
+        for gen_state in states_generator:
+            #
+            yield State(gen_state.confs,
+                        gen_state.props,
+                        gen_state.energy,
+                        gen_state.weight,
+                        gen_state.num_walkers,
+                        gen_state.ref_energy,
+                        gen_state.accum_energy,
+                        gen_state.max_num_walkers,
+                        gen_state.branching_spec)
 
     def batches(self, ini_state: State,
                 num_time_steps_batch: int) -> T_SBatchesIter:
@@ -342,7 +369,7 @@ branching_spec_dtype = np.dtype([
 ])
 
 
-class StateGenData(t.NamedTuple):
+class GenStateData(t.NamedTuple):
     """Represent the data necessary to execute the DMC states generator."""
     confs: np.ndarray
     props: np.ndarray
@@ -398,17 +425,30 @@ def _init_ssf_est_data_stub(num_time_steps_batch: int,
 
 
 # noinspection PyUnusedLocal
-def _init_state_gen_data_stub(ini_state: State,
+def _init_gen_state_data_stub(ini_state: State,
                               cfc_spec: CFCSpec,
-                              copy_ini_state: bool = False) -> StateGenData:
+                              copy_ini_state: bool = False) -> GenStateData:
     """Stub for the _init_state_gen_data function."""
     pass
 
 
 # noinspection PyUnusedLocal
-def _evolve_state_stub(prev_state_data: StateGenData,
-                       actual_state_data: StateGenData,
-                       next_state_data: StateGenData,
+def _build_gen_state_stub(state_data: GenStateData,
+                          state_energy: float,
+                          state_weight: float,
+                          state_num_walkers: int,
+                          state_ref_energy: float,
+                          state_accum_energy: float,
+                          max_num_walkers: int,
+                          branching_spec: np.ndarray = None) -> GenState:
+    """Stub for the _build_gen_state function."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _evolve_state_stub(prev_state_data: GenStateData,
+                       actual_state_data: GenStateData,
+                       next_state_data: GenStateData,
                        actual_num_walkers: int,
                        max_num_walkers: int,
                        time_step: float,
@@ -457,9 +497,9 @@ class CoreFuncs(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def init_state_gen_data(self):
+    def init_gen_state_data(self):
         """"""
-        return _init_state_gen_data_stub
+        return _init_gen_state_data_stub
 
     @cached_property
     def sync_branching_spec(self):
@@ -472,7 +512,7 @@ class CoreFuncs(metaclass=ABCMeta):
         clone_ref_field = BranchingSpecField.CLONING_REF.value
 
         @nb.jit(nopython=True, fastmath=fastmath)
-        def _sync_branching_spec(prev_state_data: StateGenData,
+        def _sync_branching_spec(prev_state_data: GenStateData,
                                  prev_num_walkers: int,
                                  max_num_walkers: int,
                                  branching_spec: np.ndarray):
@@ -513,6 +553,12 @@ class CoreFuncs(metaclass=ABCMeta):
         """"""
         return _evolve_state_stub
 
+    @property
+    @abstractmethod
+    def build_gen_state(self):
+        """"""
+        return _build_gen_state_stub
+
     @cached_property
     def states_generator(self):
         """
@@ -525,7 +571,8 @@ class CoreFuncs(metaclass=ABCMeta):
 
         # JIT functions.
         evolve_state = self.evolve_state
-        init_state_gen_data = self.init_state_gen_data
+        init_gen_state_data = self.init_gen_state_data
+        build_gen_state = self.build_gen_state
         sync_branching_spec = self.sync_branching_spec
 
         @nb.jit(nopython=True, fastmath=fastmath)
@@ -554,14 +601,14 @@ class CoreFuncs(metaclass=ABCMeta):
 
             # Configurations and properties of the current
             # state of the sampling (the one that will be yielded).
-            actual_state_data = init_state_gen_data(ini_state, cfc_spec)
+            actual_state_data = init_gen_state_data(ini_state, cfc_spec)
 
             # Auxiliary data for the previous state.
-            aux_prev_state_data = init_state_gen_data(ini_state, cfc_spec,
+            aux_prev_state_data = init_gen_state_data(ini_state, cfc_spec,
                                                       copy_ini_state=True)
 
             # Auxiliary data for the next state.
-            aux_next_state_data = init_state_gen_data(ini_state, cfc_spec)
+            aux_next_state_data = init_gen_state_data(ini_state, cfc_spec)
 
             # Table to control the branching process.
             state_branching_spec = \
@@ -620,15 +667,14 @@ class CoreFuncs(metaclass=ABCMeta):
                 state_ref_energy = state_accum_energy - 0.5 * log(
                         state_weight / target_num_walkers) / time_step
 
-                yield State(confs=state_confs,
-                            props=state_props,
-                            energy=state_energy,
-                            weight=state_weight,
-                            num_walkers=state_num_walkers,
-                            ref_energy=state_ref_energy,
-                            accum_energy=state_accum_energy,
-                            max_num_walkers=max_num_walkers,
-                            branching_spec=state_branching_spec)
+                yield build_gen_state(actual_state_data,
+                                      state_energy,
+                                      state_weight,
+                                      state_num_walkers,
+                                      state_ref_energy,
+                                      state_accum_energy,
+                                      max_num_walkers,
+                                      state_branching_spec)
 
                 # Exchange previous and next states data.
                 aux_prev_state_data, aux_next_state_data = \
