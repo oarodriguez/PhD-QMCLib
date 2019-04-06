@@ -148,11 +148,9 @@ T_SBatchesIter = t.Iterator[SamplingBatch]
 T_E_SBatchesIter = t.Iterator[t.Tuple[int, SamplingBatch]]
 
 
-class SSFEstSpec:
+class SSFEstSpec(metaclass=ABCMeta):
     """Structure factor estimator spec."""
-
-    #: Number of modes to evaluate the structure factor S(k).
-    num_modes: int
+    pass
 
 
 class SamplingBase(metaclass=ABCMeta):
@@ -559,9 +557,12 @@ class CoreFuncs(metaclass=ABCMeta):
             # yield State(actual_conf, wf_abs_log_actual, STAT_REJECTED + 0)
             # NOTE 1: We cannot yield the initial state, we have to create
             #  a new State instance.
+            # NOTE 2: Initial state has STAT_ACCEPTED so the properties of
+            #  the system are always evaluated at the beginning of the
+            #  sampling.
             yield build_state(actual_state_data,
                               ini_state.wf_abs_log,
-                              ini_state.move_stat)
+                              STAT_ACCEPTED + 0)
 
             # Initial configuration.
             wf_abs_log_actual = ini_state.wf_abs_log

@@ -23,6 +23,7 @@ __all__ = [
 
 # Export symbols from base modules.
 StateProp = qmc_base.vmc.StateProp
+STAT_ACCEPTED = qmc_base.vmc.STAT_ACCEPTED
 STAT_REJECTED = qmc_base.vmc.STAT_REJECTED
 
 
@@ -159,8 +160,12 @@ class Sampling(jsw_vmc_udf.Sampling):
                              "of the model spec")
 
         cfc_spec = self.cfc_spec
-        wf_abs_log = self.core_funcs.wf_abs_log(sys_conf, cfc_spec)
-        return qmc_base.vmc.State(sys_conf, wf_abs_log, STAT_REJECTED)
+        model_params = cfc_spec.model_params
+        obf_params = cfc_spec.obf_params
+        tbf_params = cfc_spec.tbf_params
+        wf_abs_log = model.core_funcs.wf_abs_log(sys_conf, model_params,
+                                                 obf_params, tbf_params)
+        return qmc_base.vmc.State(sys_conf, wf_abs_log, STAT_ACCEPTED)
 
     @property
     def core_funcs(self) -> 'CoreFuncs':
