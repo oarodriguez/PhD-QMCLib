@@ -279,7 +279,7 @@ class Proc(metaclass=ABCMeta):
         else:
             ssf_blocks = None
 
-        data_blocks = PropsDataBlocks(energy_blocks, ssf_blocks)
+        data_blocks = PropsDataBlocks(energy_blocks, ss_factor=ssf_blocks)
 
         if keep_iter_data:
             data_series = PropsDataSeries(props_blocks_data,
