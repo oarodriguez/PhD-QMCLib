@@ -18,14 +18,17 @@ from numba import jit
 from numpy import random as random
 
 __all__ = [
+    'CFCSpec',
     'CoreFuncs',
+    'StateData',
+    'IterProp',
     'RandDisplaceStat',
     'Sampling',
-    'CFCSpec',
-    'IterProp',
     'State',
     'StateProp',
     'SamplingBatch',
+    'SSFExecData',
+    'SSFParams',
     'SSFPartSlot',
     'T_E_SIter',
     'T_SIter',
@@ -109,6 +112,11 @@ class IterProp(str, enum.Enum):
     WF_ABS_LOG = 'WF_ABS_LOG'
     ENERGY = 'ENERGY'
     MOVE_STAT = 'MOVE_STAT'
+
+
+class StateData(t.NamedTuple):
+    """Represent the data necessary to execute the DMC states generator."""
+    sys_conf: np.ndarray
 
 
 class State(t.NamedTuple):
@@ -269,15 +277,17 @@ iter_props_dtype = np.dtype([
 
 
 # noinspection PyUnusedLocal
-def _wf_abs_log_stub(sys_conf: np.ndarray,
+def _wf_abs_log_stub(state_data: StateData,
                      cfc_spec: CFCSpec) -> float:
     """Stub for the probability density function (p.d.f.)."""
     pass
 
 
 # noinspection PyUnusedLocal
-def _energy_stub(sys_conf: np.ndarray,
-                 cfc_spec: CFCSpec) -> float:
+def _energy_stub(step_idx: int,
+                 state: State,
+                 cfc_spec: CFCSpec,
+                 iter_props_array: np.ndarray) -> float:
     """Stub for the energy function."""
     pass
 
@@ -300,7 +310,7 @@ def _one_body_density_stub(step_idx: int,
 
 # noinspection PyUnusedLocal
 def _ssf_momenta_stub(cfc_spec: CFCSpec) -> np.ndarray:
-    """Stub for the energy function."""
+    """Stub for the ssf_momenta function."""
     pass
 
 
@@ -313,11 +323,45 @@ def _init_ssf_est_data_stub(num_steps_batch: int,
 
 # noinspection PyUnusedLocal
 def _fourier_density_stub(step_idx: int,
-                          momenta: np.ndarray,
-                          sys_conf: np.ndarray,
+                          state: State,
                           cfc_spec: CFCSpec,
-                          iter_ssf_array: np.ndarray):
+                          ssf_exec_data: SSFExecData):
     """Stub for the fourier_density function."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _init_state_data_stub(cfc_spec: CFCSpec) -> StateData:
+    """Stub for the init_state_data function."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _copy_state_data_stub(state: State,
+                          state_data: StateData):
+    """Stub for the copy_state_data function."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _build_state_stub(state_data: StateData,
+                      wf_abs_log: float,
+                      move_stat: int) -> State:
+    """Stub for the build_state function."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _init_prepare_state_stub(sys_conf: np.ndarray,
+                             cfc_spec: CFCSpec) -> State:
+    """Stub for the init_prepare_state function."""
+    pass
+
+
+# noinspection PyUnusedLocal
+def _init_state_data_from_state_stub(state: State,
+                                     cfc_spec: CFCSpec) -> StateData:
+    """Stub for the init_state_data_from_state function."""
     pass
 
 
@@ -330,8 +374,8 @@ def _ith_sys_conf_tpf_stub(i_: int, ini_sys_conf: np.ndarray,
 
 
 # noinspection PyUnusedLocal
-def _sys_conf_tpf_stub(ini_sys_conf: np.ndarray,
-                       prop_sys_conf: np.ndarray,
+def _sys_conf_tpf_stub(actual_state_data: StateData,
+                       next_state_data: StateData,
                        cfc_spec: CFCSpec):
     """Stub for the transition probability function."""
     pass
@@ -401,6 +445,54 @@ class CoreFuncs(metaclass=ABCMeta):
 
     @property
     @abstractmethod
+    def init_state_data(self):
+        """"""
+        return _init_state_data_stub
+
+    @property
+    @abstractmethod
+    def copy_state_data(self):
+        """"""
+        return _copy_state_data_stub
+
+    @property
+    @abstractmethod
+    def build_state(self):
+        """"""
+        return _build_state_stub
+
+    @property
+    @abstractmethod
+    def init_prepare_state(self):
+        """"""
+        return _init_prepare_state_stub
+
+    @cached_property
+    def init_state_data_from_state(self):
+        """
+
+        :return:
+        """
+        init_state_data = self.init_state_data
+        copy_state_data = self.copy_state_data
+
+        @jit(nopython=True)
+        def _init_state_data_from_state(state: State,
+                                        cfc_spec: CFCSpec):
+            """
+
+            :param state:
+            :param cfc_spec:
+            :return:
+            """
+            state_data = init_state_data(cfc_spec)
+            copy_state_data(state, state_data)
+            return state_data
+
+        return _init_state_data_from_state
+
+    @property
+    @abstractmethod
     def ith_sys_conf_tpf(self):
         """The transition probability function applied to the ith particle."""
         return _ith_sys_conf_tpf_stub
@@ -422,6 +514,9 @@ class CoreFuncs(metaclass=ABCMeta):
         """
         wf_abs_log = self.wf_abs_log
         sys_conf_tpf = self.sys_conf_tpf
+        init_state_data = self.init_state_data
+        build_state = self.build_state
+        init_state_data_from_state = self.init_state_data_from_state
 
         @jit(nopython=True, nogil=True)
         def _generator(ini_state: State,
@@ -450,43 +545,51 @@ class CoreFuncs(metaclass=ABCMeta):
             # TODO: Handling of None seeds...
             random.seed(rng_seed)
 
-            # Initial configuration.
-            ini_sys_conf = ini_state.sys_conf
-            wf_abs_log_actual = ini_state.wf_abs_log
+            # Data for the actual state.
+            actual_state_data = \
+                init_state_data_from_state(ini_state, cfc_spec)
 
-            # Buffers
-            main_conf = np.zeros_like(ini_sys_conf)
-            aux_conf = np.zeros_like(ini_sys_conf)
-
-            # Initial configuration
-            actual_conf, next_conf = main_conf, aux_conf
-            actual_conf[:] = ini_sys_conf[:]
+            # Data for the next state
+            aux_next_state_data = init_state_data(cfc_spec)
 
             # Yield initial value.
             # TODO: Remove the sum from the expression STAT_REJECTED + 0 when
             #  numba project gets this bug resolved (version 0.42 apparently).
             #  See https://github.com/numba/numba/issues/3565
             # yield State(actual_conf, wf_abs_log_actual, STAT_REJECTED + 0)
-            yield ini_state
+            # NOTE 1: We cannot yield the initial state, we have to create
+            #  a new State instance.
+            yield build_state(actual_state_data,
+                              ini_state.wf_abs_log,
+                              ini_state.move_stat)
+
+            # Initial configuration.
+            wf_abs_log_actual = ini_state.wf_abs_log
 
             # Iterate indefinitely.
             while True:
 
                 # Just keep advancing...
-                sys_conf_tpf(actual_conf, next_conf, cfc_spec)
-                wf_abs_log_next = wf_abs_log(next_conf, cfc_spec)
+                sys_conf_tpf(actual_state_data,
+                             aux_next_state_data,
+                             cfc_spec)
+
+                wf_abs_log_next = \
+                    wf_abs_log(aux_next_state_data, cfc_spec)
                 move_stat = STAT_REJECTED
 
                 # Metropolis condition
                 if wf_abs_log_next > 0.5 * log(rand()) + wf_abs_log_actual:
                     # Accept the movement
-                    # main_conf[:] = aux_conf[:]
-                    actual_conf, next_conf = next_conf, actual_conf
+                    actual_state_data, aux_next_state_data = \
+                        aux_next_state_data, actual_state_data
                     wf_abs_log_actual = wf_abs_log_next
                     move_stat = STAT_ACCEPTED
 
                 # NOTICE: Using a tuple creates a performance hit?
-                yield State(actual_conf, wf_abs_log_actual, move_stat)
+                yield build_state(actual_state_data,
+                                  wf_abs_log_actual,
+                                  move_stat)
 
         return _generator
 
@@ -532,18 +635,13 @@ class CoreFuncs(metaclass=ABCMeta):
             # Array to store the main properties.
             iter_props_array = np.empty(ipb_shape, dtype=iter_props_dtype)
             wf_abs_log_set = iter_props_array[wf_abs_log_field]
-            energy_set = iter_props_array[energy_field]
             move_stat_set = iter_props_array[move_stat_field]
 
             # Static structure factor arrays.
-            ssf_est_data = init_ssf_est_data(num_steps_batch, cfc_spec)
-            ssf_momenta = ssf_est_data.momenta
-            iter_ssf_array = ssf_est_data.iter_ssf_array
+            ssf_exec_data = init_ssf_est_data(num_steps_batch, cfc_spec)
+            iter_ssf_array = ssf_exec_data.iter_ssf_array
 
-            sampling_iter = generator(ini_state, rng_seed, cfc_spec)
-
-            # Initial state.
-            state = ini_state
+            states_iter = generator(ini_state, rng_seed, cfc_spec)
 
             # Yield batches indefinitely.
             while True:
@@ -554,46 +652,50 @@ class CoreFuncs(metaclass=ABCMeta):
                 # Reset accepted counter.
                 accepted = 0.
 
-                for state in sampling_iter:
+                for state in states_iter:
 
                     # This loop with start in the last generated state.
                     # Metropolis-Hastings iterator.
-                    # TODO: Test use of next() function.
-                    sys_conf, wf_abs_log, move_stat = state
+                    wf_abs_log = state.wf_abs_log
+                    move_stat = state.move_stat
+                    accepted += move_stat
+
+                    # Store properties.
                     wf_abs_log_set[step_idx] = wf_abs_log
                     move_stat_set[step_idx] = bool(move_stat)
-                    accepted += move_stat
 
                     # Calculate the energy. Necessary for the optimization
                     # process.
-                    energy = energy_func(sys_conf, cfc_spec)
-                    energy_set[step_idx] = energy
+                    energy_func(step_idx, state,
+                                cfc_spec, iter_props_array)
 
                     # Evaluate the Static Structure Factor.
                     if not ssf_params.assume_none:
-                        fourier_density(step_idx, ssf_momenta,
-                                        sys_conf, cfc_spec,
-                                        iter_ssf_array)
+                        #
+                        fourier_density(step_idx, state,
+                                        cfc_spec, ssf_exec_data)
 
                     # Yield the batch just before generating a new state 🤔.
                     if step_idx + 1 >= ns_batch:
+
                         # Get the acceptance rate.
+                        accept_rate = accepted / ns_batch
+
+                        # NOTE 1: We yield references to the internal buffer.
+                        # NOTE 2: A new state is always generated.
+                        last_state = State(state.sys_conf,
+                                           wf_abs_log, move_stat)
+
+                        yield SamplingBatch(iter_props_array,
+                                            iter_ssf_array,
+                                            accept_rate,
+                                            last_state=last_state)
+
+                        # Break the for ... in ... loop.
                         break
 
                     # Counter goes up 🙂.
                     step_idx += 1
-
-                accept_rate = accepted / ns_batch
-
-                # NOTE: We yield references to the internal buffer.
-                last_state = State(state.sys_conf,
-                                   state.wf_abs_log,
-                                   state.move_stat)
-
-                yield SamplingBatch(iter_props_array,
-                                    iter_ssf_array,
-                                    accept_rate,
-                                    last_state=last_state)
 
         return _batches
 
