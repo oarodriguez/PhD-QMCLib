@@ -12,6 +12,16 @@ from my_research_libs import qmc_base
 from . import model
 from .. import dmc
 
+StateProp = dmc.StateProp
+IterProp = dmc.IterProp
+
+state_confs_dtype = np.float64
+state_props_dtype = np.dtype([
+    (StateProp.ENERGY.value, np.float64),
+    (StateProp.WEIGHT.value, np.float64),
+    (StateProp.MASK.value, np.bool)
+])
+
 
 class DDFParams(dmc.DDFParams, metaclass=ABCMeta):
     """The parameters of the diffusion-and-drift process."""
@@ -213,13 +223,13 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         @nb.jit(nopython=True, fastmath=fastmath)
         def _density(step_idx: int,
-                     gen_state: dmc.GenState,
+                     state: dmc.State,
                      cfc_spec: CFCSpec,
                      density_exec_data: dmc.DensityExecData):
             """
-            
+
             :param step_idx:
-            :param gen_state:
+            :param state:
             :param cfc_spec:
             :param density_exec_data:
             :return:
@@ -230,10 +240,10 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             density_params = cfc_spec.density_params
 
             # State data attributes.
-            state_confs = gen_state.confs
-            num_walkers = gen_state.num_walkers
-            max_num_walkers = gen_state.max_num_walkers
-            branching_spec = gen_state.branching_spec
+            state_confs = state.confs
+            num_walkers = state.num_walkers
+            max_num_walkers = state.max_num_walkers
+            branching_spec = state.branching_spec
 
             # Density data attributes.
             iter_density_array = density_exec_data.iter_density_array
@@ -471,13 +481,13 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         @nb.jit(nopython=True, fastmath=fastmath)
         def _fourier_density(step_idx: int,
-                             gen_state: dmc.GenState,
+                             state: dmc.State,
                              cfc_spec: CFCSpec,
                              ssf_exec_data: dmc.SSFExecData):
             """
 
             :param step_idx:
-            :param gen_state:
+            :param state:
             :param cfc_spec:
             :param ssf_exec_data:
             :return:
@@ -487,10 +497,10 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             tbf_params = cfc_spec.tbf_params
             ssf_params = cfc_spec.ssf_params
 
-            state_confs = gen_state.confs
-            num_walkers = gen_state.num_walkers
-            max_num_walkers = gen_state.max_num_walkers
-            branching_spec = gen_state.branching_spec
+            state_confs = state.confs
+            num_walkers = state.num_walkers
+            max_num_walkers = state.max_num_walkers
+            branching_spec = state.branching_spec
 
             momenta = ssf_exec_data.momenta
             iter_ssf_array = ssf_exec_data.iter_ssf_array
@@ -554,46 +564,60 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         return _ith_diffuse
 
     @cached_property
-    def init_gen_state_data(self):
+    def init_state_data(self):
         """Initialize the data arrays for the DMC states generator."""
 
-        # noinspection PyUnusedLocal
+        num_slots = len(model.SysConfSlot.__members__)
+
         @nb.njit
-        def _init_gen_state_data(ini_state: dmc.State,
-                                 cfc_spec: CFCSpec,
-                                 copy_ini_state: bool = False):
+        def _init_state_data(max_num_walkers: int,
+                             cfc_spec: CFCSpec):
             """
 
-            :param ini_state:
             :param cfc_spec:
-            :param copy_ini_state:
             :return:
             """
-            state_confs = np.zeros_like(ini_state.confs)
-            state_props = np.zeros_like(ini_state.props)
+            nop = cfc_spec.model_params.boson_number
+            confs_shape = max_num_walkers, num_slots, nop
+            props_shape = max_num_walkers,
 
-            if copy_ini_state:
-                # Initial configuration.
-                state_confs[:] = ini_state.confs[:]
-                state_props[:] = ini_state.props[:]
+            state_confs = np.zeros(confs_shape, dtype=state_confs_dtype)
+            state_props = np.zeros(props_shape, dtype=state_props_dtype)
+            return dmc.StateData(state_confs, state_props)
 
-            return dmc.GenStateData(state_confs, state_props)
-
-        return _init_gen_state_data
+        return _init_state_data
 
     @cached_property
-    def build_gen_state(self):
+    def copy_state_data(self):
+        """Copy the data of an existing ``State`` instance."""
+
+        @nb.njit
+        def _copy_state_data(state: dmc.State,
+                             state_data: dmc.StateData):
+            """
+
+            :param state:
+            :param state_data:
+            :return:
+            """
+            state_data.confs[:] = state.confs[:]
+            state_data.props[:] = state.props[:]
+
+        return _copy_state_data
+
+    @cached_property
+    def build_state(self):
         """"""
 
         @nb.njit
-        def _build_gen_state(state_data: dmc.GenStateData,
-                             state_energy: float,
-                             state_weight: float,
-                             state_num_walkers: int,
-                             state_ref_energy: float,
-                             state_accum_energy: float,
-                             max_num_walkers: int,
-                             state_branching_spec: np.ndarray = None):
+        def _build_state(state_data: dmc.StateData,
+                         state_energy: float,
+                         state_weight: float,
+                         state_num_walkers: int,
+                         state_ref_energy: float,
+                         state_accum_energy: float,
+                         max_num_walkers: int,
+                         state_branching_spec: np.ndarray = None):
             """
 
             :param state_data:
@@ -609,17 +633,17 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
             state_confs = state_data.confs
             state_props = state_data.props
-            return dmc.GenState(confs=state_confs,
-                                props=state_props,
-                                energy=state_energy,
-                                weight=state_weight,
-                                num_walkers=state_num_walkers,
-                                ref_energy=state_ref_energy,
-                                accum_energy=state_accum_energy,
-                                max_num_walkers=max_num_walkers,
-                                branching_spec=state_branching_spec)
+            return dmc.State(confs=state_confs,
+                             props=state_props,
+                             energy=state_energy,
+                             weight=state_weight,
+                             num_walkers=state_num_walkers,
+                             ref_energy=state_ref_energy,
+                             accum_energy=state_accum_energy,
+                             max_num_walkers=max_num_walkers,
+                             branching_spec=state_branching_spec)
 
-        return _build_gen_state
+        return _build_state
 
     @cached_property
     def evolve_system(self):
@@ -850,9 +874,9 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         evolve_state_inner = self.evolve_state_inner
 
         @nb.jit(nopython=True)
-        def _evolve_state(prev_state_data: dmc.GenStateData,
-                          actual_state_data: dmc.GenStateData,
-                          next_state_data: dmc.GenStateData,
+        def _evolve_state(prev_state_data: dmc.StateData,
+                          actual_state_data: dmc.StateData,
+                          next_state_data: dmc.StateData,
                           actual_num_walkers: int,
                           max_num_walkers: int,
                           time_step: float,
@@ -959,7 +983,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         return _prepare_ini_ith_system
 
     @cached_property
-    def prepare_ini_state(self):
+    def prepare_state_data_inner(self):
         """Prepare the initial state of the sampling. """
 
         parallel = self.jit_parallel
@@ -975,12 +999,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         prepare_ini_ith_system = self.prepare_ini_ith_system
 
         @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
-        def _prepare_ini_state(ini_sys_conf_set: np.ndarray,
-                               state_confs: np.ndarray,
-                               state_props: np.ndarray,
-                               model_params: model.Params,
-                               obf_params: model.OBFParams,
-                               tbf_params: model.TBFParams):
+        def _prepare_state_data_inner(ini_sys_conf_set: np.ndarray,
+                                      state_confs: np.ndarray,
+                                      state_props: np.ndarray,
+                                      model_params: model.Params,
+                                      obf_params: model.OBFParams,
+                                      tbf_params: model.TBFParams):
             """Prepare the initial state of the sampling.
 
             :param ini_sys_conf_set:
@@ -1011,4 +1035,32 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                 # Unmask this walker.
                 state_mask[sys_idx] = False
 
-        return _prepare_ini_state
+        return _prepare_state_data_inner
+
+    @cached_property
+    def prepare_state_data(self):
+        """Prepare the initial state of the sampling. """
+
+        fastmath = self.jit_fastmath
+        prepare_state_data_inner = self.prepare_state_data_inner
+
+        @nb.jit(nopython=True, fastmath=fastmath)
+        def _prepare_state_data(ini_sys_conf_set: np.ndarray,
+                                state_data: dmc.StateData,
+                                cfc_spec: CFCSpec):
+            """Prepare the initial state of the sampling.
+
+            :param ini_sys_conf_set:
+            :return:
+            """
+            state_confs = state_data.confs
+            state_props = state_data.props
+            model_params = cfc_spec.model_params
+            obf_params = cfc_spec.obf_params
+            tbf_params = cfc_spec.tbf_params
+
+            prepare_state_data_inner(ini_sys_conf_set, state_confs,
+                                     state_props, model_params,
+                                     obf_params, tbf_params)
+
+        return _prepare_state_data

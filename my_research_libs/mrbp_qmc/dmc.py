@@ -21,23 +21,13 @@ from . import model
 
 __all__ = [
     'CoreFuncs',
-    'IterProp',
     'Sampling',
     'State',
     'StateError',
-    'StateProp',
     'SSFEstSpec'
 ]
 
 StateProp = qmc_base.dmc.StateProp
-IterProp = qmc_base.dmc.IterProp
-
-state_confs_dtype = np.float64
-state_props_dtype = np.dtype([
-    (StateProp.ENERGY.value, np.float64),
-    (StateProp.WEIGHT.value, np.float64),
-    (StateProp.MASK.value, np.bool)
-])
 
 T_ExtArrays = t.Tuple[np.ndarray, ...]
 T_RelDist = t.Union[t.SupportsFloat, np.ndarray]
@@ -70,15 +60,6 @@ class DDFParams(jsw_dmc.DDFParams, Record):
     sigma_spread: float
     lower_bound: float
     upper_bound: float
-
-
-@attr.s(auto_attribs=True)
-class Params(jsw_dmc.DensityParams, Record):
-    """Static structure factor parameters."""
-    num_bins: int
-    as_pure_est: bool
-    pfw_num_time_steps: int
-    assume_none: bool
 
 
 @attr.s(auto_attribs=True)
@@ -283,11 +264,7 @@ class Sampling(jsw_dmc.Sampling):
         """
         cfc_spec = self.cfc_spec
         confs_shape = self.state_confs_shape
-        props_shape = self.state_props_shape
         max_num_walkers = self.max_num_walkers
-        model_params = cfc_spec.model_params
-        obf_params = cfc_spec.obf_params
-        tbf_params = cfc_spec.tbf_params
 
         if len(confs_shape) == len(sys_conf_set.shape):
             # Equal number of dimensions, but...
@@ -299,14 +276,14 @@ class Sampling(jsw_dmc.Sampling):
         sys_conf_set = np.asarray(sys_conf_set)[-self.target_num_walkers:]
         num_walkers = len(sys_conf_set)
 
-        # Initial state arrays.
-        state_confs = np.zeros(confs_shape, dtype=state_confs_dtype)
-        state_props = np.zeros(props_shape, dtype=state_props_dtype)
+        state_data = \
+            self.core_funcs.init_state_data(max_num_walkers, cfc_spec)
+        state_props = state_data.props
 
         # Calculate the initial state arrays properties.
-        self.core_funcs.prepare_ini_state(sys_conf_set, state_confs,
-                                          state_props, model_params,
-                                          obf_params, tbf_params)
+        self.core_funcs.prepare_state_data(sys_conf_set,
+                                           state_data,
+                                           cfc_spec)
 
         state_energies = state_props[StateProp.ENERGY][:num_walkers]
         state_weights = state_props[StateProp.WEIGHT][:num_walkers]
@@ -325,15 +302,16 @@ class Sampling(jsw_dmc.Sampling):
             np.zeros(max_num_walkers, dtype=branching_spec_dtype)
 
         # NOTE: The branching spec for the initial state is None.
-        return qmc_base.dmc.State(confs=state_confs,
-                                  props=state_props,
-                                  energy=state_energy,
-                                  weight=state_weight,
-                                  num_walkers=num_walkers,
-                                  ref_energy=ref_energy,
-                                  accum_energy=energy,
-                                  max_num_walkers=max_num_walkers,
-                                  branching_spec=branching_spec)
+        ini_state = \
+            self.core_funcs.build_state(state_data,
+                                        state_energy,
+                                        state_weight,
+                                        num_walkers,
+                                        ref_energy,
+                                        energy,
+                                        max_num_walkers,
+                                        branching_spec)
+        return ini_state
 
     @cached_property
     def core_funcs(self) -> 'CoreFuncs':
