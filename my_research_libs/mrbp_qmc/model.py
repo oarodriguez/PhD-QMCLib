@@ -14,7 +14,7 @@ from scipy.optimize import brentq, differential_evolution
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
 from my_research_libs.util.attr import (
-    int_converter, int_validator
+    int_converter, int_validator, opt_float_converter, opt_float_validator
 )
 
 __all__ = [
@@ -45,6 +45,7 @@ class Params(qmc_base.jastrow.Params, t.NamedTuple):
     boson_number: np.int64
     supercell_size: float
     tbf_contact_cutoff: float
+    defect_magnitude: float
     well_width: float
     barrier_width: float
     is_free: bool
@@ -135,7 +136,22 @@ class Spec(qmc_base.jastrow.Spec):
     tbf_contact_cutoff: float = \
         attr.ib(converter=float, validator=tbf_contact_cutoff_validator)
 
+    #:
+    defect_magnitude: t.Optional[float] = \
+        attr.ib(default=None, converter=opt_float_converter,
+                validator=opt_float_validator)
+
     # TODO: Implement improved __init__.
+    def __attrs_post_init__(self):
+        """Post initialization stage."""
+        lattice_depth = self.lattice_depth
+        defect_magnitude = self.defect_magnitude
+        if defect_magnitude is None:
+            object.__setattr__(self, 'defect_magnitude', lattice_depth)
+        else:
+            if defect_magnitude > lattice_depth:
+                raise ValueError("Defect magnitude can't be greater than the "
+                                 "lattice depth.")
 
     @property
     def boundaries(self):
@@ -224,6 +240,7 @@ class Spec(qmc_base.jastrow.Spec):
                         self.boson_number,
                         self.supercell_size,
                         self.tbf_contact_cutoff,
+                        self.defect_magnitude,
                         self.well_width,
                         self.barrier_width,
                         self.is_free,
@@ -477,8 +494,12 @@ def _potential(z: float, params: Params) -> float:
     """
     v0 = params.lattice_depth
     z_a = params.well_width
-    z_cell = z % 1.
-    return v0 if z_a < z_cell else 0.
+    v0d = params.defect_magnitude
+    n_cell, z_cell = divmod(z, 1)
+    if n_cell == 0:
+        return v0d if z_a < z_cell else 0.
+    else:
+        return v0 if z_a < z_cell else 0.
 
 
 @jit(nopython=True)
@@ -562,10 +583,11 @@ class CoreFuncs(qmc_base.jastrow.CoreFuncs):
                                   boson_number=int(model_params[3]),
                                   supercell_size=model_params[4],
                                   tbf_contact_cutoff=model_params[5],
-                                  well_width=model_params[6],
-                                  barrier_width=model_params[7],
-                                  is_free=bool(model_params[8]),
-                                  is_ideal=bool(model_params[9]))
+                                  defect_magnitude=model_params[6],
+                                  well_width=model_params[7],
+                                  barrier_width=model_params[8],
+                                  is_free=bool(model_params[9]),
+                                  is_ideal=bool(model_params[10]))
             return model_params
 
         return _model_params_reconstruct
@@ -658,10 +680,11 @@ class CoreFuncs(qmc_base.jastrow.CoreFuncs):
                                   boson_number=int(model_params[3]),
                                   supercell_size=model_params[4],
                                   tbf_contact_cutoff=model_params[5],
-                                  well_width=model_params[6],
-                                  barrier_width=model_params[7],
-                                  is_free=bool(model_params[8]),
-                                  is_ideal=bool(model_params[9]))
+                                  defect_magnitude=model_params[6],
+                                  well_width=model_params[7],
+                                  barrier_width=model_params[8],
+                                  is_free=bool(model_params[9]),
+                                  is_ideal=bool(model_params[10]))
 
             # OBF is a tuple of floats.
             obf_params = \
