@@ -1,20 +1,20 @@
+import typing as t
 from abc import ABCMeta, abstractmethod
-from typing import NamedTuple, Optional
 
 import numpy as np
 
 __all__ = [
     'CoreFuncs',
     'CoreFuncsMeta',
+    'Params',
     'PhysicalFuncs',
     'Spec',
     'SpecMeta',
-    'SpecNT',
     'WFOptimizer'
 ]
 
 
-class SpecNT(NamedTuple):
+class Params(metaclass=ABCMeta):
     """The parameters of the model."""
     pass
 
@@ -54,22 +54,16 @@ class Spec(metaclass=SpecMeta):
 
     @property
     @abstractmethod
-    def as_nt(self):
+    def params(self):
         pass
 
     @property
     @abstractmethod
-    def cfc_spec_nt(self):
+    def cfc_spec(self):
         """Tuple to be used as part of the arguments of the functions
         in the corresponding :class:`CoreFuncs` instance of the model
         (:attr:`Spec.core_funcs` attribute).
         """
-        pass
-
-    @property
-    @abstractmethod
-    def phys_funcs(self):
-        """Functions to calculate the main physical properties of a model."""
         pass
 
 
@@ -188,7 +182,7 @@ class WFOptimizer(metaclass=ABCMeta):
     ini_wf_abs_log_set: np.ndarray
 
     #: The energy of reference to minimize the variance of the local energy.
-    ref_energy: Optional[float]
+    ref_energy: t.Optional[float]
 
     @abstractmethod
     def update_spec(self, *args, **kwargs):

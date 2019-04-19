@@ -1,0 +1,76 @@
+#  Configuration of the CLI application.
+[meta]
+  name = "DMC Simulation for the Bloch-Phonon model."
+  author = "M.Sc. Omar Abel Rodríguez-López"
+  author_email = "oarodriguez@estudiantes.física.unam.mx"
+  institution = "PCF, IFUNAM, UNAM"
+  category = "Quantum Many-Body Systems"
+  tags = ["qmc", "dmc", "multi-rods"]
+
+
+#  ********************** First system  *************************
+[[app_spec]]
+  proc_id = 0
+
+[app_spec.proc]
+  time_step = 5e-3
+  num_batches = 16
+  num_time_steps_batch = 64
+  max_num_walkers = 512
+  target_num_walkers = 480
+
+[app_spec.proc.model_spec]
+  lattice_depth = 0
+  lattice_ratio = 1
+  interaction_strength = 1
+  boson_number = 24
+  supercell_size = 24.0
+  tbf_contact_cutoff = 12
+
+[app_spec.proc.ssf_spec]
+  num_modes = 24
+  as_pure_est = true
+  pfw_num_time_steps = 1024
+
+[app_spec.proc_input]
+  type = "MODEL_SYS_CONF"
+  dist_type = "RANDOM"
+
+[app_spec.proc_output]
+  type = "HDF5_FILE"
+  location = "./test-out-file-1.h5"
+  group = "dmc-exec-ID0"
+
+
+#  ********************** Second system  *************************
+[[app_spec]]
+  proc_id = 1
+
+[app_spec.proc]
+  time_step = 2.5e-3
+  num_batches = 256
+  num_time_steps_batch = 4096
+  max_num_walkers = 512
+  target_num_walkers = 480
+
+[app_spec.proc.model_spec]
+  lattice_depth = 0
+  lattice_ratio = 1
+  interaction_strength = 1
+  boson_number = 24
+  supercell_size = 24.0
+  tbf_contact_cutoff = 12
+
+[app_spec.proc.ssf_spec]
+  num_modes = 24
+  as_pure_est = true
+  pfw_num_time_steps = 1024
+
+[app_spec.proc_input]
+  type = "MODEL_SYS_CONF"
+  dist_type = "RANDOM"
+
+[app_spec.proc_output]
+  type = "HDF5_FILE"
+  location = "./test-out-file-2.h5"
+  group = "dmc-exec-ID1"

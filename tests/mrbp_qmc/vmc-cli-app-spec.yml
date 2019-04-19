@@ -1,0 +1,46 @@
+#  Metadata of the calculation.
+meta:
+  name: "DMC Simulation for the Bloch-Phonon model."
+  description: "A description..."
+  author: "M.Sc. Omar Abel Rodríguez-López"
+  institution: "PCF, IFUNAM, UNAM"
+  author_email: "oarodriguez@estudiantes.fisica.unam.mx"
+  category: "Quantum Many-Body Systems"
+  tags: ["qmc", "vmc", "multi-rods"]
+
+app_spec:
+
+  # First Diffusion Monte Carlo procedure.
+  - proc:
+
+      # The model spec.
+      model_spec:
+        lattice_depth: 24
+        lattice_ratio: 1
+        interaction_strength: 1.0
+        boson_number: 16
+        supercell_size: 16.0
+        tbf_contact_cutoff: 4
+
+      move_spread: 0.25
+      num_batches: 16
+      num_steps_batch: 64
+      burn_in_batches: null
+
+      # Static structure factor spec.
+      ssf_spec:
+        num_modes: 24
+
+    #
+    proc_input:
+      type: "MODEL_SYS_CONF"
+      dist_type: "RANDOM"
+
+    #
+    proc_output:
+      type: "HDF5_FILE"
+      location: "./test-vmc-out-file.h5"
+      group: "dmc-proc-ID0"
+      dump_replace: true
+
+    proc_id: 101

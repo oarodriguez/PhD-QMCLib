@@ -3,7 +3,7 @@
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 #
-from . import dmc, vmc
+from my_research_libs.mrbp_qmc import vmc, dmc
 
 #
-from .model import *
+from my_research_libs.mrbp_qmc.model import *
