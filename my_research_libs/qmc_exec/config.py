@@ -141,7 +141,8 @@ class Template:
     def environ(self):
         """"""
         self_loader = self.loader
-        return jinja2.Environment(loader=self_loader)
+        return jinja2.Environment(loader=self_loader, trim_blocks=True,
+                                  lstrip_blocks=True)
 
     def render(self, context: t.Mapping):
         """
