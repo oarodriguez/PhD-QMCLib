@@ -1,5 +1,5 @@
 import typing as t
-from abc import ABCMeta, abstractmethod
+from collections import Mapping
 
 import attr
 import h5py
@@ -26,18 +26,24 @@ __all__ = [
 ]
 
 
-class PropBlocks(metaclass=ABCMeta):
-    """Abstract class to represent data in blocks."""
+@attr.s(auto_attribs=True, frozen=True)
+class PropBlock:
+    """Represent a single block of data."""
+    num_time_steps: int
+    total: float
+    weight: t.Optional[float] = None
 
+
+T_PropBlocksItem = t.Union['PropBlock', 'PropBlocks']
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class PropBlocks(Mapping):
+    """Represent a series of data grouped in blocks."""
     num_blocks: int
-    num_time_steps_block: int
+    num_time_steps_block: int  # NOTE: I'm not sure if we need this
     totals: np.ndarray
-    weight_totals: t.Optional[np.ndarray] = None
-
-    @classmethod
-    @abstractmethod
-    def from_data(cls, *args, **kwargs):
-        pass
+    weight_totals: t.Optional[np.ndarray]
 
     @property
     def mean(self):
@@ -139,18 +145,47 @@ class PropBlocks(metaclass=ABCMeta):
         # noinspection PyArgumentList
         return cls(**data)
 
+    def __getitem__(self, index) -> T_PropBlocksItem:
+        """Retrieve single blocks, or a whole series."""
+        if isinstance(index, tuple):
+            if len(index) > 1:
+                raise TypeError("only one-element tuples are allowed")
 
-class UnWeightedPropBlocks(metaclass=ABCMeta):
+        nts_block = self.num_time_steps_block
+        if isinstance(index, int):
+            total = self.totals[index]
+            weight = self.weight_totals[index]
+            return PropBlock(nts_block, total, weight=weight)
+
+        totals = self.totals[index]
+        weight_totals = self.weight_totals[index]
+        num_blocks = len(totals)
+        # TODO: Retrieve an instance of type(self) for now.
+        return type(self)(num_blocks, nts_block, totals, weight_totals)
+
+    def __len__(self) -> int:
+        """Number of blocks."""
+        return len(self.totals)
+
+    def __iter__(self):
+        """Iterable interface."""
+        nts_block = self.num_time_steps_block
+        for index, total in enumerate(self.totals):
+            total = self.totals[index]
+            weight = self.weight_totals[index]
+            yield PropBlock(total, nts_block, weight=weight)
+
+
+T_UnWeightedPropBlockItem = t.Union['PropBlock', 'UnWeightedPropBlocks']
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class UnWeightedPropBlocks(Mapping):
     """Abstract class to represent data in blocks."""
 
     num_blocks: int
     num_time_steps_block: int
     totals: np.ndarray
-
-    @classmethod
-    @abstractmethod
-    def from_data(cls, *args, **kwargs):
-        pass
 
     @property
     def mean(self):
@@ -193,6 +228,33 @@ class UnWeightedPropBlocks(metaclass=ABCMeta):
         data.update(group.attrs.items())
         # noinspection PyArgumentList
         return cls(**data)
+
+    def __getitem__(self, index) -> T_UnWeightedPropBlockItem:
+        """Retrieve single blocks, or a whole series."""
+        if isinstance(index, tuple):
+            if len(index) > 1:
+                raise TypeError("only one-element tuples are allowed")
+
+        nts_block = self.num_time_steps_block
+        if isinstance(index, int):
+            total = self.totals[index]
+            return PropBlock(nts_block, total, weight=None)
+
+        totals = self.totals[index]
+        num_blocks = len(totals)
+        # TODO: Retrieve an instance of type(self) for now.
+        return type(self)(num_blocks, nts_block, totals)
+
+    def __len__(self) -> int:
+        """Number of blocks."""
+        return len(self.totals)
+
+    def __iter__(self):
+        """Iterable interface."""
+        nts_block = self.num_time_steps_block
+        for index, total in enumerate(self.totals):
+            total = self.totals[index]
+            yield PropBlock(nts_block, total, weight=None)
 
 
 @attr.s(auto_attribs=True, frozen=True)
