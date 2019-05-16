@@ -155,6 +155,10 @@ class Sampling(jsw_dmc.Sampling):
             rng_seed = int(utils.get_random_rng_seed())
             object.__setattr__(self, 'rng_seed', rng_seed)
 
+        nwc_factor = self.num_walkers_control_factor
+        if nwc_factor is None:
+            object.__setattr__(self, 'num_walkers_control_factor', 1.25e-1)
+
     @property
     def ddf_params(self) -> DDFParams:
         """Represent the diffusion-and-drift process parameters."""

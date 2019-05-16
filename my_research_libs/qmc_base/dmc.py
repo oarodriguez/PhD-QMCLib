@@ -8,11 +8,11 @@
 import enum
 import typing as t
 from abc import ABCMeta, abstractmethod
-from math import log
 
 import numba as nb
 import numpy as np
 from cached_property import cached_property
+from math import log
 from numpy import random
 
 CONF_INDEX = 0
@@ -287,25 +287,31 @@ class Sampling(metaclass=ABCMeta):
         """
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
+        nwc_factor = self.num_walkers_control_factor
         return self.core_funcs.states_generator(time_step, ini_state,
                                                 target_num_walkers,
-                                                self.rng_seed,
+                                                nwc_factor, self.rng_seed,
                                                 self.cfc_spec)
 
     def batches(self, ini_state: State,
-                num_time_steps_batch: int) -> T_SBatchesIter:
+                num_time_steps_batch: int,
+                burn_in_batches: int) -> T_SBatchesIter:
         """Generator of batches of states.
 
         :param ini_state: The initial state of the sampling.
         :param num_time_steps_batch:
+        :param burn_in_batches:
         :return:
         """
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
+        num_walkers_control_factor = self.num_walkers_control_factor
         return self.core_funcs.batches(time_step,
                                        ini_state,
-                                       num_time_steps_batch,
                                        target_num_walkers,
+                                       num_walkers_control_factor,
+                                       num_time_steps_batch,
+                                       burn_in_batches,
                                        self.rng_seed,
                                        self.cfc_spec)
 
@@ -319,10 +325,12 @@ class Sampling(metaclass=ABCMeta):
         """
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
+        nwc_factor = self.num_walkers_control_factor
         return self.core_funcs.confs_props_batches(time_step,
                                                    ini_state,
-                                                   num_time_steps_batch,
                                                    target_num_walkers,
+                                                   nwc_factor,
+                                                   num_time_steps_batch,
                                                    self.rng_seed,
                                                    self.cfc_spec)
 
@@ -592,6 +600,7 @@ class CoreFuncs(metaclass=ABCMeta):
         def _states_generator(time_step: float,
                               ini_state: State,
                               target_num_walkers: int,
+                              num_walkers_control_factor: float,
                               rng_seed: int,
                               cfc_spec: CFCSpec):
             """Realizes the DMC sampling state-by-state.
@@ -603,6 +612,7 @@ class CoreFuncs(metaclass=ABCMeta):
             :param ini_state:
             :param time_step:
             :param target_num_walkers:
+            :param num_walkers_control_factor:
             :param rng_seed:
             :param cfc_spec: The common spec to pass to the core functions
                 of the model.
@@ -611,6 +621,7 @@ class CoreFuncs(metaclass=ABCMeta):
             # The initial state fixes the arrays of the following states.
             max_num_walkers = ini_state.max_num_walkers
             prev_num_walkers = ini_state.num_walkers
+            nwc_factor = num_walkers_control_factor
 
             # Configurations and properties of the current
             # state of the sampling (the one that will be yielded).
@@ -676,9 +687,8 @@ class CoreFuncs(metaclass=ABCMeta):
 
                 # Update reference energy to avoid the explosion of the
                 # number of walkers.
-                # TODO: Pass the control factor (0.5) as an argument.
                 state_accum_energy = total_energy / total_weight
-                state_ref_energy = state_accum_energy - 0.5 * log(
+                state_ref_energy = state_accum_energy - nwc_factor * log(
                         state_weight / target_num_walkers) / time_step
 
                 yield build_state(actual_state_data,
@@ -721,16 +731,20 @@ class CoreFuncs(metaclass=ABCMeta):
         @nb.jit(nopython=True, nogil=True, fastmath=fastmath)
         def _batches(time_step: float,
                      ini_state: State,
-                     num_time_steps_batch: int,
                      target_num_walkers: int,
+                     num_walkers_control_factor: float,
+                     num_time_steps_batch: int,
+                     burn_in_batches: int,
                      rng_seed: int,
                      cfc_spec: CFCSpec):
             """
 
             :param time_step:
             :param ini_state:
-            :param num_time_steps_batch:
             :param target_num_walkers:
+            :param num_walkers_control_factor:
+            :param num_time_steps_batch:
+            :param burn_in_batches:
             :param rng_seed:
             :param cfc_spec:
             :return:
@@ -768,7 +782,11 @@ class CoreFuncs(metaclass=ABCMeta):
             # Create a new sampling generator.
             generator = states_generator(time_step, ini_state,
                                          target_num_walkers,
+                                         num_walkers_control_factor,
                                          rng_seed, cfc_spec)
+
+            # Counter for batches.
+            batch_idx = 0
 
             # Yield indefinitely 🤔.
             while True:
@@ -794,6 +812,10 @@ class CoreFuncs(metaclass=ABCMeta):
                 # We use an initial index instead enumerate.
                 step_idx = 0
 
+                # We do not want to calculate any property if the
+                # batch should be burned. Only do the sampling.
+                should_burn_batch = batch_idx < burn_in_batches
+
                 for state in generator:
 
                     # Copy other data to keep track of the evolution.
@@ -803,17 +825,20 @@ class CoreFuncs(metaclass=ABCMeta):
                     iter_ref_energies[step_idx] = state.ref_energy
                     iter_accum_energies[step_idx] = state.accum_energy
 
-                    # Evaluate the Density.
-                    if not density_params.assume_none:
-                        #
-                        density(step_idx, state,
-                                cfc_spec, density_est_data)
+                    # Evaluate estimators only when needed.
+                    if not should_burn_batch:
 
-                    # Evaluate the Static Structure Factor.
-                    if not ssf_params.assume_none:
-                        #
-                        fourier_density(step_idx, state,
-                                        cfc_spec, ssf_est_data)
+                        # Evaluate the Density.
+                        if not density_params.assume_none:
+                            #
+                            density(step_idx, state,
+                                    cfc_spec, density_est_data)
+
+                        # Evaluate the Static Structure Factor.
+                        if not ssf_params.assume_none:
+                            #
+                            fourier_density(step_idx, state,
+                                            cfc_spec, ssf_est_data)
 
                     # Stop/pause the iteration.
                     if step_idx + 1 >= nts_batch:
@@ -841,6 +866,9 @@ class CoreFuncs(metaclass=ABCMeta):
                     # Counter goes up 🙂.
                     step_idx += 1
 
+                # Increase batch counter.
+                batch_idx += 1
+
         return _batches
 
     @cached_property
@@ -861,16 +889,18 @@ class CoreFuncs(metaclass=ABCMeta):
         @nb.jit(nopython=True, nogil=True, fastmath=fastmath)
         def _batches(time_step: float,
                      ini_state: State,
-                     num_time_steps_batch: int,
                      target_num_walkers: int,
+                     num_walkers_control_factor: float,
+                     num_time_steps_batch: int,
                      rng_seed: int,
                      cfc_spec: CFCSpec):
             """The DMC sampling generator.
 
             :param time_step:
-            :param num_time_steps_batch:
             :param ini_state:
             :param target_num_walkers:
+            :param num_walkers_control_factor:
+            :param num_time_steps_batch:
             :param rng_seed:
             :param cfc_spec:
             :return:
@@ -911,7 +941,8 @@ class CoreFuncs(metaclass=ABCMeta):
             # Create a new sampling generator.
             generator = \
                 states_generator(time_step, ini_state, target_num_walkers,
-                                 rng_seed, cfc_spec)
+                                 num_walkers_control_factor, rng_seed,
+                                 cfc_spec)
 
             # Yield batches indefinitely.
             while True:

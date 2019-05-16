@@ -237,7 +237,8 @@ class Proc(metaclass=ABCMeta):
 
         # The estimator sampling iterator.
         ini_state = proc_input.state
-        batches_iter = sampling.batches(ini_state, num_time_steps_batch)
+        batches_iter = sampling.batches(ini_state, num_time_steps_batch,
+                                        burn_in_batches)
 
         # Current batch data.
         batch_data = None

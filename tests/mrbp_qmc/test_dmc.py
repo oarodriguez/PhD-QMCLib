@@ -36,6 +36,7 @@ vmc_ini_state = vmc_sampling.build_state(ini_sys_conf)
 time_step = 1e-3
 num_batches = 4
 num_time_steps_batch = 512
+burn_in_batches = 2
 target_num_walkers = 480
 max_num_walkers = 512
 ini_ref_energy = None
@@ -99,7 +100,8 @@ def test_batches():
     ini_sys_conf_set = sys_conf_set[-100:]
     dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
     sampling_batches = \
-        dmc_sampling.batches(dmc_ini_state, num_time_steps_batch)
+        dmc_sampling.batches(dmc_ini_state, num_time_steps_batch,
+                             burn_in_batches)
 
     dmc_sampling_batches: dmc_base.T_SBatchesIter = \
         islice(sampling_batches, num_batches)
@@ -154,7 +156,8 @@ def test_density_est():
     dmc_density_sampling = attr.evolve(dmc_sampling,
                                        density_est_spec=density_est_spec)
     dmc_es_batches = dmc_density_sampling.batches(dmc_ini_state,
-                                                  num_time_steps_batch)
+                                                  num_time_steps_batch,
+                                                  burn_in_batches)
 
     es_batches: dmc_base.T_SBatchesIter = \
         islice(dmc_es_batches, num_batches)
@@ -196,7 +199,8 @@ def test_dmc_est_sampling():
     ssf_est_spec = mrbp_qmc.dmc.SSFEstSpec(num_modes)
     dmc_ssf_sampling = attr.evolve(dmc_sampling, ssf_est_spec=ssf_est_spec)
     dmc_es_batches = dmc_ssf_sampling.batches(dmc_ini_state,
-                                              num_time_steps_batch)
+                                              num_time_steps_batch,
+                                              burn_in_batches)
 
     es_batches: dmc_base.T_SBatchesIter = \
         islice(dmc_es_batches, num_batches)
