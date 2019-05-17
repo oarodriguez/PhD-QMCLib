@@ -1,11 +1,36 @@
 # CHANGELOG
 
+## [🔖 Version 0.12.0] - 2019-05-16
+
+### ✨ Added
+
+- Avoid the evaluation of any QMC estimator during the _burn-in_ phase.
+- Implement the ``num_walkers_control_factor`` in DMC samplings. This attribute
+  affects how fast the population of walkers changes.
+- Implement the ``Mapping`` interface to the classes to handle DMC and VMC
+  sampling data.
+
+### 🎨 Changed
+
+- Avoid unnecessary whitespace when rendering in Jinja2 configuration
+  templates.
+
+### ❌ Deprecated
+
+- Attributes ``num_batches``, ``num_time_steps_batch`` and ``burn_in_batches``
+  for DMC Samplings. Instead, use ``num_blocks``, ``num_time_steps_block`` and
+  ``burn_in_blocks``
+- Attributes ``num_batches``, ``num_steps_batch`` and ``burn_in_batches``
+  for VMC Samplings. Instead, use ``num_blocks``, ``num_steps_block`` and ``burn_in_blocks``
+
+### 🐛 Fixed
+
+- Fix a numba error in Windows where plain ``int`` type is considered the
+  ``np.int32`` numpy dtype.
+
+---
+
 ## Version 0.11.0
-
-Main changes in this version:
-
-- Add a ``Record`` class to ease the construction of numpy structured arrays
-  from annotated ``attr`` classes.
 
 For the analysis of the properties of the "multi-rods Bloch-Phonon" model (MR-BP):
 
