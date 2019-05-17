@@ -1,10 +1,10 @@
 import typing as t
-from math import sqrt
 
 import attr
 import numba as nb
 import numpy as np
 from cached_property import cached_property
+from math import sqrt
 from matplotlib import pyplot
 from numpy.linalg import norm
 
@@ -185,16 +185,16 @@ class CoreFuncs(vmc_ndf.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @nb.njit
-        def _init_ssf_est_data(num_steps_batch: int,
+        def _init_ssf_est_data(num_steps_block: int,
                                cfc_spec: CFCSpec):
             """
 
-            :param num_steps_batch:
+            :param num_steps_block:
             :param cfc_spec:
             :return:
             """
             momenta = np.zeros((1,), dtype=np.float64)
-            iter_ssf_array = np.zeros((num_steps_batch, 1), dtype=np.float64)
+            iter_ssf_array = np.zeros((num_steps_block, 1), dtype=np.float64)
             return vmc_udf.SSFExecData(momenta, iter_ssf_array)
 
         return _init_ssf_est_data
@@ -381,17 +381,17 @@ def test_sampling():
     print(sys_conf_set)
 
 
-def test_batches():
-    """Test the sampling batches of states."""
-    num_batches = 64
-    num_steps_batch = 4096
-    batches_enum: vmc_udf.T_E_SBatchesIter = \
-        enumerate(sampling.batches(num_steps_batch, ini_state))
+def test_blocks():
+    """Test the sampling blocks of states."""
+    num_blocks = 64
+    num_steps_block = 4096
+    blocks_enum: vmc_udf.T_E_SBlocksIter = \
+        enumerate(sampling.blocks(num_steps_block, ini_state))
 
-    for bj_, batch_data in batches_enum:
-        ar = batch_data.accept_rate
+    for bj_, block_data in blocks_enum:
+        ar = block_data.accept_rate
         print(f"Sampling acceptance rate: {ar:.5g}")
-        if bj_ + 1 >= num_batches:
+        if bj_ + 1 >= num_blocks:
             break
 
 

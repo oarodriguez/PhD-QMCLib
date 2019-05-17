@@ -6,12 +6,18 @@ from collections import Sequence
 
 import jinja2
 import toml
-import yaml
+from ruamel_yaml import YAML
 
 CONFIG_FILE_EXTENSIONS = ('.yml', '.yaml', '.toml')
 YAML_EXTENSIONS = ('.yml', '.yaml')
 
 UNIX_NEWLINE = '\n'
+
+# yaml object definition.
+yaml = YAML()
+yaml.allow_unicode = True
+yaml.indent = 4
+yaml.default_flow_style = False
 
 
 class Loader:
@@ -45,7 +51,7 @@ class Loader:
 
         with path.open('r') as fp:
             if assume_yaml:
-                config_data = yaml.safe_load(fp)
+                config_data = yaml.load(fp)
             else:
                 config_data = toml.load(fp)
 
@@ -135,7 +141,8 @@ class Template:
     def environ(self):
         """"""
         self_loader = self.loader
-        return jinja2.Environment(loader=self_loader)
+        return jinja2.Environment(loader=self_loader, trim_blocks=True,
+                                  lstrip_blocks=True)
 
     def render(self, context: t.Mapping):
         """
@@ -164,8 +171,6 @@ class Template:
 
         # Save the configuration data.
         # NOTE: We could use config_file.write instead...
-        config = yaml.safe_load(self.render(context))
+        config = yaml.load(self.render(context))
         with config_file:
-            yaml.safe_dump(config, stream=config_file,
-                           default_flow_style=False,
-                           indent=4, allow_unicode=True)
+            yaml.dump(config, stream=config_file)

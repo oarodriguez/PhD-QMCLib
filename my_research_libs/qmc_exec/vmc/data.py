@@ -1,5 +1,5 @@
 import typing as t
-from abc import ABCMeta, abstractmethod
+from collections import Mapping
 
 import attr
 import h5py
@@ -11,17 +11,23 @@ from my_research_libs.qmc_base.vmc import SSFPartSlot
 from my_research_libs.stats import reblock
 
 
-class PropBlocks(metaclass=ABCMeta):
+@attr.s(auto_attribs=True, frozen=True)
+class PropBlock:
+    """Represent a single block of data."""
+    num_steps: int
+    total: float
+
+
+T_PropBlocksItem = t.Union['PropBlock', 'PropBlocks']
+
+
+@attr.s(auto_attribs=True, frozen=True)
+class PropBlocks(Mapping):
     """Abstract class to represent data in blocks."""
 
     num_blocks: int
     num_steps_block: int
     totals: np.ndarray
-
-    @classmethod
-    @abstractmethod
-    def from_data(cls, *args, **kwargs):
-        pass
 
     @property
     def mean(self):
@@ -66,6 +72,33 @@ class PropBlocks(metaclass=ABCMeta):
         data.update(group.attrs.items())
         # noinspection PyArgumentList
         return cls(**data)
+
+    def __getitem__(self, index) -> T_PropBlocksItem:
+        """Retrieve single blocks, or a whole series."""
+        if isinstance(index, tuple):
+            if len(index) > 1:
+                raise TypeError("only one-element tuples are allowed")
+
+        ns_block = self.num_steps_block
+        if isinstance(index, int):
+            total = self.totals[index]
+            return PropBlock(ns_block, total)
+
+        totals = self.totals[index]
+        num_blocks = len(totals)
+        # TODO: Retrieve an instance of type(self) for now.
+        return type(self)(num_blocks, ns_block, totals)
+
+    def __len__(self) -> int:
+        """Number of blocks."""
+        return len(self.totals)
+
+    def __iter__(self):
+        """Iterable interface."""
+        nts_block = self.num_steps_block
+        for index, total in enumerate(self.totals):
+            total = self.totals[index]
+            yield PropBlock(nts_block, total)
 
 
 @attr.s(auto_attribs=True, frozen=True)

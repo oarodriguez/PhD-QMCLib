@@ -39,11 +39,11 @@ DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
 @attr.s(auto_attribs=True, frozen=True)
 class Params(qmc_base.jastrow.Params, Record):
     """The model `Spec` as a named tuple."""
-
+    # TODO: Add a more robust type system for the parameters.
     lattice_depth: float
     lattice_ratio: float
     interaction_strength: float
-    boson_number: int
+    boson_number: np.int64
     supercell_size: float
     tbf_contact_cutoff: float
     well_width: float
@@ -296,7 +296,7 @@ class Spec(qmc_base.jastrow.Spec):
         # consistent with the Lieb-Liniger theory.
         a1d = 2.0 / (lgm * nop)
 
-        # Type hint...
+        # noinspection PyTypeChecker
         k2rm: float = brentq(_nonlinear_equation, 0, pi / 2, args=(a1d,))
 
         beta_rm = (

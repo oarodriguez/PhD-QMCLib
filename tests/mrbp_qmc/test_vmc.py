@@ -37,24 +37,24 @@ def test_sampling():
     :return:
     """
     # TODO: Improve this test.
-    num_batches = 8
-    num_steps_batch = 128
-    batches = vmc_sampling.batches(num_steps_batch, ini_state)
-    batch_idx = 0
+    num_blocks = 8
+    num_steps_block = 128
+    blocks = vmc_sampling.blocks(num_steps_block, ini_state)
+    block_idx = 0
     energy_data = []
-    for batch_data in batches:
-        iter_props = batch_data.iter_props
-        energy_batch = iter_props[IterProp.ENERGY]
-        energy_data.append(energy_batch)
-        if batch_idx + 1 >= num_batches:
+    for block_data in blocks:
+        iter_props = block_data.iter_props
+        energy_block = iter_props[IterProp.ENERGY]
+        energy_data.append(energy_block)
+        if block_idx + 1 >= num_blocks:
             break
-        batch_idx += 1
+        block_idx += 1
     energy_data = np.hstack(energy_data)
 
     print(energy_data.mean(), energy_data.var(ddof=1))
 
 
-def test_confs_props_batches():
+def test_confs_props_blocks():
     """
 
     :return:
@@ -94,37 +94,37 @@ def test_confs_props_batches():
     print(sys_confs_set)
 
 
-def test_batches():
-    """Testing the generator of batches.
+def test_blocks():
+    """Testing the generator of blocks.
 
     :return:
     """
     # TODO: Improve this test.
-    num_batches = 2
-    num_steps_batch = 4096
+    num_blocks = 2
+    num_steps_block = 4096
 
-    # Both samplings (in batches and as_chain) have a total number
-    # of steps of ``num_batches * num_steps_batch``, but the first
-    # batch will be discarded, so the effective number is
-    # ``(num_batches - 1) * num_steps_batch``.
-    num_steps = num_batches * num_steps_batch
-    eff_num_steps = (num_batches - 1) * num_steps_batch
+    # Both samplings (in blocks and as_chain) have a total number
+    # of steps of ``num_blocks * num_steps_block``, but the first
+    # block will be discarded, so the effective number is
+    # ``(num_blocks - 1) * num_steps_block``.
+    num_steps = num_blocks * num_steps_block
+    eff_num_steps = (num_blocks - 1) * num_steps_block
 
-    sampling_batches = vmc_sampling.batches(num_steps_batch, ini_state)
+    sampling_blocks = vmc_sampling.blocks(num_steps_block, ini_state)
     accepted = 0.
-    for states_batch in islice(sampling_batches, 1, num_batches):
-        accept_rate = states_batch.accept_rate
-        accepted += accept_rate * num_steps_batch
-    batches_accept_rate = accepted / eff_num_steps
+    for states_block in islice(sampling_blocks, 1, num_blocks):
+        accept_rate = states_block.accept_rate
+        accepted += accept_rate * num_steps_block
+    blocks_accept_rate = accepted / eff_num_steps
 
     move_stat_field = mrbp_qmc.vmc.StateProp.MOVE_STAT
     states_data = vmc_sampling.as_chain(num_steps, ini_state)
-    sys_props_set = states_data.props[num_steps_batch:]
+    sys_props_set = states_data.props[num_steps_block:]
     accepted = np.count_nonzero(sys_props_set[move_stat_field])
     chain_accept_rate = accepted / eff_num_steps
 
     # Both acceptance ratios should be equal.
-    assert batches_accept_rate == chain_accept_rate
+    assert blocks_accept_rate == chain_accept_rate
 
 
 if __name__ == '__main__':

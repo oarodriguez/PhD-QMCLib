@@ -1,4 +1,5 @@
 import typing as t
+import warnings
 
 import attr
 import numpy as np
@@ -180,17 +181,17 @@ class Proc(dmc_exec.Proc):
                                         converter=opt_int_converter,
                                         validator=opt_int_validator)
 
-    num_batches: int = attr.ib(default=512,
-                               converter=int_converter,
-                               validator=int_validator)  # 2^9
+    num_blocks: int = attr.ib(default=512,
+                              converter=int_converter,
+                              validator=int_validator)  # 2^9
 
-    num_time_steps_batch: int = attr.ib(default=512,
+    num_time_steps_block: int = attr.ib(default=512,
                                         converter=int_converter,
                                         validator=int_validator)  # 2^9
 
-    burn_in_batches: t.Optional[int] = attr.ib(default=None,
-                                               converter=opt_int_converter,
-                                               validator=opt_int_validator)
+    burn_in_blocks: t.Optional[int] = attr.ib(default=None,
+                                              converter=opt_int_converter,
+                                              validator=opt_int_validator)
 
     keep_iter_data: bool = attr.ib(default=False,
                                    converter=bool_converter,
@@ -231,6 +232,33 @@ class Proc(dmc_exec.Proc):
         """
         self_config = dict(config)
 
+        # Add support for num_batches alias for num_blocks.
+        if 'num_batches' in self_config:
+            # WARNING ⚠⚠⚠
+            warnings.warn("num_batches attribute is deprecated, use "
+                          "num_blocks instead", DeprecationWarning)
+            # WARNING ⚠⚠⚠
+            num_blocks = self_config.pop('num_batches')
+            self_config['num_blocks'] = num_blocks
+
+        # Add support for num_time_steps_batch alias for num_time_steps_block.
+        if 'num_time_steps_batch' in self_config:
+            # WARNING ⚠⚠⚠
+            warnings.warn("num_time_steps_batch attribute is deprecated, use "
+                          "num_time_steps_block instead", DeprecationWarning)
+            # WARNING ⚠⚠⚠
+            nts_block = self_config.pop('num_time_steps_batch')
+            self_config['num_time_steps_block'] = nts_block
+
+        # Add support for burn_in_batches alias for burn_in_blocks.
+        if 'burn_in_batches' in self_config:
+            # WARNING ⚠⚠⚠
+            warnings.warn("burn_in_batches attribute is deprecated, use "
+                          "burn_in_blocks instead", DeprecationWarning)
+            # WARNING ⚠⚠⚠
+            nts_block = self_config.pop('burn_in_batches')
+            self_config['burn_in_blocks'] = nts_block
+
         # Extract the model spec.
         model_spec_config = self_config.pop('model_spec')
         model_spec = model.Spec(**model_spec_config)
@@ -253,12 +281,12 @@ class Proc(dmc_exec.Proc):
 
         # Aliases for jit_parallel and jit_fastmath.
         if 'parallel' in self_config:
-            parallel = self_config.pop('parallel')
-            self_config['jit_parallel'] = parallel
+            num_blocks = self_config.pop('parallel')
+            self_config['jit_parallel'] = num_blocks
 
         if 'fastmath' in self_config:
-            fastmath = self_config.pop('fastmath')
-            self_config['jit_fastmath'] = fastmath
+            nts_block = self_config.pop('fastmath')
+            self_config['jit_fastmath'] = nts_block
 
         dmc_proc = cls(model_spec=model_spec,
                        density_spec=density_est_spec,
@@ -309,7 +337,7 @@ class Proc(dmc_exec.Proc):
 
         :return:
         """
-        pfw_num_time_steps = self.num_time_steps_batch
+        pfw_num_time_steps = self.num_time_steps_block
 
         if self.should_eval_density:
             density_spec = self.density_spec

@@ -63,14 +63,14 @@ class Proc(metaclass=ABCMeta):
     #: The seed of the pseudo-RNG used to explore the configuration space.
     rng_seed: t.Optional[int]
 
-    #: The number of batches of the sampling.
-    num_batches: int
+    #: The number of blocks of the sampling.
+    num_blocks: int
 
-    #: Number of steps per batch.
-    num_steps_batch: int
+    #: Number of steps per block.
+    num_steps_block: int
 
-    #: The number of batches to discard.
-    burn_in_batches: t.Optional[int]
+    #: The number of blocks to discard.
+    burn_in_blocks: t.Optional[int]
 
     #: Keep the estimator values for all the time steps.
     keep_iter_data: bool
@@ -103,11 +103,11 @@ class Proc(metaclass=ABCMeta):
         """Describe the VMC sampling."""
         move_spread = self.move_spread
         rng_seed = self.rng_seed
-        num_batches = self.num_batches
-        num_steps_batch = self.num_steps_batch
+        num_blocks = self.num_blocks
+        num_steps_block = self.num_steps_block
 
-        exec_logger.info(f'Sampling {num_batches} batches of steps...')
-        exec_logger.info(f'Sampling {num_steps_batch} steps per batch...')
+        exec_logger.info(f'Sampling {num_blocks} blocks of steps...')
+        exec_logger.info(f'Sampling {num_steps_block} steps per block...')
         exec_logger.info(f'Using uniform random moves of maximum spread '
                          f'{move_spread} LKP...')
         if rng_seed is None:
@@ -138,13 +138,13 @@ class Proc(metaclass=ABCMeta):
         wf_abs_log_field = vmc_base.IterProp.WF_ABS_LOG
         energy_field = vmc_base.IterProp.ENERGY
 
-        num_batches = self.num_batches
-        num_steps_batch = self.num_steps_batch
-        burn_in_batches = self.burn_in_batches
+        num_blocks = self.num_blocks
+        num_steps_block = self.num_steps_block
+        burn_in_blocks = self.burn_in_blocks
         keep_iter_data = self.keep_iter_data
 
         # Alias 😐.
-        ns_batch = num_steps_batch
+        ns_block = num_steps_block
 
         # Static structure factor configuration.
         ssf_spec = self.ssf_spec
@@ -161,39 +161,39 @@ class Proc(metaclass=ABCMeta):
             raise ProcInputError('the input data for the VMC procedure is '
                                  'not valid')
         ini_state = proc_input.state
-        batches_iter = sampling.batches(num_steps_batch, ini_state)
+        blocks_iter = sampling.blocks(num_steps_block, ini_state)
 
-        # By default burn-in all but the last batch.
+        # By default burn-in all but the last block.
         # We will burn-in the first ten percent of the sampling chain.
-        if burn_in_batches is None:
-            burn_in_batches = num_batches // 8
+        if burn_in_blocks is None:
+            burn_in_blocks = num_blocks // 8
         else:
-            burn_in_batches = burn_in_batches
+            burn_in_blocks = burn_in_blocks
 
-        # Current batch data.
-        batch_data = None
+        # Current block data.
+        block_data = None
 
-        if burn_in_batches:
+        if burn_in_blocks:
             # Burn-in stage.
             exec_logger.info('Executing VMC burn-in stage...')
-            exec_logger.info(f'A total of {burn_in_batches} batches will be '
+            exec_logger.info(f'A total of {burn_in_blocks} blocks will be '
                              f'discarded.')
 
-            pgs_bar = tqdm.tqdm(total=burn_in_batches, dynamic_ncols=True)
+            pgs_bar = tqdm.tqdm(total=burn_in_blocks, dynamic_ncols=True)
             with pgs_bar:
-                for batch_data in islice(batches_iter, burn_in_batches):
-                    # Burn batches...
+                for block_data in islice(blocks_iter, burn_in_blocks):
+                    # Burn blocks...
                     pgs_bar.update()
 
             exec_logger.info('Burn-in stage completed.')
         else:
-            exec_logger.info(f'No burn-in batches requested.')
+            exec_logger.info(f'No burn-in blocks requested.')
 
         # Main containers of data.
         if keep_iter_data:
-            iter_props_shape = num_batches, ns_batch
+            iter_props_shape = num_blocks, ns_block
         else:
-            iter_props_shape = num_batches,
+            iter_props_shape = num_blocks,
 
         props_blocks_data = \
             np.empty(iter_props_shape, dtype=vmc_base.iter_props_dtype)
@@ -209,49 +209,49 @@ class Proc(metaclass=ABCMeta):
 
             if keep_iter_data:
                 ssf_shape = \
-                    num_batches, ns_batch, ssf_num_modes, ssf_num_parts
+                    num_blocks, ns_block, ssf_num_modes, ssf_num_parts
             else:
-                ssf_shape = num_batches, ssf_num_modes, ssf_num_parts
+                ssf_shape = num_blocks, ssf_num_modes, ssf_num_parts
 
-            # S(k) batch.
+            # S(k) block.
             ssf_blocks_data = np.zeros(ssf_shape, dtype=np.float64)
 
         else:
             ssf_blocks_data = None
 
-        # The effective batches to calculate the estimators.
-        eff_batches: vmc_base.T_SBatchesIter = \
-            islice(batches_iter, num_batches)
+        # The effective blocks to calculate the estimators.
+        eff_blocks: vmc_base.T_SBlocksIter = \
+            islice(blocks_iter, num_blocks)
 
-        # Enumerated effective batches.
-        enum_eff_batches: vmc_base.T_E_SBatchesIter \
-            = enumerate(eff_batches)
+        # Enumerated effective blocks.
+        enum_eff_blocks: vmc_base.T_E_SBlocksIter \
+            = enumerate(eff_blocks)
 
-        # Get the last batch.
-        pgs_bar = tqdm.tqdm(total=num_batches, dynamic_ncols=True)
+        # Get the last block.
+        pgs_bar = tqdm.tqdm(total=num_blocks, dynamic_ncols=True)
         with pgs_bar:
-            for batch_idx, batch_data in enum_eff_batches:
+            for block_idx, block_data in enum_eff_blocks:
                 #
-                batch_props = batch_data.iter_props
-                wf_abs_log: np.ndarray = batch_props[wf_abs_log_field]
-                energy: np.ndarray = batch_props[energy_field]
+                block_props = block_data.iter_props
+                wf_abs_log: np.ndarray = block_props[wf_abs_log_field]
+                energy: np.ndarray = block_props[energy_field]
 
                 if keep_iter_data:
                     # Store all the information of the DMC sampling.
-                    props_blocks_data[batch_idx] = batch_props[:]
+                    props_blocks_data[block_idx] = block_props[:]
                 else:
-                    props_energy[batch_idx] = energy.mean()
-                    props_wf_abs_log[batch_idx] = wf_abs_log.mean()
+                    props_energy[block_idx] = energy.mean()
+                    props_wf_abs_log[block_idx] = wf_abs_log.mean()
 
                 if should_eval_ssf:
                     # Get the static structure factor data.
-                    iter_ssf_array = batch_data.iter_ssf
+                    iter_ssf_array = block_data.iter_ssf
                     if keep_iter_data:
                         # Keep a copy of the generated data of the sampling.
-                        ssf_blocks_data[batch_idx] = iter_ssf_array[:]
+                        ssf_blocks_data[block_idx] = iter_ssf_array[:]
                     else:
                         # Make the reduction.
-                        ssf_blocks_data[batch_idx] = \
+                        ssf_blocks_data[block_idx] = \
                             iter_ssf_array.mean(axis=0)
 
                 pgs_bar.update()
@@ -260,21 +260,21 @@ class Proc(metaclass=ABCMeta):
         exec_logger.info('VMC Sampling completed.')
 
         # Pick the last state
-        if batch_data is None:
+        if block_data is None:
             last_state = None
         else:
-            last_state = batch_data.last_state
+            last_state = block_data.last_state
 
         # Create block objects with the totals of each block data.
         reduce_data = True if keep_iter_data else False
 
         energy_blocks = \
-            EnergyBlocks.from_data(num_batches, ns_batch,
+            EnergyBlocks.from_data(num_blocks, ns_block,
                                    props_blocks_data, reduce_data)
 
         if should_eval_ssf:
             ssf_blocks = \
-                SSFBlocks.from_data(num_batches, ns_batch,
+                SSFBlocks.from_data(num_blocks, ns_block,
                                     ssf_blocks_data, reduce_data)
         else:
             ssf_blocks = None
