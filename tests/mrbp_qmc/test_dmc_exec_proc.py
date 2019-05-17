@@ -24,8 +24,8 @@ model_spec = Spec(lattice_depth=lattice_depth,
 def test_proc():
     """Testing the main task to realize a DMC calculation."""
     time_step = 6.25e-4
-    num_batches = 4
-    num_time_steps_batch = 4096
+    num_blocks = 4
+    num_time_steps_block = 4096
     target_num_walkers = 480
     max_num_walkers = 512
     # ini_ref_energy = None
@@ -37,8 +37,8 @@ def test_proc():
                       max_num_walkers,
                       target_num_walkers,
                       rng_seed=rng_seed,
-                      num_batches=num_batches,
-                      num_time_steps_batch=num_time_steps_batch)
+                      num_blocks=num_blocks,
+                      num_time_steps_block=num_time_steps_block)
 
     sys_conf_spec = dmc_exec.ModelSysConfSpec(dist_type='RANDOM')
     dmc_proc_input = \
@@ -52,8 +52,8 @@ def test_proc():
 def test_density_proc():
     """Testing the calculation of the density."""
     time_step = 6.25e-4
-    num_batches = 2
-    num_time_steps_batch = 512
+    num_blocks = 2
+    num_time_steps_block = 512
     target_num_walkers = 480
     max_num_walkers = 512
     # ini_ref_energy = None
@@ -67,8 +67,8 @@ def test_density_proc():
                       max_num_walkers,
                       target_num_walkers,
                       rng_seed=rng_seed,
-                      num_batches=num_batches,
-                      num_time_steps_batch=num_time_steps_batch,
+                      num_blocks=num_blocks,
+                      num_time_steps_block=num_time_steps_block,
                       density_spec=density_spec)
 
     sys_conf_spec = dmc_exec.ModelSysConfSpec(dist_type='RANDOM')
@@ -95,8 +95,8 @@ def test_density_proc():
 def test_ssf_proc():
     """Testing the calculation of the static structure factor."""
     time_step = 6.25e-4
-    num_batches = 2
-    num_time_steps_batch = 512
+    num_blocks = 2
+    num_time_steps_block = 512
     target_num_walkers = 480
     max_num_walkers = 512
     # ini_ref_energy = None
@@ -110,8 +110,8 @@ def test_ssf_proc():
                       max_num_walkers,
                       target_num_walkers,
                       rng_seed=rng_seed,
-                      num_batches=num_batches,
-                      num_time_steps_batch=num_time_steps_batch,
+                      num_blocks=num_blocks,
+                      num_time_steps_block=num_time_steps_block,
                       ssf_spec=ssf_spec)
 
     sys_conf_spec = dmc_exec.ModelSysConfSpec(dist_type='RANDOM')

@@ -250,7 +250,7 @@ class CoreFuncs(jsw_vmc_udf.CoreFuncs):
         ssf_num_parts = len(qmc_base.vmc.SSFPartSlot.__members__)
 
         @jit(nopython=True)
-        def _init_ssf_est_data(num_steps_batch: int,
+        def _init_ssf_est_data(num_steps_block: int,
                                cfc_spec: CFCSpec):
             """
 
@@ -265,7 +265,7 @@ class CoreFuncs(jsw_vmc_udf.CoreFuncs):
                 i_ssf_shape = 1, 1, ssf_num_parts
             else:
                 num_modes = ssf_params.num_modes
-                i_ssf_shape = num_steps_batch, num_modes, ssf_num_parts
+                i_ssf_shape = num_steps_block, num_modes, ssf_num_parts
 
             ssf_momenta = np.arange(num_modes) * 2 * pi / supercell_size
             iter_ssf_array = np.empty(i_ssf_shape, dtype=np.float64)

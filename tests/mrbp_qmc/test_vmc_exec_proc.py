@@ -25,13 +25,13 @@ def test_proc():
     """Testing the main task to realize a DMC calculation."""
     move_spread = 0.25 * model_spec.well_width
     rng_seed = None
-    num_batches = 64
-    num_steps_batch = 4096
+    num_blocks = 64
+    num_steps_block = 4096
     vmc_proc = vmc_exec.Proc(model_spec,
                              move_spread,
                              rng_seed=rng_seed,
-                             num_batches=num_batches,
-                             num_steps_batch=num_steps_batch,
+                             num_blocks=num_blocks,
+                             num_steps_block=num_steps_block,
                              keep_iter_data=True)
 
     sys_conf_spec = vmc_exec.ModelSysConfSpec(dist_type='RANDOM')
@@ -64,15 +64,15 @@ def test_ssf_proc():
     """Testing the main task to realize a DMC calculation."""
     move_spread = 0.25 * model_spec.well_width
     rng_seed = None
-    num_batches = 128
-    num_steps_batch = 4096
+    num_blocks = 128
+    num_steps_block = 4096
     num_modes = 2 * boson_number
     ssf_est_spec = vmc_exec.SSFEstSpec(num_modes=num_modes)
     vmc_proc = vmc_exec.Proc(model_spec,
                              move_spread,
                              rng_seed=rng_seed,
-                             num_batches=num_batches,
-                             num_steps_batch=num_steps_batch,
+                             num_blocks=num_blocks,
+                             num_steps_block=num_steps_block,
                              ssf_spec=ssf_est_spec,
                              keep_iter_data=True)
 

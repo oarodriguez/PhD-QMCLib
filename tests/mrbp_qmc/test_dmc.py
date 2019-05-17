@@ -34,9 +34,9 @@ vmc_sampling = \
 vmc_ini_state = vmc_sampling.build_state(ini_sys_conf)
 
 time_step = 1e-3
-num_batches = 4
-num_time_steps_batch = 512
-burn_in_batches = 2
+num_blocks = 4
+num_time_steps_block = 512
+burn_in_blocks = 2
 target_num_walkers = 480
 max_num_walkers = 512
 ini_ref_energy = None
@@ -75,7 +75,7 @@ def test_states():
     print(f"Acceptance ratio: {ar_:.5g}")
 
     ini_sys_conf_set = sys_conf_set[-100:]
-    num_time_steps = num_batches * num_time_steps_batch
+    num_time_steps = num_blocks * num_time_steps_block
     dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
 
     states = dmc_sampling.states(dmc_ini_state)
@@ -90,7 +90,7 @@ def test_states():
         print(i_, state_props)
 
 
-def test_batches():
+def test_blocks():
     """Testing the DMC sampling."""
     vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
     sys_conf_set = vmc_chain_data.confs
@@ -99,19 +99,19 @@ def test_batches():
 
     ini_sys_conf_set = sys_conf_set[-100:]
     dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
-    sampling_batches = \
-        dmc_sampling.batches(dmc_ini_state, num_time_steps_batch,
-                             burn_in_batches)
+    sampling_blocks = \
+        dmc_sampling.blocks(dmc_ini_state, num_time_steps_block,
+                            burn_in_blocks)
 
-    dmc_sampling_batches: dmc_base.T_SBatchesIter = \
-        islice(sampling_batches, num_batches)
+    dmc_sampling_blocks: dmc_base.T_SBlocksIter = \
+        islice(sampling_blocks, num_blocks)
 
-    for batch in dmc_sampling_batches:
-        state_props = batch.iter_props
+    for block in dmc_sampling_blocks:
+        state_props = block.iter_props
         print(state_props)
 
 
-def test_confs_props_batches():
+def test_confs_props_blocks():
     """"""
     vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
     sys_conf_set = vmc_chain_data.confs
@@ -120,15 +120,15 @@ def test_confs_props_batches():
 
     ini_sys_conf_set = sys_conf_set[-100:]
     dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
-    sampling_batches = \
-        dmc_sampling.confs_props_batches(dmc_ini_state, num_time_steps_batch)
+    sampling_blocks = \
+        dmc_sampling.confs_props_blocks(dmc_ini_state, num_time_steps_block)
 
-    dmc_sampling_batches: dmc_base.T_SCPBatchesIter = \
-        islice(sampling_batches, num_batches)
+    dmc_sampling_blocks: dmc_base.T_SCPBlocksIter = \
+        islice(sampling_blocks, num_blocks)
 
-    for batch in dmc_sampling_batches:
-        # state_props = batch.iter_props
-        states_confs = batch.states_confs
+    for block in dmc_sampling_blocks:
+        # state_props = block.iter_props
+        states_confs = block.states_confs
         print(states_confs)
 
 
@@ -155,22 +155,22 @@ def test_density_est():
     density_est_spec = mrbp_qmc.dmc.DensityEstSpec(num_bins)
     dmc_density_sampling = attr.evolve(dmc_sampling,
                                        density_est_spec=density_est_spec)
-    dmc_es_batches = dmc_density_sampling.batches(dmc_ini_state,
-                                                  num_time_steps_batch,
-                                                  burn_in_batches)
+    dmc_es_blocks = dmc_density_sampling.blocks(dmc_ini_state,
+                                                num_time_steps_block,
+                                                burn_in_blocks)
 
-    es_batches: dmc_base.T_SBatchesIter = \
-        islice(dmc_es_batches, num_batches)
+    es_blocks: dmc_base.T_SBlocksIter = \
+        islice(dmc_es_blocks, num_blocks)
 
     exec_logger.info('Init DMC sampling...')
 
-    for batch in es_batches:
-        state_props = batch.iter_props
+    for block in es_blocks:
+        state_props = block.iter_props
         nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
-        iter_density = batch.iter_density
+        iter_density = block.iter_density
         print(iter_density.shape)
-        density_batch_data = iter_density / nw_iter[:, np.newaxis, np.newaxis]
-        print(density_batch_data)
+        density_block_data = iter_density / nw_iter[:, np.newaxis, np.newaxis]
+        print(density_block_data)
         # print(nw_iter)
 
     exec_logger.info('Finish DMC sampling.')
@@ -198,22 +198,22 @@ def test_dmc_est_sampling():
 
     ssf_est_spec = mrbp_qmc.dmc.SSFEstSpec(num_modes)
     dmc_ssf_sampling = attr.evolve(dmc_sampling, ssf_est_spec=ssf_est_spec)
-    dmc_es_batches = dmc_ssf_sampling.batches(dmc_ini_state,
-                                              num_time_steps_batch,
-                                              burn_in_batches)
+    dmc_es_blocks = dmc_ssf_sampling.blocks(dmc_ini_state,
+                                            num_time_steps_block,
+                                            burn_in_blocks)
 
-    es_batches: dmc_base.T_SBatchesIter = \
-        islice(dmc_es_batches, num_batches)
+    es_blocks: dmc_base.T_SBlocksIter = \
+        islice(dmc_es_blocks, num_blocks)
 
     exec_logger.info('Init DMC sampling...')
 
-    for batch in es_batches:
-        state_props = batch.iter_props
+    for block in es_blocks:
+        state_props = block.iter_props
         nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
-        iter_ssf = batch.iter_ssf
+        iter_ssf = block.iter_ssf
         # print(state_props)
-        ssf_batch_data = iter_ssf / nw_iter[:, np.newaxis, np.newaxis]
-        print(ssf_batch_data)
+        ssf_block_data = iter_ssf / nw_iter[:, np.newaxis, np.newaxis]
+        print(ssf_block_data)
         # print(nw_iter)
         # This helps to catch memory leaks in numba compiled functions.
         print(rtsys.get_allocation_stats())

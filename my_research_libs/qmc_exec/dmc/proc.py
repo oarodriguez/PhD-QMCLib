@@ -114,20 +114,20 @@ class Proc(metaclass=ABCMeta):
     #: The seed of the pseudo-RNG used to realize the sampling.
     rng_seed: t.Optional[int]
 
-    #: The number of batches of the sampling.
-    num_batches: int
+    #: The number of blocks of the sampling.
+    num_blocks: int
 
-    #: Number of time steps per batch.
-    num_time_steps_batch: int
+    #: Number of time steps per block.
+    num_time_steps_block: int
 
-    #: The number of batches to discard.
-    burn_in_batches: t.Optional[int]
+    #: The number of blocks to discard.
+    burn_in_blocks: t.Optional[int]
 
     #: Keep the estimator values for all the time steps.
     keep_iter_data: bool
 
-    #: Remaining batches
-    remaining_batches: t.Optional[int]
+    #: Remaining blocks
+    remaining_blocks: t.Optional[int]
 
     # *** Estimators configuration ***
     #:
@@ -138,9 +138,9 @@ class Proc(metaclass=ABCMeta):
 
     def __attrs_post_init__(self):
         """Post-initialization stage."""
-        if self.burn_in_batches is None:
-            burn_in_batches = max(1, self.num_batches // 8)
-            object.__setattr__(self, 'burn_in_batches', burn_in_batches)
+        if self.burn_in_blocks is None:
+            burn_in_blocks = max(1, self.num_blocks // 8)
+            object.__setattr__(self, 'burn_in_blocks', burn_in_blocks)
 
     @classmethod
     @abstractmethod
@@ -201,14 +201,14 @@ class Proc(metaclass=ABCMeta):
         ref_energy_field = dmc_base.IterProp.REF_ENERGY
         accum_energy_field = dmc_base.IterProp.ACCUM_ENERGY
 
-        num_batches = self.num_batches
-        num_time_steps_batch = self.num_time_steps_batch
+        num_blocks = self.num_blocks
+        num_time_steps_block = self.num_time_steps_block
         target_num_walkers = self.target_num_walkers
-        burn_in_batches = self.burn_in_batches
+        burn_in_blocks = self.burn_in_blocks
         keep_iter_data = self.keep_iter_data
 
         # Alias 😐.
-        nts_batch = num_time_steps_batch
+        nts_block = num_time_steps_block
 
         # Density configuration.
         density_spec = self.density_spec
@@ -220,15 +220,15 @@ class Proc(metaclass=ABCMeta):
 
         exec_logger.info('Starting DMC sampling...')
         exec_logger.info(f'Using an average of {target_num_walkers} walkers.')
-        exec_logger.info(f'Sampling {num_batches} batches of time.')
-        exec_logger.info(f'Sampling {num_time_steps_batch} time-steps '
-                         f'per batch.')
+        exec_logger.info(f'Sampling {num_blocks} blocks of time.')
+        exec_logger.info(f'Sampling {num_time_steps_block} time-steps '
+                         f'per block.')
 
         # We will burn-in the first ten percent of the sampling chain.
-        if burn_in_batches is None:
-            burn_in_batches = num_batches // 8
+        if burn_in_blocks is None:
+            burn_in_blocks = num_blocks // 8
         else:
-            burn_in_batches = burn_in_batches
+            burn_in_blocks = burn_in_blocks
 
         sampling = self.sampling
         if not isinstance(proc_input, ProcInput):
@@ -237,36 +237,36 @@ class Proc(metaclass=ABCMeta):
 
         # The estimator sampling iterator.
         ini_state = proc_input.state
-        batches_iter = sampling.batches(ini_state, num_time_steps_batch,
-                                        burn_in_batches)
+        blocks_iter = sampling.blocks(ini_state, num_time_steps_block,
+                                      burn_in_blocks)
 
-        # Current batch data.
-        batch_data = None
+        # Current block data.
+        block_data = None
 
-        if burn_in_batches:
+        if burn_in_blocks:
 
             exec_logger.info('Computing DMC burn-in stage...')
 
-            exec_logger.info(f'A total of {burn_in_batches} batches will be '
+            exec_logger.info(f'A total of {burn_in_blocks} blocks will be '
                              f'discarded.')
 
             # Burn-in stage.
-            pgs_bar = tqdm.tqdm(total=burn_in_batches, dynamic_ncols=True)
+            pgs_bar = tqdm.tqdm(total=burn_in_blocks, dynamic_ncols=True)
             with pgs_bar:
-                for batch_data in islice(batches_iter, burn_in_batches):
+                for block_data in islice(blocks_iter, burn_in_blocks):
                     # Burn, burn, burn...
                     pgs_bar.update(1)
 
             exec_logger.info('Burn-in stage completed.')
 
         else:
-            exec_logger.info(f'No burn-in batches requested')
+            exec_logger.info(f'No burn-in blocks requested')
 
         # Main containers of data.
         if keep_iter_data:
-            iter_props_shape = num_batches, nts_batch
+            iter_props_shape = num_blocks, nts_block
         else:
-            iter_props_shape = num_batches,
+            iter_props_shape = num_blocks,
 
         props_blocks_data = \
             np.empty(iter_props_shape, dtype=dmc_base.iter_props_dtype)
@@ -285,12 +285,12 @@ class Proc(metaclass=ABCMeta):
 
             if keep_iter_data:
                 density_shape = \
-                    num_batches, nts_batch, density_num_bins, density_num_parts
+                    num_blocks, nts_block, density_num_bins, density_num_parts
             else:
                 density_shape = \
-                    num_batches, density_num_bins, density_num_parts
+                    num_blocks, density_num_bins, density_num_parts
 
-            # Density batch.
+            # Density block.
             density_blocks_data = np.zeros(density_shape, dtype=np.float64)
 
         else:
@@ -304,26 +304,26 @@ class Proc(metaclass=ABCMeta):
 
             if keep_iter_data:
                 ssf_shape = \
-                    num_batches, nts_batch, ssf_num_modes, ssf_num_parts
+                    num_blocks, nts_block, ssf_num_modes, ssf_num_parts
             else:
-                ssf_shape = num_batches, ssf_num_modes, ssf_num_parts
+                ssf_shape = num_blocks, ssf_num_modes, ssf_num_parts
 
-            # S(k) batch.
+            # S(k) block.
             ssf_blocks_data = np.zeros(ssf_shape, dtype=np.float64)
 
         else:
             ssf_blocks_data = None
 
         # Reduction factor for pure estimators.
-        pure_est_reduce_factor = np.ones(num_batches, dtype=np.float64)
+        pure_est_reduce_factor = np.ones(num_blocks, dtype=np.float64)
 
-        # The effective batches to calculate the estimators.
-        eff_batches: dmc_base.T_SBatchesIter = \
-            islice(batches_iter, num_batches)
+        # The effective blocks to calculate the estimators.
+        eff_blocks: dmc_base.T_SBlocksIter = \
+            islice(blocks_iter, num_blocks)
 
-        # Enumerated effective batches.
-        enum_eff_batches: dmc_base.T_E_SBatchesIter \
-            = enumerate(eff_batches)
+        # Enumerated effective blocks.
+        enum_eff_blocks: dmc_base.T_E_SBlocksIter \
+            = enumerate(eff_blocks)
 
         exec_logger.info('Starting the evaluation of estimators...')
 
@@ -333,91 +333,91 @@ class Proc(metaclass=ABCMeta):
             exec_logger.info(f'A total of {ssf_spec.num_modes} k-modes will '
                              f'be used as input for S(k).')
 
-        with tqdm.tqdm(total=num_batches, dynamic_ncols=True) as pgs_bar:
+        with tqdm.tqdm(total=num_blocks, dynamic_ncols=True) as pgs_bar:
 
-            for batch_idx, batch_data in enum_eff_batches:
+            for block_idx, block_data in enum_eff_blocks:
 
-                batch_props = batch_data.iter_props
-                energy = batch_props[energy_field]
-                weight = batch_props[weight_field]
-                num_walkers = batch_props[num_walkers_field]
-                ref_energy = batch_props[ref_energy_field]
-                accum_energy = batch_props[accum_energy_field]
+                block_props = block_data.iter_props
+                energy = block_props[energy_field]
+                weight = block_props[weight_field]
+                num_walkers = block_props[num_walkers_field]
+                ref_energy = block_props[ref_energy_field]
+                accum_energy = block_props[accum_energy_field]
 
                 # NOTE: Should we return the iter_props by default? 🤔🤔🤔
                 #  If we keep the whole sampling data, i.e.,
                 #  ``keep_iter_data`` is True, then it has not much sense to
-                #  realize the reblocking for each batch of data.
+                #  realize the reblocking for each block of data.
                 #  Let's think about it...
 
                 if keep_iter_data:
 
                     # Store all the information of the DMC sampling.
-                    props_blocks_data[batch_idx] = batch_props[:]
+                    props_blocks_data[block_idx] = block_props[:]
 
                     # Handling the density results.
                     if should_eval_density:
-                        iter_density_array = batch_data.iter_density
-                        density_blocks_data[batch_idx] = iter_density_array[:]
+                        iter_density_array = block_data.iter_density
+                        density_blocks_data[block_idx] = iter_density_array[:]
 
                     # Handling the structure factor results.
                     if should_eval_ssf:
-                        iter_ssf_array = batch_data.iter_ssf
-                        ssf_blocks_data[batch_idx] = iter_ssf_array[:]
+                        iter_ssf_array = block_data.iter_ssf
+                        ssf_blocks_data[block_idx] = iter_ssf_array[:]
 
                 else:
 
                     weight_sum = weight.sum()
-                    props_energy[batch_idx] = energy.sum()
-                    props_weight[batch_idx] = weight_sum
-                    props_num_walkers[batch_idx] = num_walkers.sum()
-                    props_ref_energy[batch_idx] = ref_energy[-1]
-                    props_accum_energy[batch_idx] = accum_energy[-1]
+                    props_energy[block_idx] = energy.sum()
+                    props_weight[block_idx] = weight_sum
+                    props_num_walkers[block_idx] = num_walkers.sum()
+                    props_ref_energy[block_idx] = ref_energy[-1]
+                    props_accum_energy[block_idx] = accum_energy[-1]
 
-                    reduce_fac = num_walkers[nts_batch - 1] / weight_sum
-                    pure_est_reduce_factor[batch_idx] = reduce_fac
+                    reduce_fac = num_walkers[nts_block - 1] / weight_sum
+                    pure_est_reduce_factor[block_idx] = reduce_fac
 
                     # Handling the density factor results.
                     if should_eval_density:
 
-                        iter_density_array = batch_data.iter_density
+                        iter_density_array = block_data.iter_density
 
                         if density_spec.as_pure_est:
-                            # Get only the last element of the batch.
-                            density_blocks_data[batch_idx] = \
-                                iter_density_array[nts_batch - 1]
+                            # Get only the last element of the block.
+                            density_blocks_data[block_idx] = \
+                                iter_density_array[nts_block - 1]
 
                         else:
                             # Make the reduction.
-                            density_blocks_data[batch_idx] = \
+                            density_blocks_data[block_idx] = \
                                 iter_density_array.sum(axis=0)
 
                     # Handling the structure factor results.
                     if should_eval_ssf:
 
-                        iter_ssf_array = batch_data.iter_ssf
+                        iter_ssf_array = block_data.iter_ssf
 
                         if ssf_spec.as_pure_est:
-                            # Get only the last element of the batch.
-                            ssf_blocks_data[batch_idx] = \
-                                iter_ssf_array[nts_batch - 1]
+                            # Get only the last element of the block.
+                            ssf_blocks_data[block_idx] = \
+                                iter_ssf_array[nts_block - 1]
 
                         else:
                             # Make the reduction.
-                            ssf_blocks_data[batch_idx] = \
+                            ssf_blocks_data[block_idx] = \
                                 iter_ssf_array.sum(axis=0)
 
-                rem_batches = num_batches - batch_idx - 1
-                object.__setattr__(self, 'remaining_batches', rem_batches)
+                # rem_blocks = num_blocks - block_idx - 1
+                # object.__setattr__(self, 'remaining_blocks', rem_blocks)
 
-                # logger.info(f'Batch #{batch_idx:d} completed')
+                # logger.info(f'Block #{block_idx:d} completed')
                 pgs_bar.update()
 
         # Pick the last state
-        if batch_data is None:
+        if block_data is None:
             last_state = None
         else:
-            last_state = batch_data.last_state
+            last_state = block_data.last_state
 
         exec_logger.info('Evaluation of estimators completed.')
         exec_logger.info('DMC sampling completed.')
@@ -426,22 +426,22 @@ class Proc(metaclass=ABCMeta):
         reduce_data = True if keep_iter_data else False
 
         energy_blocks = \
-            EnergyBlocks.from_data(num_batches, nts_batch,
+            EnergyBlocks.from_data(num_blocks, nts_block,
                                    props_blocks_data, reduce_data)
 
         weight_blocks = \
-            WeightBlocks.from_data(num_batches, nts_batch,
+            WeightBlocks.from_data(num_blocks, nts_block,
                                    props_blocks_data, reduce_data)
 
         num_walkers_blocks = \
-            NumWalkersBlocks.from_data(num_batches, nts_batch,
+            NumWalkersBlocks.from_data(num_blocks, nts_block,
                                        props_blocks_data, reduce_data)
 
         if should_eval_density:
             main_slot = DensityPartSlot.MAIN
             density_data = density_blocks_data[..., main_slot]
             density_blocks = \
-                DensityBlocks.from_data(num_batches, nts_batch,
+                DensityBlocks.from_data(num_blocks, nts_block,
                                         density_data,
                                         props_blocks_data, reduce_data,
                                         density_spec.as_pure_est,
@@ -453,7 +453,7 @@ class Proc(metaclass=ABCMeta):
         if should_eval_ssf:
 
             ssf_blocks = \
-                SSFBlocks.from_data(num_batches, nts_batch,
+                SSFBlocks.from_data(num_blocks, nts_block,
                                     ssf_blocks_data,
                                     props_blocks_data, reduce_data,
                                     ssf_spec.as_pure_est,

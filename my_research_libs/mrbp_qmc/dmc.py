@@ -446,27 +446,27 @@ class CoreFuncs(jsw_dmc.CoreFuncs):
         density_num_parts = len(jsw_model.DensityPartSlot)
 
         @nb.jit(nopython=True)
-        def _init_density_est_data(num_time_steps_batch: int,
+        def _init_density_est_data(num_time_steps_block: int,
                                    max_num_walkers: int,
                                    cfc_spec: CFCSpec) -> DensityExecData:
             """Initialize the buffers to store the density data.
 
-            :param num_time_steps_batch:
+            :param num_time_steps_block:
             :param max_num_walkers:
             :param cfc_spec:
             :return:
             """
             density_params = cfc_spec.density_params
             # Alias 😃...
-            nts_batch = num_time_steps_batch
+            nts_block = num_time_steps_block
             if density_params.assume_none:
                 # A fake array will be created. It won't be used.
-                nts_batch, num_bins = 1, 1
+                nts_block, num_bins = 1, 1
             else:
                 num_bins = density_params.num_bins
 
             # The shape of the density array.
-            i_density_shape = nts_batch, num_bins, density_num_parts
+            i_density_shape = nts_block, num_bins, density_num_parts
 
             # The shape of the auxiliary arrays to store the density of a
             # single state during the forward walking process.
@@ -491,12 +491,12 @@ class CoreFuncs(jsw_dmc.CoreFuncs):
         ssf_num_parts = len(SSFPartSlot)
 
         @nb.jit(nopython=True)
-        def _init_ssf_est_data(num_time_steps_batch: int,
+        def _init_ssf_est_data(num_time_steps_block: int,
                                max_num_walkers: int,
                                cfc_spec: CFCSpec) -> SSFExecData:
             """
 
-            :param num_time_steps_batch:
+            :param num_time_steps_block:
             :param max_num_walkers:
             :param cfc_spec:
             :return:
@@ -504,16 +504,16 @@ class CoreFuncs(jsw_dmc.CoreFuncs):
             model_params = cfc_spec.model_params
             ssf_params = cfc_spec.ssf_params
             # Alias 😃...
-            nts_batch = num_time_steps_batch
+            nts_block = num_time_steps_block
             supercell_size = model_params.supercell_size
             if ssf_params.assume_none:
                 # A fake array will be created. It won't be used.
-                nts_batch, num_modes = 1, 1
+                nts_block, num_modes = 1, 1
             else:
                 num_modes = ssf_params.num_modes
 
             # The shape of the structure factor array.
-            i_ssf_shape = nts_batch, num_modes, ssf_num_parts
+            i_ssf_shape = nts_block, num_modes, ssf_num_parts
 
             # The shape of the auxiliary arrays to store the structure
             # factor of a single state during the forward walking process.
