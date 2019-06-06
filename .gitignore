@@ -843,6 +843,6 @@ ASALocalRun/
 
 ### Project specific
 
-data*/
+/data*/
 var/
 dask-worker-space/

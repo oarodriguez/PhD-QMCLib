@@ -4,6 +4,7 @@ import typing as t
 import attr
 import h5py
 
+from my_research_libs import qmc_exec
 from my_research_libs.qmc_exec import vmc as vmc_exec
 from my_research_libs.util.attr import (
     bool_validator, opt_str_validator, str_validator
@@ -108,10 +109,12 @@ class HDF5FileHandler(vmc_exec.io.HDF5FileHandler):
 
             state = self.load_state(state_group)
             proc = self.load_proc(proc_group)
-            blocks = vmc_exec.data.PropsDataBlocks.from_hdf5_data(data_group)
+            blocks = \
+                qmc_exec.data.vmc.PropsDataBlocks.from_hdf5_data(data_group)
 
         data_series = None  # For now...
-        sampling_data = vmc_exec.data.SamplingData(blocks, series=data_series)
+        sampling_data = \
+            qmc_exec.data.vmc.SamplingData(blocks, series=data_series)
         return ProcResult(state, proc, sampling_data)
 
     def load_proc(self, group: h5py.Group):

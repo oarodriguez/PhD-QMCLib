@@ -7,9 +7,8 @@ import numpy as np
 import tqdm
 
 from my_research_libs.qmc_base import model as model_base, vmc as vmc_base
-from .data import (
-    EnergyBlocks, PropsDataBlocks, PropsDataSeries, SSFBlocks,
-    SamplingData
+from ..data.vmc import (
+    EnergyBlocks, PropsDataBlocks, PropsDataSeries, SSFBlocks, SamplingData
 )
 from ..logging import exec_logger
 

@@ -4,6 +4,7 @@ import warnings
 import attr
 from cached_property import cached_property
 
+from my_research_libs import qmc_exec
 from my_research_libs.constants import ER
 from my_research_libs.qmc_base import vmc as vmc_udf_base
 from my_research_libs.qmc_base.jastrow import SysConfDistType
@@ -127,7 +128,7 @@ class ProcResult(vmc_exec.ProcResult):
     proc: 'Proc'
 
     #: The data generated during the sampling.
-    data: vmc_exec.data.SamplingData
+    data: qmc_exec.data.vmc.SamplingData
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -282,7 +283,7 @@ class Proc(vmc_exec.Proc):
 
     def build_result(self, state: vmc_udf_base.State,
                      sampling: vmc_udf_base.Sampling,
-                     data: vmc_exec.data.SamplingData) -> ProcResult:
+                     data: qmc_exec.data.vmc.SamplingData) -> ProcResult:
         """
 
         :param state:
