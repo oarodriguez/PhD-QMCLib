@@ -426,23 +426,19 @@ class Proc(metaclass=ABCMeta):
         reduce_data = True if keep_iter_data else False
 
         energy_blocks = \
-            EnergyBlocks.from_data(num_blocks, nts_block,
-                                   props_blocks_data, reduce_data)
+            EnergyBlocks.from_data(props_blocks_data, reduce_data)
 
         weight_blocks = \
-            WeightBlocks.from_data(num_blocks, nts_block,
-                                   props_blocks_data, reduce_data)
+            WeightBlocks.from_data(props_blocks_data, reduce_data)
 
         num_walkers_blocks = \
-            NumWalkersBlocks.from_data(num_blocks, nts_block,
-                                       props_blocks_data, reduce_data)
+            NumWalkersBlocks.from_data(props_blocks_data, reduce_data)
 
         if should_eval_density:
             main_slot = DensityPartSlot.MAIN
             density_data = density_blocks_data[..., main_slot]
             density_blocks = \
-                DensityBlocks.from_data(num_blocks, nts_block,
-                                        density_data,
+                DensityBlocks.from_data(nts_block, density_data,
                                         props_blocks_data, reduce_data,
                                         density_spec.as_pure_est,
                                         pure_est_reduce_factor)
@@ -453,8 +449,7 @@ class Proc(metaclass=ABCMeta):
         if should_eval_ssf:
 
             ssf_blocks = \
-                SSFBlocks.from_data(num_blocks, nts_block,
-                                    ssf_blocks_data,
+                SSFBlocks.from_data(nts_block, ssf_blocks_data,
                                     props_blocks_data, reduce_data,
                                     ssf_spec.as_pure_est,
                                     pure_est_reduce_factor)
