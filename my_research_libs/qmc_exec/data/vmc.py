@@ -14,7 +14,6 @@ from my_research_libs.stats import reblock
 @attr.s(auto_attribs=True, frozen=True)
 class PropBlock:
     """Represent a single block of data."""
-    num_steps: int
     total: float
 
 
@@ -25,8 +24,6 @@ T_PropBlocksItem = t.Union['PropBlock', 'PropBlocks']
 class PropBlocks(Mapping):
     """Abstract class to represent data in blocks."""
 
-    num_blocks: int
-    num_steps_block: int
     totals: np.ndarray
 
     @property
@@ -53,12 +50,6 @@ class PropBlocks(Mapping):
         # Array data go to a dataset.
         group.create_dataset('totals', data=self.totals)
 
-        # Save attributes.
-        group.attrs.update({
-            'num_blocks': self.num_blocks,
-            'num_steps_block': self.num_steps_block
-        })
-
     @classmethod
     def from_hdf5_data(cls, group: h5py.Group):
         """Create an instance from the data to an HDF5 group object.
@@ -69,8 +60,6 @@ class PropBlocks(Mapping):
         data = {
             'totals': group.get('totals').value
         }
-        data.update(group.attrs.items())
-        # noinspection PyArgumentList
         return cls(**data)
 
     def __getitem__(self, index) -> T_PropBlocksItem:
@@ -79,15 +68,13 @@ class PropBlocks(Mapping):
             if len(index) > 1:
                 raise TypeError("only one-element tuples are allowed")
 
-        ns_block = self.num_steps_block
         if isinstance(index, int):
             total = self.totals[index]
-            return PropBlock(ns_block, total)
+            return PropBlock(total)
 
         totals = self.totals[index]
-        num_blocks = len(totals)
         # TODO: Retrieve an instance of type(self) for now.
-        return type(self)(num_blocks, ns_block, totals)
+        return PropBlocks(totals)
 
     def __len__(self) -> int:
         """Number of blocks."""
@@ -95,29 +82,22 @@ class PropBlocks(Mapping):
 
     def __iter__(self):
         """Iterable interface."""
-        nts_block = self.num_steps_block
         for index, total in enumerate(self.totals):
             total = self.totals[index]
-            yield PropBlock(nts_block, total)
+            yield PropBlock(total)
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class EnergyBlocks(PropBlocks):
     """Energy data in blocks."""
 
-    num_blocks: int
-    num_steps_block: int
     totals: np.ndarray
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_steps_block: int,
-                  data: np.ndarray,
+    def from_data(cls, data: np.ndarray,
                   reduce_data: bool = True):
         """
 
-        :param num_blocks:
-        :param num_steps_block:
         :param data:
         :param reduce_data:
         :return:
@@ -127,26 +107,20 @@ class EnergyBlocks(PropBlocks):
             totals = energy_data.mean(axis=1)
         else:
             totals = energy_data
-        return cls(num_blocks, num_steps_block, totals)
+        return cls(totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class DensityBlocks(PropBlocks):
     """Density data in blocks."""
 
-    num_blocks: int
-    num_steps_block: int
     totals: np.ndarray
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_steps_block: int,
-                  density_data: np.ndarray,
+    def from_data(cls, density_data: np.ndarray,
                   reduce_data: bool = True):
         """
 
-        :param num_blocks:
-        :param num_steps_block:
         :param density_data:
         :param reduce_data:
         :return:
@@ -155,27 +129,21 @@ class DensityBlocks(PropBlocks):
             totals = density_data.mean(axis=1)
         else:
             totals = density_data
-        return cls(num_blocks, num_steps_block, totals)
+        return cls(totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class SSFPartBlocks(PropBlocks):
     """Structure Factor data in blocks."""
 
-    num_blocks: int
-    num_steps_block: int
     totals: np.ndarray
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_steps_block: int,
-                  ssf_data: np.ndarray,
+    def from_data(cls, ssf_data: np.ndarray,
                   reduce_data: bool = True):
         """
 
         :param reduce_data:
-        :param num_blocks:
-        :param num_steps_block:
         :param ssf_data:
         :return:
         """
@@ -183,7 +151,7 @@ class SSFPartBlocks(PropBlocks):
             totals = ssf_data.mean(axis=1)
         else:
             totals = ssf_data
-        return cls(num_blocks, num_steps_block, totals)
+        return cls(totals)
 
     @property
     def reblock(self):
@@ -205,15 +173,11 @@ class SSFBlocks:
     fdk_imag_part: SSFPartBlocks
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_steps_block: int,
-                  ssf_data: np.ndarray,
+    def from_data(cls, ssf_data: np.ndarray,
                   reduce_data: bool = True):
         """
 
         :param reduce_data:
-        :param num_blocks:
-        :param num_steps_block:
         :param ssf_data:
         :return:
         """
@@ -228,16 +192,13 @@ class SSFBlocks:
         fdk_imag_totals = totals[:, :, SSFPartSlot.FDK_IMAG]
 
         fdk_sqr_abs_part_blocks = \
-            SSFPartBlocks(num_blocks, num_steps_block,
-                          fdk_sqr_abs_totals)
+            SSFPartBlocks(fdk_sqr_abs_totals)
 
         fdk_real_part_blocks = \
-            SSFPartBlocks(num_blocks, num_steps_block,
-                          fdk_real_totals)
+            SSFPartBlocks(fdk_real_totals)
 
         fdk_imag_part_blocks = \
-            SSFPartBlocks(num_blocks, num_steps_block,
-                          fdk_imag_totals)
+            SSFPartBlocks(fdk_imag_totals)
 
         return cls(fdk_sqr_abs_part_blocks,
                    fdk_real_part_blocks,

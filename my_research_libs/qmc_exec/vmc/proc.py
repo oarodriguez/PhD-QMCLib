@@ -268,13 +268,11 @@ class Proc(metaclass=ABCMeta):
         reduce_data = True if keep_iter_data else False
 
         energy_blocks = \
-            EnergyBlocks.from_data(num_blocks, ns_block,
-                                   props_blocks_data, reduce_data)
+            EnergyBlocks.from_data(props_blocks_data, reduce_data)
 
         if should_eval_ssf:
             ssf_blocks = \
-                SSFBlocks.from_data(num_blocks, ns_block,
-                                    ssf_blocks_data, reduce_data)
+                SSFBlocks.from_data(ssf_blocks_data, reduce_data)
         else:
             ssf_blocks = None
 
