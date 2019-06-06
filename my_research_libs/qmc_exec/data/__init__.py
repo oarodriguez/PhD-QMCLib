@@ -3,4 +3,4 @@
 This package contains modules with routines to ease the handling of
 QMC data.
 """
-from . import vmc
+from . import dmc, vmc

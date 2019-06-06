@@ -5,8 +5,8 @@ import attr
 import numpy as np
 from cached_property import cached_property
 
+from my_research_libs import qmc_exec
 from my_research_libs.mrbp_qmc import dmc, model
-from my_research_libs.qmc_base import dmc as dmc_base
 from my_research_libs.qmc_base.jastrow import SysConfDistType
 from my_research_libs.qmc_exec import dmc as dmc_exec
 from my_research_libs.util.attr import (
@@ -101,7 +101,7 @@ class ProcInput(dmc_exec.ProcInput):
     """Represents the input for the DMC calculation procedure."""
     # The state of the DMC procedure input.
     # NOTE: Is this class necessary? 🤔
-    state: dmc_base.State
+    state: dmc.State
 
     @classmethod
     def from_model_sys_conf_spec(cls, sys_conf_spec: ModelSysConfSpec,
@@ -151,13 +151,13 @@ class ProcResult(dmc_exec.ProcResult):
     """Result of the DMC estimator sampling."""
 
     #: The last state of the sampling.
-    state: dmc_base.State
+    state: dmc.State
 
     #: The sampling object used to generate the results.
     proc: 'Proc'
 
     #: The data generated during the sampling.
-    data: dmc_exec.data.SamplingData
+    data: qmc_exec.data.dmc.SamplingData
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -371,9 +371,9 @@ class Proc(dmc_exec.Proc):
         """"""
         pass
 
-    def build_result(self, state: dmc_base.State,
+    def build_result(self, state: dmc.State,
                      sampling: dmc.Sampling,
-                     data: dmc_exec.data.SamplingData):
+                     data: qmc_exec.data.dmc.SamplingData):
         """
 
         :param state:

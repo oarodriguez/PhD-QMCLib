@@ -11,7 +11,7 @@ from my_research_libs.qmc_base import (
 )
 from my_research_libs.qmc_base.dmc import SSFPartSlot
 from my_research_libs.qmc_base.jastrow.model import DensityPartSlot
-from .data import (
+from ..data.dmc import (
     DensityBlocks, EnergyBlocks, NumWalkersBlocks, PropsDataBlocks,
     PropsDataSeries, SSFBlocks, SamplingData, WeightBlocks
 )
