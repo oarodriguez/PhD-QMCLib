@@ -7,26 +7,20 @@ import numpy as np
 import tqdm
 
 from my_research_libs.qmc_base import model as model_base, vmc as vmc_base
+from .. import proc as proc_base
 from ..data.vmc import (
     EnergyBlocks, PropsDataBlocks, PropsDataSeries, SSFBlocks, SamplingData
 )
 from ..logging import exec_logger
 
 
-class ModelSysConfSpec(metaclass=ABCMeta):
+class ModelSysConfSpec(proc_base.ModelSysConfSpec):
     """Handler to build inputs from system configurations."""
     #:
     dist_type: str
 
 
-class SSFEstSpec(metaclass=ABCMeta):
-    """Structure factor estimator basic config."""
-    #: The number of momenta modes.
-    num_modes: int
-
-
-@attr.s(auto_attribs=True)
-class ProcInput(metaclass=ABCMeta):
+class ProcInput(proc_base.ProcInput, metaclass=ABCMeta):
     """Represents the input for the VMC calculation procedure."""
     # The state of the VMC procedure input.
     state: vmc_base.State
@@ -37,20 +31,21 @@ class ProcInputError(ValueError):
     pass
 
 
-class ProcResult:
-    """Result of the VMC estimator sampling."""
+@attr.s(auto_attribs=True, frozen=True)
+class ProcResult(proc_base.ProcResult):
+    """Result of the DMC estimator sampling."""
 
     #: The last state of the sampling.
     state: vmc_base.State
 
-    #: The procedure object used to generate the results.
+    #: The sampling object used to generate the results.
     proc: 'Proc'
 
     #: The data generated during the sampling.
     data: SamplingData
 
 
-class Proc(metaclass=ABCMeta):
+class Proc(proc_base.Proc):
     """VMC Sampling procedure spec."""
 
     #: The model spec.
@@ -75,27 +70,16 @@ class Proc(metaclass=ABCMeta):
     keep_iter_data: bool
 
     # *** Estimators configuration ***
-    ssf_spec: t.Optional[SSFEstSpec]
+    #: Density estimator spec.
+    density_spec: t.Optional[proc_base.DensityEstSpec]
 
-    @abstractmethod
-    def as_config(self) -> t.Dict:
-        """Converts the procedure to a dictionary / mapping object."""
-        pass
-
-    @property
-    def should_eval_ssf(self):
-        """Whether or not to evaluate the static structure factor."""
-        return False if self.ssf_spec is None else True
+    #: Static structure factor estimator spec.
+    ssf_spec: t.Optional[proc_base.SSFEstSpec]
 
     @property
     @abstractmethod
     def sampling(self) -> vmc_base.Sampling:
         """VMC sampling object."""
-        pass
-
-    @abstractmethod
-    def describe_model_spec(self):
-        """Describe the spec of the model."""
         pass
 
     def describe_sampling(self):
@@ -114,19 +98,6 @@ class Proc(metaclass=ABCMeta):
         else:
             exec_logger.info(f'The random seed of the sampling '
                              f'is {rng_seed}...')
-
-    @abstractmethod
-    def build_result(self, state: vmc_base.State,
-                     sampling: vmc_base.Sampling,
-                     data: SamplingData) -> ProcResult:
-        """Build the procedure result object.
-
-        :param state: The last state of the sampling.
-        :param data: The data generated during the sampling.
-        :param sampling: The sampling object used to generate the results.
-        :return:
-        """
-        pass
 
     def exec(self, proc_input: ProcInput):
         """Trigger the execution of the procedure.
@@ -286,4 +257,4 @@ class Proc(metaclass=ABCMeta):
 
         sampling_data = SamplingData(data_blocks, data_series)
 
-        return self.build_result(last_state, self.sampling, sampling_data)
+        return self.build_result(last_state, sampling_data)

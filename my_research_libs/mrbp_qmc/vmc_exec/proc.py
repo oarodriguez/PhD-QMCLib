@@ -4,11 +4,13 @@ import warnings
 import attr
 from cached_property import cached_property
 
-from my_research_libs import qmc_exec
 from my_research_libs.constants import ER
 from my_research_libs.qmc_base import vmc as vmc_udf_base
 from my_research_libs.qmc_base.jastrow import SysConfDistType
-from my_research_libs.qmc_exec import exec_logger, vmc as vmc_exec
+from my_research_libs.qmc_exec import (
+    exec_logger, proc as proc_base, vmc as vmc_exec
+)
+from my_research_libs.qmc_exec.data.vmc import SamplingData
 from my_research_libs.util.attr import (
     bool_converter, bool_validator, int_converter, int_validator,
     opt_int_converter, opt_int_validator, opt_str_validator, str_validator
@@ -23,7 +25,7 @@ opt_model_spec_validator = attr.validators.optional(model_spec_validator)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class ModelSysConfSpec(vmc_exec.proc.ModelSysConfSpec):
+class ModelSysConfSpec(proc_base.ModelSysConfSpec):
     """Handler to build inputs from system configurations."""
 
     #:
@@ -67,9 +69,15 @@ class ModelSysConfSpec(vmc_exec.proc.ModelSysConfSpec):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class SSFEstSpec(vmc_exec.SSFEstSpec):
-    """Structure factor estimator basic config."""
+class DensitySpec(proc_base.DensityEstSpec):
+    """Density estimator basic config."""
+    num_bins: int = \
+        attr.ib(converter=int_converter, validator=int_validator)
 
+
+@attr.s(auto_attribs=True, frozen=True)
+class SSFEstSpec(proc_base.SSFEstSpec):
+    """Structure factor estimator basic config."""
     num_modes: int = \
         attr.ib(converter=int_converter, validator=int_validator)
 
@@ -99,7 +107,7 @@ class ProcInput(vmc_exec.ProcInput):
         return cls(state)
 
     @classmethod
-    def from_result(cls, proc_result: 'ProcResult',
+    def from_result(cls, proc_result: vmc_exec.ProcResult,
                     proc: 'Proc'):
         """
 
@@ -118,7 +126,7 @@ class ProcInputError(ValueError):
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class ProcResult(vmc_exec.ProcResult):
+class ProcResult(proc_base.ProcResult):
     """Result of the DMC estimator sampling."""
 
     #: The last state of the sampling.
@@ -128,7 +136,7 @@ class ProcResult(vmc_exec.ProcResult):
     proc: 'Proc'
 
     #: The data generated during the sampling.
-    data: qmc_exec.data.vmc.SamplingData
+    data: SamplingData
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -159,7 +167,10 @@ class Proc(vmc_exec.Proc):
 
     # *** Estimators configuration ***
     # TODO: add proper validator.
-    ssf_spec: t.Optional[vmc_udf_base.SSFEstSpec] = \
+    density_spec: t.Optional[DensitySpec] = \
+        attr.ib(default=None, validator=None)
+
+    ssf_spec: t.Optional[SSFEstSpec] = \
         attr.ib(default=None, validator=None)
 
     @classmethod
@@ -223,24 +234,6 @@ class Proc(vmc_exec.Proc):
         """Converts the procedure to a dictionary / mapping object."""
         return attr.asdict(self, filter=attr.filters.exclude(type(None)))
 
-    def evolve(self, config: t.Mapping):
-        """
-
-        :param config:
-        :return:
-        """
-        self_config = dict(config)
-
-        # Compound attributes of current instance.
-        model_spec = self.model_spec
-
-        # Extract the model spec.
-        model_spec_config = self_config.pop('model_spec', None)
-        if model_spec_config is not None:
-            model_spec = attr.evolve(model_spec, **model_spec_config)
-
-        return attr.evolve(self, model_spec=model_spec, **self_config)
-
     @cached_property
     def sampling(self) -> vmc_udf.Sampling:
         """
@@ -282,17 +275,15 @@ class Proc(vmc_exec.Proc):
         exec_logger.info(f'  * RM: {rm:.3G} LKP')
 
     def build_result(self, state: vmc_udf_base.State,
-                     sampling: vmc_udf_base.Sampling,
-                     data: qmc_exec.data.vmc.SamplingData) -> ProcResult:
+                     data: SamplingData) -> vmc_exec.ProcResult:
         """
 
         :param state:
-        :param sampling:
         :param data:
         :return:
         """
         proc = self
-        return ProcResult(state, proc, data)
+        return vmc_exec.ProcResult(state, proc, data)
 
 
 vmc_proc_validator = attr.validators.instance_of(Proc)

@@ -5,11 +5,14 @@ import attr
 
 from my_research_libs.util.attr import str_validator
 from .logging import exec_logger
+from .proc import Proc
 
 
 # TODO: We need a better name for this class.
 class AppSpec:
     """Spec for an QMC application."""
+    #: Procedure spec.
+    proc: Proc
 
     @classmethod
     @abstractmethod
