@@ -86,6 +86,18 @@ class PropBlocks(Mapping):
             total = self.totals[index]
             yield PropBlock(total)
 
+    def __add__(self, other: t.Any):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, PropBlocks):
+            return NotImplemented
+        try:
+            all_totals = self.totals, other.totals
+            totals = np.concatenate(all_totals, axis=0)
+        except ValueError as e:
+            raise ValueError("'totals' are incompatible "
+                             "between instances") from e
+        return PropBlocks(totals)
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class EnergyBlocks(PropBlocks):
@@ -264,6 +276,15 @@ class SSFBlocks:
 
         return cls(fdk_sqr_abs, fdk_real, fdk_imag)
 
+    def __add__(self, other: t.Any):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, SSFBlocks):
+            return NotImplemented
+        fdk_sqr_abs_part = self.fdk_sqr_abs_part + other.fdk_sqr_abs_part
+        fdk_real_part = self.fdk_real_part + other.fdk_real_part
+        fdk_imag_part = self.fdk_imag_part + other.fdk_imag_part
+        return SSFBlocks(fdk_sqr_abs_part, fdk_real_part, fdk_imag_part)
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class PropsDataSeries:
@@ -352,6 +373,26 @@ class PropsDataBlocks:
             ssf_blocks = None
 
         return cls(energy_blocks, density_blocks, ssf_blocks)
+
+    def merge(self, other: 'PropsDataBlocks'):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, PropsDataBlocks):
+            raise TypeError("'other' must be an instance of "
+                            "'PropsDataBlocks'")
+        energy = self.energy + other.energy
+        density = self.density
+        if density is None:
+            density = other.density if other.density is not None else None
+        else:
+            if other.density is not None:
+                density = density + other.density
+        ssf = self.ss_factor
+        if ssf is None:
+            ssf = other.ss_factor if other.ss_factor is not None else None
+        else:
+            if other.ss_factor is not None:
+                ssf = ssf + other.ss_factor
+        return PropsDataBlocks(energy, density, ssf)
 
 
 @attr.s(auto_attribs=True, frozen=True)

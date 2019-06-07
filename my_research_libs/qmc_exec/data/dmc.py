@@ -144,6 +144,26 @@ class PropBlocks(Mapping):
             weight = self.weight_totals[index]
             yield PropBlock(total, weight=weight)
 
+    def __add__(self, other: t.Any):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, PropBlocks):
+            return NotImplemented
+        try:
+            all_totals = self.totals, other.totals
+            totals = np.concatenate(all_totals, axis=0)
+        except ValueError as e:
+            raise ValueError("'totals' are incompatible "
+                             "between instances") from e
+        try:
+            all_weight_totals = self.weight_totals, other.weight_totals
+            weight_totals = np.concatenate(all_weight_totals, axis=0)
+        except ValueError as e:
+            raise ValueError("'weight_totals' are incompatible "
+                             "between instances") from e
+        return PropBlocks(totals, weight_totals)
+
+    # TODO: I think we do not need __radd__ method...
+
 
 T_UnWeightedPropBlockItem = t.Union['PropBlock', 'UnWeightedPropBlocks']
 
@@ -211,6 +231,18 @@ class UnWeightedPropBlocks(Mapping):
         for index, total in enumerate(self.totals):
             total = self.totals[index]
             yield PropBlock(total, weight=None)
+
+    def __add__(self, other: t.Any):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, UnWeightedPropBlocks):
+            return NotImplemented
+        try:
+            all_totals = self.totals, other.totals
+            totals = np.concatenate(all_totals, axis=0)
+        except ValueError as e:
+            raise ValueError("'totals' are incompatible between "
+                             "instances") from e
+        return UnWeightedPropBlocks(totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -579,6 +611,15 @@ class SSFBlocks:
 
         return cls(fdk_sqr_abs, fdk_real, fdk_imag)
 
+    def __add__(self, other: t.Any):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, SSFBlocks):
+            return NotImplemented
+        fdk_sqr_abs_part = self.fdk_sqr_abs_part + other.fdk_sqr_abs_part
+        fdk_real_part = self.fdk_real_part + other.fdk_real_part
+        fdk_imag_part = self.fdk_imag_part + other.fdk_imag_part
+        return SSFBlocks(fdk_sqr_abs_part, fdk_real_part, fdk_imag_part)
+
 
 @attr.s(auto_attribs=True, frozen=True)
 class PropsDataSeries:
@@ -692,6 +733,28 @@ class PropsDataBlocks:
 
         return cls(energy_blocks, weight_blocks,
                    num_walkers_blocks, density_blocks, ssf_block)
+
+    def merge(self, other: 'PropsDataBlocks'):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, PropsDataBlocks):
+            raise TypeError("'other' must be an instance of "
+                            "'PropsDataBlocks'")
+        energy = self.energy + other.energy
+        weight = self.weight + other.weight
+        num_walkers = self.num_walkers + other.num_walkers
+        density = self.density
+        if density is None:
+            density = other.density if other.density is not None else None
+        else:
+            if other.density is not None:
+                density = density + other.density
+        ssf = self.ss_factor
+        if ssf is None:
+            ssf = other.ss_factor if other.ss_factor is not None else None
+        else:
+            if other.ss_factor is not None:
+                ssf = ssf + other.ss_factor
+        return PropsDataBlocks(energy, weight, num_walkers, density, ssf)
 
 
 @attr.s(auto_attribs=True, frozen=True)
