@@ -5,9 +5,6 @@
     Basic classes and routines to realize a Variational Monte Carlo
     calculation.
 """
-# Data classes.
-from . import data
-
 # Input and output handling.
 from .io import (
     HDF5FileHandler, HDF5FileHandlerGroupError, IOHandler, RawHDF5FileHandler,
