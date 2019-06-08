@@ -92,6 +92,20 @@ def test_density_proc():
     handler.dump(result)
 
 
+def test_load_proc_density_output():
+    """Load the static structure factor VMC data from HDF5 file."""
+    h5f_path = pathlib.Path('./test-density-results.h5')
+    handler = dmc_exec.HDF5FileHandler(h5f_path, 'density-data-group')
+    result = handler.load()
+    density_bin_edges = result.proc.sampling.density_bins_edges
+    density_mean = result.data.blocks.density.mean
+
+    pyplot.plot(density_bin_edges[:-1], density_mean / boson_number)
+    pyplot.xlabel(r'$z / l$')
+    pyplot.ylabel(r'$n_{1}(z)$')
+    pyplot.show()
+
+
 def test_ssf_proc():
     """Testing the calculation of the static structure factor."""
     time_step = 6.25e-4
@@ -132,6 +146,20 @@ def test_ssf_proc():
         h5f_path.unlink()
     handler = dmc_exec.HDF5FileHandler(h5f_path, 'ssf-data-group')
     handler.dump(result)
+
+
+def test_load_ssf_proc_output():
+    """Load the static structure factor VMC data from HDF5 file."""
+    h5f_path = pathlib.Path('./test-ssf-results.h5')
+    handler = dmc_exec.HDF5FileHandler(h5f_path, 'ssf-data-group')
+    result = handler.load()
+    ssf_momenta = result.proc.sampling.ssf_momenta
+    ssf_mean = result.data.blocks.ss_factor.mean
+
+    pyplot.plot(ssf_momenta, ssf_mean / boson_number)
+    pyplot.xlabel(r'$k / n$')
+    pyplot.ylabel(r'$S(k)$')
+    pyplot.show()
 
 
 if __name__ == '__main__':

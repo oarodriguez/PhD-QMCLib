@@ -226,7 +226,7 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
 @attr.s(auto_attribs=True, frozen=True)
 class NpyFileHandler(IOHandler, metaclass=ABCMeta):
     """"""
-    # NOTE: It could be useful in the future...
+    # NOTE: It could be useful in the future 🤔...
 
     location: str = attr.ib(validator=str_validator)
 

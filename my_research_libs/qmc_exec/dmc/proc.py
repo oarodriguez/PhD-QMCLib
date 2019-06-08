@@ -2,15 +2,12 @@ import typing as t
 from abc import ABCMeta, abstractmethod
 from itertools import islice
 
-import attr
 import numpy as np
 import tqdm
 
-from my_research_libs.qmc_base import (
-    dmc as dmc_base, model as model_base
-)
-from my_research_libs.qmc_base.dmc import SSFPartSlot
+from my_research_libs.qmc_base import dmc as dmc_base, model as model_base
 from my_research_libs.qmc_base.jastrow.model import DensityPartSlot
+from .. import proc as proc_base
 from ..data.dmc import (
     DensityBlocks, EnergyBlocks, NumWalkersBlocks, PropsDataBlocks,
     PropsDataSeries, SSFBlocks, SamplingData, WeightBlocks
@@ -21,7 +18,7 @@ DMC_TASK_LOG_NAME = f'DMC Sampling'
 VMC_SAMPLING_LOG_NAME = 'VMC Sampling'
 
 
-class ModelSysConfSpec(metaclass=ABCMeta):
+class ModelSysConfSpec(proc_base.ModelSysConfSpec):
     """Handler to build inputs from system configurations."""
 
     #:
@@ -31,48 +28,22 @@ class ModelSysConfSpec(metaclass=ABCMeta):
     num_sys_conf: t.Optional[int]
 
 
-class DensityEstSpec(metaclass=ABCMeta):
+class DensityEstSpec(proc_base.DensityEstSpec):
     """Structure factor estimator basic config."""
     num_bins: int
     as_pure_est: bool
 
 
-class SSFEstSpec(metaclass=ABCMeta):
+class SSFEstSpec(proc_base.SSFEstSpec):
     """Structure factor estimator basic config."""
     num_modes: int
     as_pure_est: bool
 
 
-@attr.s(auto_attribs=True)
-class ProcInput(metaclass=ABCMeta):
+class ProcInput(proc_base.ProcInput, metaclass=ABCMeta):
     """Represents the input for the DMC calculation procedure."""
     # The state of the DMC procedure input.
-    # NOTE: Is this class necessary? 🤔
     state: dmc_base.State
-
-    @classmethod
-    @abstractmethod
-    def from_model_sys_conf_spec(cls, sys_conf_spec: ModelSysConfSpec,
-                                 proc: 'Proc'):
-        """
-
-        :param sys_conf_spec:
-        :param proc:
-        :return:
-        """
-        pass
-
-    @classmethod
-    @abstractmethod
-    def from_result(cls, proc_result: 'ProcResult',
-                    proc: 'Proc'):
-        """
-
-        :param proc_result:
-        :param proc:
-        :return:
-        """
-        pass
 
 
 class ProcInputError(ValueError):
@@ -80,20 +51,7 @@ class ProcInputError(ValueError):
     pass
 
 
-class ProcResult:
-    """Result of the DMC estimator sampling."""
-
-    #: The last state of the sampling.
-    state: dmc_base.State
-
-    #: The sampling object used to generate the results.
-    proc: 'Proc'
-
-    #: The data generated during the sampling.
-    data: SamplingData
-
-
-class Proc(metaclass=ABCMeta):
+class Proc(proc_base.Proc):
     """DMC sampling procedure spec."""
 
     #: The model spec.
@@ -142,52 +100,38 @@ class Proc(metaclass=ABCMeta):
             burn_in_blocks = max(1, self.num_blocks // 8)
             object.__setattr__(self, 'burn_in_blocks', burn_in_blocks)
 
-    @classmethod
-    @abstractmethod
-    def from_config(cls, config: t.Mapping):
-        pass
-
-    @abstractmethod
-    def as_config(self) -> t.Dict:
-        """Converts the procedure to a dictionary / mapping object."""
-        pass
-
-    @classmethod
-    @abstractmethod
-    def evolve(cls, config: t.Mapping):
-        pass
-
-    @property
-    def should_eval_density(self):
-        """"""
-        return False if self.density_spec is None else True
-
-    @property
-    def should_eval_ssf(self):
-        """"""
-        return False if self.ssf_spec is None else True
-
     @property
     @abstractmethod
     def sampling(self) -> dmc_base.Sampling:
         pass
 
-    @abstractmethod
-    def build_result(self, state: dmc_base.State,
-                     sampling: dmc_base.Sampling,
-                     data: SamplingData) -> ProcResult:
-        """
+    def describe_sampling(self):
+        """Describe the DMC sampling."""
+        time_step = self.time_step
+        target_num_walkers = self.target_num_walkers
+        max_num_walkers = self.max_num_walkers
+        nwc_factor = self.num_walkers_control_factor
+        rng_seed = self.rng_seed
+        num_blocks = self.num_blocks
+        num_time_steps_block = self.num_time_steps_block
+        burn_in_blocks = self.burn_in_blocks
 
-        :param state: The last state of the sampling.
-        :param data: The data generated during the sampling.
-        :param sampling: The sampling object used to generate the results.
-        :return:
-        """
-        pass
-
-    def checkpoint(self):
-        """"""
-        pass
+        # TODO: add unit to message.
+        exec_logger.info(f'Using an imaginary time step of {time_step}...')
+        exec_logger.info(f'Sampling {num_blocks} blocks of steps...')
+        exec_logger.info(f'Sampling {num_time_steps_block} steps per block...')
+        exec_logger.info(f'The first {burn_in_blocks} blocks of the sampling '
+                         f'will be discarded for statistics...')
+        exec_logger.info(f'Targeting an average of {target_num_walkers} '
+                         f'random walkers, with a maximum number of '
+                         f'{max_num_walkers} walkers...')
+        if rng_seed is None:
+            exec_logger.info(f'No random seed was specified...')
+        else:
+            exec_logger.info(f'The random seed of the sampling '
+                             f'is {rng_seed}...')
+        exec_logger.info(f'using a population control factor '
+                         f'of {nwc_factor}...')
 
     def exec(self, proc_input: ProcInput):
         """
@@ -300,7 +244,7 @@ class Proc(metaclass=ABCMeta):
             # The shape of the structure factor array.
             ssf_num_modes = ssf_spec.num_modes
             # noinspection PyTypeChecker
-            ssf_num_parts = len(SSFPartSlot)
+            ssf_num_parts = len(dmc_base.SSFPartSlot)
 
             if keep_iter_data:
                 ssf_shape = \
@@ -470,10 +414,4 @@ class Proc(metaclass=ABCMeta):
             data_series = None
 
         sampling_data = SamplingData(data_blocks, data_series)
-
-        # NOTE: Should we return a new instance?
-        # sampling = attr.evolve(sampling)
-
-        return self.build_result(last_state,
-                                 sampling=sampling,
-                                 data=sampling_data)
+        return self.build_result(last_state, sampling_data)

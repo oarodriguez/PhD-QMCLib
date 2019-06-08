@@ -5,14 +5,16 @@ import attr
 import numpy as np
 from cached_property import cached_property
 
-from my_research_libs import qmc_exec
-from my_research_libs.mrbp_qmc import dmc, model
+from my_research_libs.constants import ER
 from my_research_libs.qmc_base.jastrow import SysConfDistType
-from my_research_libs.qmc_exec import dmc as dmc_exec
+from my_research_libs.qmc_exec import (
+    data as qmc_data, dmc as dmc_exec, exec_logger, proc as proc_base
+)
 from my_research_libs.util.attr import (
     bool_converter, bool_validator, int_converter, int_validator,
     opt_int_converter, opt_int_validator, opt_str_validator, str_validator
 )
+from .. import dmc, model
 
 # String to use a ModelSysConfSpec instance as input for a Proc instance.
 MODEL_SYS_CONF_TYPE = 'MODEL_SYS_CONF'
@@ -22,7 +24,7 @@ opt_model_spec_validator = attr.validators.optional(model_spec_validator)
 
 
 @attr.s(auto_attribs=True, frozen=True)
-class ModelSysConfSpec(dmc_exec.proc.ModelSysConfSpec):
+class ModelSysConfSpec(dmc_exec.ModelSysConfSpec):
     """Handler to build inputs from system configurations."""
 
     #:
@@ -100,7 +102,6 @@ opt_ssf_validator = attr.validators.optional(ssf_validator)
 class ProcInput(dmc_exec.ProcInput):
     """Represents the input for the DMC calculation procedure."""
     # The state of the DMC procedure input.
-    # NOTE: Is this class necessary? 🤔
     state: dmc.State
 
     @classmethod
@@ -141,13 +142,8 @@ class ProcInput(dmc_exec.ProcInput):
         return cls(state)
 
 
-class ProcInputError(ValueError):
-    """Flags an invalid input for a DMC calculation procedure."""
-    pass
-
-
 @attr.s(auto_attribs=True, frozen=True)
-class ProcResult(dmc_exec.ProcResult):
+class ProcResult(proc_base.ProcResult):
     """Result of the DMC estimator sampling."""
 
     #: The last state of the sampling.
@@ -157,7 +153,7 @@ class ProcResult(dmc_exec.ProcResult):
     proc: 'Proc'
 
     #: The data generated during the sampling.
-    data: qmc_exec.data.dmc.SamplingData
+    data: qmc_data.dmc.SamplingData
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -367,17 +363,33 @@ class Proc(dmc_exec.Proc):
                                 ssf_est_spec=ssf_est_spec)
         return sampling
 
-    def checkpoint(self):
-        """"""
-        pass
+    def describe_model_spec(self):
+        """
+
+        :return:
+        """
+        model_spec = self.model_spec
+        v_zero = model_spec.lattice_depth
+        lr = model_spec.lattice_ratio
+        gn = model_spec.interaction_strength
+        nop = model_spec.boson_number
+        sc_size = model_spec.supercell_size
+        rm = model_spec.tbf_contact_cutoff
+
+        exec_logger.info('Multi-Rods system parameters:')
+        exec_logger.info(f'* Lattice depth: {v_zero / ER:.3G} ER')
+        exec_logger.info(f'* Lattice ratio: {lr:.3G}')
+        exec_logger.info(f'* Interaction strength: {gn / ER:.3G} ER')
+        exec_logger.info(f'* Number of bosons: {nop:d}')
+        exec_logger.info(f'* Supercell size: {sc_size:.3G} LKP')
+        exec_logger.info(f'* Variational parameters:')
+        exec_logger.info(f'  * RM: {rm:.3G} LKP')
 
     def build_result(self, state: dmc.State,
-                     sampling: dmc.Sampling,
-                     data: qmc_exec.data.dmc.SamplingData):
+                     data: qmc_data.dmc.SamplingData):
         """
 
         :param state:
-        :param sampling:
         :param data:
         :return:
         """
