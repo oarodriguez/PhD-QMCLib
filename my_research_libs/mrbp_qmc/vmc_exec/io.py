@@ -3,7 +3,8 @@ import typing as t
 
 import attr
 
-from my_research_libs.qmc_exec import vmc as vmc_exec
+from my_research_libs.qmc_base import vmc as vmc_udf_base
+from my_research_libs.qmc_exec import data as dmc_data, vmc as vmc_exec
 from my_research_libs.util.attr import (
     bool_validator, opt_str_validator, str_validator
 )
@@ -99,3 +100,15 @@ class HDF5FileHandler(vmc_exec.io.HDF5FileHandler):
         :return:
         """
         return Proc.from_config(proc_config)
+
+    def build_result(self, state: vmc_udf_base.State,
+                     proc_inst: Proc,
+                     sampling_data: dmc_data.vmc.SamplingData):
+        """
+
+        :param state:
+        :param proc_inst:
+        :param sampling_data:
+        :return:
+        """
+        return ProcResult(state, proc_inst, sampling_data)

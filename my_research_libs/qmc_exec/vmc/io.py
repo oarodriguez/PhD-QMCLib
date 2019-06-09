@@ -6,8 +6,7 @@ import h5py
 
 from my_research_libs.qmc_base import vmc as vmc_base_udf
 from my_research_libs.util.attr import str_validator
-from .proc import ProcResult
-from .. import io as io_base, proc as proc_base
+from .. import io as io_base
 from ..data.vmc import SamplingData
 
 
@@ -34,18 +33,6 @@ class HDF5FileHandler(io_base.HDF5FileHandler, metaclass=ABCMeta):
     @property
     def sampling_type(self):
         return 'vmc'
-
-    def build_result(self, state: vmc_base_udf.State,
-                     proc_inst: proc_base.Proc,
-                     sampling_data: SamplingData):
-        """
-
-        :param state:
-        :param proc_inst:
-        :param sampling_data:
-        :return:
-        """
-        return ProcResult(state, proc_inst, sampling_data)
 
     def save_state(self, state: vmc_base_udf.State,
                    group: h5py.Group):

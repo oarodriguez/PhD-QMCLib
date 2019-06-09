@@ -12,5 +12,5 @@ from .io import (
 
 # Procedure.
 from .proc import (
-    ModelSysConfSpec, Proc, ProcInput, ProcInputError, ProcResult
+    ModelSysConfSpec, Proc, ProcInput, ProcInputError
 )

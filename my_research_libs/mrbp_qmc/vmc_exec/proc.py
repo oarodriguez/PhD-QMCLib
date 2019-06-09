@@ -84,7 +84,7 @@ class SSFEstSpec(proc_base.SSFEstSpec):
 
 @attr.s(auto_attribs=True)
 class ProcInput(vmc_exec.ProcInput):
-    """Represents the input for the DMC calculation procedure."""
+    """Represents the input for the VMC calculation procedure."""
 
     #: The state of the DMC procedure input.
     state: vmc_udf_base.State
@@ -107,7 +107,7 @@ class ProcInput(vmc_exec.ProcInput):
         return cls(state)
 
     @classmethod
-    def from_result(cls, proc_result: vmc_exec.ProcResult,
+    def from_result(cls, proc_result: 'ProcResult',
                     proc: 'Proc'):
         """
 
@@ -123,6 +123,19 @@ class ProcInput(vmc_exec.ProcInput):
 class ProcInputError(ValueError):
     """Flags an invalid input for a DMC calculation procedure."""
     pass
+
+
+class ProcResult(proc_base.ProcResult):
+    """Result of the VMC estimator sampling."""
+
+    #: The last state of the sampling.
+    state: vmc_udf_base.State
+
+    #: The sampling object used to generate the results.
+    proc: 'Proc'
+
+    #: The data generated during the sampling.
+    data: SamplingData
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -275,7 +288,7 @@ class Proc(vmc_exec.Proc):
         exec_logger.info(f'  * RM: {rm:.3G} LKP')
 
     def build_result(self, state: vmc_udf_base.State,
-                     data: SamplingData) -> vmc_exec.ProcResult:
+                     data: SamplingData) -> ProcResult:
         """
 
         :param state:
@@ -283,7 +296,7 @@ class Proc(vmc_exec.Proc):
         :return:
         """
         proc = self
-        return vmc_exec.ProcResult(state, proc, data)
+        return ProcResult(state, proc, data)
 
 
 vmc_proc_validator = attr.validators.instance_of(Proc)

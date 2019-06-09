@@ -2,7 +2,6 @@ import typing as t
 from abc import ABCMeta, abstractmethod
 from itertools import islice
 
-import attr
 import numpy as np
 import tqdm
 
@@ -29,20 +28,6 @@ class ProcInput(proc_base.ProcInput, metaclass=ABCMeta):
 class ProcInputError(ValueError):
     """Flags an invalid input for a VMC calculation procedure."""
     pass
-
-
-@attr.s(auto_attribs=True, frozen=True)
-class ProcResult(proc_base.ProcResult):
-    """Result of the DMC estimator sampling."""
-
-    #: The last state of the sampling.
-    state: vmc_base.State
-
-    #: The sampling object used to generate the results.
-    proc: 'Proc'
-
-    #: The data generated during the sampling.
-    data: SamplingData
 
 
 class Proc(proc_base.Proc):
