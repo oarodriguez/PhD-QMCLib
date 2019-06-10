@@ -213,13 +213,13 @@ class Proc(proc_base.Proc):
             iter_props_shape = num_blocks,
 
         props_blocks_data = \
-            np.empty(iter_props_shape, dtype=dmc_base.iter_props_dtype)
+            self.sampling.core_funcs.init_props_block_data(iter_props_shape)
 
-        props_energy = props_blocks_data[energy_field]
-        props_weight = props_blocks_data[weight_field]
-        props_num_walkers = props_blocks_data[num_walkers_field]
-        props_ref_energy = props_blocks_data[ref_energy_field]
-        props_accum_energy = props_blocks_data[accum_energy_field]
+        props_energy = props_blocks_data.energy
+        props_weight = props_blocks_data.weight
+        props_num_walkers = props_blocks_data.num_walkers
+        props_ref_energy = props_blocks_data.ref_energy
+        props_accum_energy = props_blocks_data.weight
 
         if should_eval_density:
             # The shape of the structure factor array.
@@ -282,11 +282,11 @@ class Proc(proc_base.Proc):
             for block_idx, block_data in enum_eff_blocks:
 
                 block_props = block_data.iter_props
-                energy = block_props[energy_field]
-                weight = block_props[weight_field]
-                num_walkers = block_props[num_walkers_field]
-                ref_energy = block_props[ref_energy_field]
-                accum_energy = block_props[accum_energy_field]
+                energy = block_props.energy
+                weight = block_props.weight
+                num_walkers = block_props.num_walkers
+                ref_energy = block_props.ref_energy
+                accum_energy = block_props.accum_energy
 
                 # NOTE: Should we return the iter_props by default? 🤔🤔🤔
                 #  If we keep the whole sampling data, i.e.,
@@ -297,7 +297,8 @@ class Proc(proc_base.Proc):
                 if keep_iter_data:
 
                     # Store all the information of the DMC sampling.
-                    props_blocks_data[block_idx] = block_props[:]
+                    props_blocks_data.energy[block_idx] \
+                        = block_props.energy[:]
 
                     # Handling the density results.
                     if should_eval_density:

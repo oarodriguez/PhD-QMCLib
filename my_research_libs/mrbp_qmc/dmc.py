@@ -1,21 +1,21 @@
 import typing as t
-from math import pi, sqrt
 
 import attr
 import numba as nb
 import numpy as np
 from cached_property import cached_property
+from math import pi, sqrt
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base.dmc import (
-    DensityExecData, SSFExecData, SSFPartSlot, branching_spec_dtype
+    DensityExecData, SSFExecData, SSFPartSlot
 )
 from my_research_libs.qmc_base.jastrow import (
     dmc as jsw_dmc, model as jsw_model
 )
 from my_research_libs.qmc_base.utils import recast_to_supercell
 from my_research_libs.util.attr import (
-    Record, bool_converter, bool_validator, int_converter, int_validator
+    bool_converter, bool_validator, int_converter, int_validator
 )
 from . import model
 
@@ -52,8 +52,8 @@ class StateError(ValueError):
     pass
 
 
-@attr.s(auto_attribs=True)
-class DDFParams(jsw_dmc.DDFParams, Record):
+# @attr.s(auto_attribs=True)
+class DDFParams(jsw_dmc.DDFParams, t.NamedTuple):
     """The parameters of the diffusion-and-drift process."""
     boson_number: int
     time_step: float
@@ -62,8 +62,8 @@ class DDFParams(jsw_dmc.DDFParams, Record):
     upper_bound: float
 
 
-@attr.s(auto_attribs=True)
-class DensityParams(jsw_dmc.DensityParams, Record):
+# @attr.s(auto_attribs=True)
+class DensityParams(jsw_dmc.DensityParams, t.NamedTuple):
     """Static structure factor parameters."""
     num_bins: int
     as_pure_est: bool
@@ -71,8 +71,8 @@ class DensityParams(jsw_dmc.DensityParams, Record):
     assume_none: bool
 
 
-@attr.s(auto_attribs=True)
-class SSFParams(jsw_dmc.SSFParams, Record):
+# @attr.s(auto_attribs=True)
+class SSFParams(jsw_dmc.SSFParams, t.NamedTuple):
     """Static structure factor parameters."""
     num_modes: int
     as_pure_est: bool
@@ -88,6 +88,16 @@ class CFCSpec(jsw_dmc.CFCSpec, t.NamedTuple):
     ddf_params: DDFParams
     density_params: t.Optional[DensityParams]
     ssf_params: t.Optional[jsw_dmc.SSFParams] = None
+
+
+class CFCSpecAlt(jsw_dmc.CFCSpecAlt, t.NamedTuple):
+    """Represent the common spec of the core functions."""
+    model_params: np.ndarray
+    obf_params: np.ndarray
+    tbf_params: np.ndarray
+    ddf_params: np.ndarray
+    density_params: t.Optional[np.ndarray]
+    ssf_params: t.Optional[np.ndarray]
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -172,7 +182,7 @@ class Sampling(jsw_dmc.Sampling):
                                sigma_spread=sigma_spread,
                                lower_bound=z_min,
                                upper_bound=z_max)
-        return ddf_params.as_record()
+        return ddf_params
 
     @property
     def density_params(self) -> DensityParams:
@@ -191,7 +201,7 @@ class Sampling(jsw_dmc.Sampling):
 
         density_params = \
             DensityParams(num_bins, as_pure_est, pfw_nts, assume_none)
-        return density_params.as_record()
+        return density_params
 
     @property
     def ssf_params(self) -> SSFParams:
@@ -212,7 +222,7 @@ class Sampling(jsw_dmc.Sampling):
 
         ssf_params = \
             SSFParams(num_modes, as_pure_est, pfw_nts, assume_none)
-        return ssf_params.as_record()
+        return ssf_params
 
     @property
     def cfc_spec(self) -> CFCSpec:
@@ -289,8 +299,8 @@ class Sampling(jsw_dmc.Sampling):
                                            state_data,
                                            cfc_spec)
 
-        state_energies = state_props[StateProp.ENERGY][:num_walkers]
-        state_weights = state_props[StateProp.WEIGHT][:num_walkers]
+        state_energies = state_props.energy[:num_walkers]
+        state_weights = state_props.weight[:num_walkers]
 
         state_energy = (state_energies * state_weights).sum()
         state_weight = state_weights.sum()
@@ -303,7 +313,7 @@ class Sampling(jsw_dmc.Sampling):
 
         # Table to control the branching process.
         branching_spec = \
-            np.zeros(max_num_walkers, dtype=branching_spec_dtype)
+            self.core_funcs.init_branching_spec(max_num_walkers)
 
         # NOTE: The branching spec for the initial state is None.
         ini_state = \
@@ -338,6 +348,106 @@ class CoreFuncs(jsw_dmc.CoreFuncs):
     def model_core_funcs(self) -> model.CoreFuncs:
         """"""
         return model.core_funcs
+
+    @cached_property
+    def ddf_params_transform(self):
+        """"""
+
+        @nb.njit
+        def _ddf_params_transform(ddf_params: DDFParams):
+            """
+
+            :param ddf_params:
+            :return:
+            """
+            return np.array(tuple(ddf_params), dtype=np.float64)
+
+        return _ddf_params_transform
+
+    @cached_property
+    def density_params_transform(self):
+        """"""
+
+        @nb.njit
+        def _density_params_transform(density_params: DensityParams):
+            """
+
+            :param density_params:
+            :return:
+            """
+            return np.array(tuple(density_params), dtype=np.float64)
+
+        return _density_params_transform
+
+    @cached_property
+    def ssf_params_transform(self):
+        """"""
+
+        @nb.njit
+        def _ssf_params_transform(ssf_params: SSFParams):
+            """
+
+            :param ssf_params:
+            :return:
+            """
+            return np.array(tuple(ssf_params), dtype=np.float64)
+
+        return _ssf_params_transform
+
+    @cached_property
+    def ddf_params_reconstruct(self):
+        """"""
+
+        @nb.njit
+        def _ddf_params_reconstruct(ddf_params: np.ndarray):
+            """
+
+            :param ddf_params:
+            :return:
+            """
+            return DDFParams(boson_number=int(ddf_params[0]),
+                             time_step=ddf_params[1],
+                             sigma_spread=ddf_params[2],
+                             lower_bound=ddf_params[3],
+                             upper_bound=ddf_params[4])
+
+        return _ddf_params_reconstruct
+
+    @cached_property
+    def density_params_reconstruct(self):
+        """"""
+
+        @nb.njit
+        def _density_params_reconstruct(density_params: np.ndarray):
+            """
+
+            :param density_params:
+            :return:
+            """
+            return DensityParams(num_bins=int(density_params[0]),
+                                 as_pure_est=bool(density_params[1]),
+                                 pfw_num_time_steps=int(density_params[2]),
+                                 assume_none=bool(density_params[3]))
+
+        return _density_params_reconstruct
+
+    @cached_property
+    def ssf_params_reconstruct(self):
+        """"""
+
+        @nb.njit
+        def _ssf_params_reconstruct(ssf_params: np.ndarray):
+            """
+
+            :param ssf_params:
+            :return:
+            """
+            return SSFParams(num_modes=int(ssf_params[0]),
+                             as_pure_est=bool(ssf_params[1]),
+                             pfw_num_time_steps=int(ssf_params[2]),
+                             assume_none=bool(ssf_params[3]))
+
+        return _ssf_params_reconstruct
 
     @cached_property
     def recast(self):

@@ -1,5 +1,4 @@
 import typing as t
-from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from os import cpu_count
 
 import attr
@@ -7,6 +6,7 @@ import dask
 import dask.bag as db
 import numpy as np
 from cached_property import cached_property
+from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
 from numba import jit
 from numpy import random
 from scipy.optimize import brentq, differential_evolution
@@ -14,7 +14,7 @@ from scipy.optimize import brentq, differential_evolution
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
 from my_research_libs.util.attr import (
-    Record, int_converter, int_validator
+    int_converter, int_validator
 )
 
 __all__ = [
@@ -36,8 +36,7 @@ DIST_RAND = qmc_base.jastrow.SysConfDistType.RANDOM
 DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class Params(qmc_base.jastrow.Params, Record):
+class Params(qmc_base.jastrow.Params, t.NamedTuple):
     """The model `Spec` as a named tuple."""
     # TODO: Add a more robust type system for the parameters.
     lattice_depth: float
@@ -52,8 +51,7 @@ class Params(qmc_base.jastrow.Params, Record):
     is_ideal: bool
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class OBFParams(qmc_base.jastrow.OBFParams, Record):
+class OBFParams(qmc_base.jastrow.OBFParams, t.NamedTuple):
     """One-body function parameters."""
     lattice_depth: float
     lattice_ratio: float
@@ -64,8 +62,7 @@ class OBFParams(qmc_base.jastrow.OBFParams, Record):
     param_kp1: float
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class TBFParams(qmc_base.jastrow.TBFParams, Record):
+class TBFParams(qmc_base.jastrow.TBFParams, t.NamedTuple):
     """Two-body function parameters."""
     supercell_size: float
     tbf_contact_cutoff: float
@@ -81,6 +78,14 @@ class CFCSpec(qmc_base.jastrow.CFCSpec, t.NamedTuple):
     model_params: Params
     obf_params: OBFParams
     tbf_params: TBFParams
+
+
+class CFCSpecAlt(qmc_base.jastrow.CFCSpecAlt, t.NamedTuple):
+    """"""
+    # Does nothing, only for type hints
+    model_params: np.ndarray
+    obf_params: np.ndarray
+    tbf_params: np.ndarray
 
 
 # noinspection PyUnusedLocal
@@ -223,7 +228,7 @@ class Spec(qmc_base.jastrow.Spec):
                         self.barrier_width,
                         self.is_free,
                         self.is_ideal)
-        return params.as_record()
+        return params
 
     @property
     def obf_params(self):
@@ -243,7 +248,7 @@ class Spec(qmc_base.jastrow.Spec):
                                param_e0=e0,
                                param_k1=k1,
                                param_kp1=kp1)
-        return obf_params.as_record()
+        return obf_params
 
     @property
     def tbf_params(self):
@@ -266,7 +271,7 @@ class Spec(qmc_base.jastrow.Spec):
                                    param_beta=0.,
                                    param_r_off=1 / 2 * sc_size,
                                    param_am=1.0)
-            return tbf_params.as_record()
+            return tbf_params
 
         # Convert interaction energy to Lieb gamma.
         lgm = 0.5 * (sc_size / nop) ** 2 * gn
@@ -321,7 +326,7 @@ class Spec(qmc_base.jastrow.Spec):
                                param_beta=beta,
                                param_r_off=r_off * sc_size,
                                param_am=am)
-        return tbf_params.as_record()
+        return tbf_params
 
     @property
     def cfc_spec(self):
@@ -492,6 +497,183 @@ class CoreFuncs(qmc_base.jastrow.CoreFuncs):
     """Functions of a QMC model for a system with a trial wave function
     of the Bijl-Jastrow type.
     """
+
+    @cached_property
+    def model_params_transform(self):
+        """"""
+
+        @jit(nopython=True)
+        def _model_params_transform(model_params: Params):
+            """
+
+            :param model_params:
+            :return:
+            """
+            return np.array(tuple(model_params), dtype=np.float64)
+
+        return _model_params_transform
+
+    @cached_property
+    def obf_params_transform(self):
+        """"""
+
+        @jit(nopython=True)
+        def _obf_params_transform(obf_params: OBFParams):
+            """
+
+            :param obf_params:
+            :return:
+            """
+            return np.array(tuple(obf_params), dtype=np.float64)
+
+        return _obf_params_transform
+
+    @cached_property
+    def tbf_params_transform(self):
+        """"""
+
+        @jit(nopython=True)
+        def _tbf_params_transform(tbf_params: TBFParams):
+            """
+
+            :param tbf_params:
+            :return:
+            """
+            return np.array(tuple(tbf_params), dtype=np.float64)
+
+        return _tbf_params_transform
+
+    @cached_property
+    def model_params_reconstruct(self):
+        """"""
+
+        @jit(nopython=True)
+        def _model_params_reconstruct(model_params: np.ndarray):
+            """
+
+            :param model_params:
+            :return:
+            """
+            # Somewhat ugly function...
+            # First, we have to transform the elements of the array.
+            model_params = Params(lattice_depth=model_params[0],
+                                  lattice_ratio=model_params[1],
+                                  interaction_strength=model_params[2],
+                                  boson_number=int(model_params[3]),
+                                  supercell_size=model_params[4],
+                                  tbf_contact_cutoff=model_params[5],
+                                  well_width=model_params[6],
+                                  barrier_width=model_params[7],
+                                  is_free=bool(model_params[8]),
+                                  is_ideal=bool(model_params[9]))
+            return model_params
+
+        return _model_params_reconstruct
+
+    @cached_property
+    def obf_params_reconstruct(self):
+        """"""
+
+        @jit(nopython=True)
+        def _obf_params_reconstruct(obf_params: np.ndarray):
+            """
+
+            :param obf_params:
+            :return:
+            """
+            # OBF is a tuple of floats.
+            return OBFParams(lattice_depth=obf_params[0],
+                             lattice_ratio=obf_params[1],
+                             well_width=obf_params[2],
+                             barrier_width=obf_params[3],
+                             param_e0=obf_params[4],
+                             param_k1=obf_params[5],
+                             param_kp1=obf_params[6])
+
+        return _obf_params_reconstruct
+
+    @cached_property
+    def tbf_params_reconstruct(self):
+        """"""
+
+        @jit(nopython=True)
+        def _tbf_params_reconstruct(tbf_params: np.ndarray):
+            """
+
+            :param tbf_params:
+            :return:
+            """
+            # TBF is a tuple of floats.
+            return TBFParams(supercell_size=tbf_params[0],
+                             tbf_contact_cutoff=tbf_params[1],
+                             param_k2=tbf_params[2],
+                             param_beta=tbf_params[3],
+                             param_r_off=tbf_params[4],
+                             param_am=tbf_params[5])
+
+        return _tbf_params_reconstruct
+
+    @cached_property
+    def cfc_spec_transform(self):
+        """"""
+
+        @jit(nopython=True)
+        def _cfc_spec_transform(model_params: Params,
+                                obf_params: OBFParams,
+                                tbf_params: TBFParams):
+            """
+
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
+            :return:
+            """
+            model_params = np.array(tuple(model_params), dtype=np.float64)
+            obf_params = np.array(tuple(obf_params), dtype=np.float64)
+            tbf_params = np.array(tuple(tbf_params), dtype=np.float64)
+            return CFCSpecAlt(model_params, obf_params, tbf_params)
+
+        return _cfc_spec_transform
+
+    @cached_property
+    def cfc_spec_reconstruct(self):
+        """"""
+
+        @jit(nopython=True)
+        def _cfc_spec_reconstruct(model_params: Params,
+                                  obf_params: OBFParams,
+                                  tbf_params: TBFParams):
+            """
+
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
+            :return:
+            """
+            # Somewhat ugly function...
+            # First, we have to transform the elements of the array.
+            model_params = Params(lattice_depth=model_params[0],
+                                  lattice_ratio=model_params[1],
+                                  interaction_strength=model_params[2],
+                                  boson_number=int(model_params[3]),
+                                  supercell_size=model_params[4],
+                                  tbf_contact_cutoff=model_params[5],
+                                  well_width=model_params[6],
+                                  barrier_width=model_params[7],
+                                  is_free=bool(model_params[8]),
+                                  is_ideal=bool(model_params[9]))
+
+            # OBF is a tuple of floats.
+            obf_params = \
+                OBFParams(*(obf_params[idx] for idx in range(len(obf_params))))
+
+            # TBF is a tuple of floats.
+            tbf_params = \
+                TBFParams(*(tbf_params[idx] for idx in range(len(tbf_params))))
+
+            return CFCSpec(model_params, obf_params, tbf_params)
+
+        return _cfc_spec_reconstruct
 
     @cached_property
     def real_distance(self):

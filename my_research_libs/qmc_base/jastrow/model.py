@@ -1,11 +1,11 @@
 import enum
 import typing as t
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from enum import Enum, IntEnum, unique
-from math import (cos, exp, fabs, log, sin)
 
 import numpy as np
 from cached_property import cached_property
+from math import (cos, exp, fabs, log, sin)
 from numba import guvectorize, jit
 
 from .. import model
@@ -13,6 +13,7 @@ from ..utils import sign
 
 __all__ = [
     'CFCSpec',
+    'CFCSpecAlt',
     'CoreFuncs',
     'CSWFOptimizer',
     'DensityPartSlot',
@@ -55,7 +56,7 @@ DIST_RAND = SysConfDistType.RANDOM
 DIST_REGULAR = SysConfDistType.REGULAR
 
 
-class Params(model.Params, metaclass=ABCMeta):
+class Params:
     """The common fields a Jastrow model spec should implement."""
     boson_number: int
     supercell_size: float
@@ -63,7 +64,7 @@ class Params(model.Params, metaclass=ABCMeta):
     is_ideal: bool
 
 
-class OBFParams(model.Params, metaclass=ABCMeta):
+class OBFParams:
     """Fields of the one-body function spec.
 
     We declare this class to help with typing and nothing more. A concrete
@@ -73,7 +74,7 @@ class OBFParams(model.Params, metaclass=ABCMeta):
     pass
 
 
-class TBFParams(model.Params, metaclass=ABCMeta):
+class TBFParams:
     """Fields of the two-body function spec.
 
     We declare this class to help with typing and nothing more. A concrete
@@ -88,6 +89,13 @@ class CFCSpec(t.NamedTuple):
     model_params: Params
     obf_params: OBFParams
     tbf_params: TBFParams
+
+
+class CFCSpecAlt(t.NamedTuple):
+    """The common structure of the spec of a core function."""
+    model_params: np.ndarray
+    obf_params: np.ndarray
+    tbf_params: np.ndarray
 
 
 class Spec(model.Spec):
@@ -141,6 +149,36 @@ class Spec(model.Spec):
 
 # Stubs to help with static type checking.
 # noinspection PyUnusedLocal
+def _model_params_transform_stub(model_params: Params) -> np.ndarray:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _obf_params_transform_stub(obf_params: OBFParams) -> np.ndarray:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _tbf_params_transform_stub(obf_params: TBFParams) -> np.ndarray:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _model_params_reconstruct_stub(model_params: np.ndarray) -> Params:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _obf_params_reconstruct_stub(obf_params: np.ndarray) -> OBFParams:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _tbf_params_reconstruct_stub(tbf_params: np.ndarray) -> TBFParams:
+    pass
+
+
+# noinspection PyUnusedLocal
 def _one_body_func_stub(z: float, obf_params: OBFParams) -> float:
     pass
 
@@ -162,6 +200,46 @@ class CoreFuncs(model.CoreFuncs):
     """
     #
     sys_conf_slots: t.ClassVar = SysConfSlot
+
+    @property
+    @abstractmethod
+    def cfc_spec_transform(self):
+        return
+
+    @property
+    @abstractmethod
+    def cfc_spec_reconstruct(self):
+        return
+
+    @property
+    @abstractmethod
+    def model_params_transform(self):
+        return _model_params_transform_stub
+
+    @property
+    @abstractmethod
+    def obf_params_transform(self):
+        return _obf_params_transform_stub
+
+    @property
+    @abstractmethod
+    def tbf_params_transform(self):
+        return _tbf_params_transform_stub
+
+    @property
+    @abstractmethod
+    def model_params_reconstruct(self):
+        return _model_params_reconstruct_stub
+
+    @property
+    @abstractmethod
+    def obf_params_reconstruct(self):
+        return _obf_params_reconstruct_stub
+
+    @property
+    @abstractmethod
+    def tbf_params_reconstruct(self):
+        return _tbf_params_reconstruct_stub
 
     @property
     @abstractmethod
