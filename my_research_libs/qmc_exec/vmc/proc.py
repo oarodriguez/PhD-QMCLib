@@ -151,10 +151,11 @@ class Proc(proc_base.Proc):
             iter_props_shape = num_blocks,
 
         props_blocks_data = \
-            np.empty(iter_props_shape, dtype=vmc_base.iter_props_dtype)
+            self.sampling.core_funcs.init_props_block_data(iter_props_shape)
 
-        props_wf_abs_log = props_blocks_data[wf_abs_log_field]
-        props_energy = props_blocks_data[energy_field]
+        props_wf_abs_log = props_blocks_data.wf_abs_log
+        props_energy = props_blocks_data.energy
+        # props_move_stat = props_blocks_data.move_stat
 
         if should_eval_ssf:
             # The shape of the structure factor array.
@@ -188,15 +189,19 @@ class Proc(proc_base.Proc):
             for block_idx, block_data in enum_eff_blocks:
                 #
                 block_props = block_data.iter_props
-                wf_abs_log: np.ndarray = block_props[wf_abs_log_field]
-                energy: np.ndarray = block_props[energy_field]
+                wf_abs_log = block_props.wf_abs_log
+                energy = block_props.energy
+                # move_stat = block_props.move_stat
 
                 if keep_iter_data:
                     # Store all the information of the DMC sampling.
-                    props_blocks_data[block_idx] = block_props[:]
+                    props_wf_abs_log[block_idx] = wf_abs_log[:]
+                    props_energy[block_idx] = energy[:]
+                    # props_move_stat[block_idx] = move_stat[:]
                 else:
-                    props_energy[block_idx] = energy.mean()
                     props_wf_abs_log[block_idx] = wf_abs_log.mean()
+                    props_energy[block_idx] = energy.mean()
+                    # props_move_stat[block_idx] = move_stat[-1]
 
                 if should_eval_ssf:
                     # Get the static structure factor data.

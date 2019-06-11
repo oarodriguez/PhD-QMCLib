@@ -10,33 +10,28 @@ from numpy.linalg import norm
 
 from my_research_libs.qmc_base import vmc as vmc_udf, vmc_ndf
 from my_research_libs.qmc_base.vmc import State
-from my_research_libs.util.attr import Record
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class WFParams(Record):
+class WFParams(t.NamedTuple):
     """Represent the parameters of the of the gaussian pdf."""
     dims: int
     mu: float
     sigma: float
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class TPFParams(vmc_ndf.TPFParams, Record):
+class TPFParams(vmc_ndf.TPFParams, t.NamedTuple):
     """Represents the transition probability function parameters."""
     dims: int
     sigma: float
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class UTPFParams(vmc_udf.TPFParams, Record):
+class UTPFParams(vmc_udf.TPFParams, t.NamedTuple):
     """The uniform, transition probability function parameters."""
     dims: int
     move_spread: float
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class SSFParams(vmc_udf.SSFParams, Record):
+class SSFParams(vmc_udf.SSFParams, t.NamedTuple):
     """Static structure factor parameters."""
     assume_none: bool
 
@@ -63,20 +58,20 @@ class NormalSampling(vmc_ndf.Sampling):
     def wf_params(self):
         """"""
         wf_params = WFParams(self.dims, self.mu, self.sigma)
-        return wf_params.as_record()
+        return wf_params
 
     @property
     def tpf_params(self) -> TPFParams:
         """"""
         sigma = sqrt(self.time_step)
         tpf_params = TPFParams(self.dims, sigma)
-        return tpf_params.as_record()
+        return tpf_params
 
     @property
     def ssf_params(self) -> SSFParams:
         """"""
         ssf_params = SSFParams(assume_none=True)
-        return ssf_params.as_record()
+        return ssf_params
 
     @property
     def ssf_momenta(self):
@@ -143,16 +138,15 @@ class CoreFuncs(vmc_ndf.CoreFuncs):
     @cached_property
     def energy(self):
         """"""
-        energy_field = vmc_udf.IterProp.ENERGY.value
 
         # noinspection PyUnusedLocal
         @nb.njit
         def _energy(step_idx: int,
                     state: vmc_udf.State,
                     cfc_spec: CFCSpec,
-                    iter_props_array: np.ndarray):
+                    iter_props_array: vmc_udf.PropsData):
             """"""
-            energy_set = iter_props_array[energy_field]
+            energy_set = iter_props_array.energy
             energy_set[step_idx] = 0.
 
         return _energy

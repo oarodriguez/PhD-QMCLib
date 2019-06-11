@@ -19,7 +19,7 @@ STAT_ACCEPTED = vmc.STAT_ACCEPTED
 STAT_REJECTED = vmc.STAT_REJECTED
 
 
-class TPFParams(vmc.TPFParams, metaclass=ABCMeta):
+class TPFParams(vmc.TPFParams):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -251,25 +251,24 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
 
         :return:
         """
-        energy_field = vmc.IterProp.ENERGY.value
         energy = self.model_core_funcs.energy
 
         @jit(nopython=True)
         def _energy(step_idx: int,
                     state: vmc.State,
                     cfc_spec: CFCSpec,
-                    iter_props_array: np.ndarray):
+                    iter_props: vmc.PropsData):
             """
 
             :param step_idx:
             :param state:
             :param cfc_spec:
-            :param iter_props_array:
+            :param iter_props:
             :return:
             """
             sys_conf = state.sys_conf
             move_stat = state.move_stat
-            energy_set = iter_props_array[energy_field]
+            energy_set = iter_props.energy
 
             if move_stat == STAT_REJECTED:
                 # Just get the previous value of the energy.

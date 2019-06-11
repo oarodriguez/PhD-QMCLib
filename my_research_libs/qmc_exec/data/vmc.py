@@ -106,7 +106,7 @@ class EnergyBlocks(PropBlocks):
     totals: np.ndarray
 
     @classmethod
-    def from_data(cls, data: np.ndarray,
+    def from_data(cls, data: vmc_udf_base.PropsData,
                   reduce_data: bool = True):
         """
 
@@ -114,7 +114,7 @@ class EnergyBlocks(PropBlocks):
         :param reduce_data:
         :return:
         """
-        energy_data = data[vmc_udf_base.IterProp.ENERGY]
+        energy_data = data.energy
         if reduce_data:
             totals = energy_data.mean(axis=1)
         else:

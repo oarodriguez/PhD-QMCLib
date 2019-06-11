@@ -5,7 +5,6 @@ from matplotlib import pyplot
 
 from my_research_libs import mrbp_qmc
 from my_research_libs.qmc_base.jastrow import SysConfSlot
-from my_research_libs.qmc_base.vmc import IterProp
 
 LATTICE_DEPTH = 100
 LATTICE_RATIO = 1
@@ -44,7 +43,7 @@ def test_sampling():
     energy_data = []
     for block_data in blocks:
         iter_props = block_data.iter_props
-        energy_block = iter_props[IterProp.ENERGY]
+        energy_block = iter_props.energy
         energy_data.append(energy_block)
         if block_idx + 1 >= num_blocks:
             break

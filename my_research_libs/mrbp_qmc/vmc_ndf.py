@@ -1,16 +1,14 @@
 import typing as t
-from math import sqrt
 
 import attr
+from math import sqrt
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base import jastrow
-from my_research_libs.util.attr import Record
 from . import model, vmc as vmc_udf
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class TPFParams(qmc_base.jastrow.vmc_ndf.TPFParams, Record):
+class TPFParams(qmc_base.jastrow.vmc_ndf.TPFParams, t.NamedTuple):
     """Parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
