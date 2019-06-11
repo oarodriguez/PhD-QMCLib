@@ -166,7 +166,7 @@ def test_density_est():
 
     for block in es_blocks:
         state_props = block.iter_props
-        nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
+        nw_iter = state_props.num_walkers
         iter_density = block.iter_density
         print(iter_density.shape)
         density_block_data = iter_density / nw_iter[:, np.newaxis, np.newaxis]
@@ -209,7 +209,7 @@ def test_dmc_est_sampling():
 
     for block in es_blocks:
         state_props = block.iter_props
-        nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
+        nw_iter = state_props.num_walkers
         iter_ssf = block.iter_ssf
         # print(state_props)
         ssf_block_data = iter_ssf / nw_iter[:, np.newaxis, np.newaxis]

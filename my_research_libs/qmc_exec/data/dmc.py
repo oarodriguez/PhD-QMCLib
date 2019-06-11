@@ -252,7 +252,7 @@ class NumWalkersBlocks(UnWeightedPropBlocks):
     totals: np.ndarray
 
     @classmethod
-    def from_data(cls, data: np.ndarray,
+    def from_data(cls, data: dmc_base.PropsData,
                   reduce_data: bool = True):
         """
 
@@ -260,12 +260,12 @@ class NumWalkersBlocks(UnWeightedPropBlocks):
         :param reduce_data:
         :return:
         """
-        weight_data = data[dmc_base.IterProp.NUM_WALKERS]
+        num_walkers_data = data.num_walkers
         if reduce_data:
-            weight_totals = weight_data.sum(axis=1)
+            totals = num_walkers_data.sum(axis=1)
         else:
-            weight_totals = weight_data
-        return cls(weight_totals)
+            totals = num_walkers_data
+        return cls(totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -275,7 +275,7 @@ class WeightBlocks(UnWeightedPropBlocks):
     totals: np.ndarray
 
     @classmethod
-    def from_data(cls, data: np.ndarray,
+    def from_data(cls, data: dmc_base.PropsData,
                   reduce_data: bool = True):
         """
 
@@ -283,7 +283,7 @@ class WeightBlocks(UnWeightedPropBlocks):
         :param reduce_data:
         :return:
         """
-        weight_data = data[dmc_base.IterProp.WEIGHT]
+        weight_data = data.weight
         if reduce_data:
             weight_totals = weight_data.sum(axis=1)
         else:
@@ -299,7 +299,7 @@ class EnergyBlocks(PropBlocks):
     weight_totals: np.ndarray
 
     @classmethod
-    def from_data(cls, data: np.ndarray,
+    def from_data(cls, data: dmc_base.PropsData,
                   reduce_data: bool = True):
         """
 
@@ -307,8 +307,8 @@ class EnergyBlocks(PropBlocks):
         :param reduce_data:
         :return:
         """
-        energy_data = data[dmc_base.IterProp.ENERGY]
-        weight_data = data[dmc_base.IterProp.WEIGHT]
+        energy_data = data.energy
+        weight_data = data.weight
         if reduce_data:
             totals = energy_data.sum(axis=1)
             weight_totals = weight_data.sum(axis=1)
@@ -328,7 +328,7 @@ class DensityBlocks(PropBlocks):
     @classmethod
     def from_data(cls, num_time_steps_block: int,
                   density_data: np.ndarray,
-                  props_data: np.ndarray,
+                  props_data: dmc_base.PropsData,
                   reduce_data: bool = True,
                   as_pure_est: bool = True,
                   pure_est_reduce_factor: np.ndarray = None):
@@ -343,7 +343,7 @@ class DensityBlocks(PropBlocks):
         :return:
         """
         nts_block = num_time_steps_block
-        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+        weight_data = props_data.weight
 
         if not as_pure_est:
 
@@ -406,7 +406,7 @@ class SSFPartBlocks(PropBlocks):
     @classmethod
     def from_data(cls, num_time_steps_block: int,
                   ssf_data: np.ndarray,
-                  props_data: np.ndarray,
+                  props_data: dmc_base.PropsData,
                   reduce_data: bool = True,
                   as_pure_est: bool = True,
                   pure_est_reduce_factor: np.ndarray = None):
@@ -421,7 +421,7 @@ class SSFPartBlocks(PropBlocks):
         :return:
         """
         nts_block = num_time_steps_block
-        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+        weight_data = props_data.weight
 
         if not as_pure_est:
 
@@ -490,7 +490,7 @@ class SSFBlocks:
     @classmethod
     def from_data(cls, num_time_steps_block: int,
                   ssf_data: np.ndarray,
-                  props_data: np.ndarray,
+                  props_data: dmc_base.PropsData,
                   reduce_data: bool = True,
                   as_pure_est: bool = True,
                   pure_est_reduce_factor: np.ndarray = None):
@@ -505,7 +505,7 @@ class SSFBlocks:
         :return:
         """
         nts_block = num_time_steps_block
-        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+        weight_data = props_data.weight
 
         if not as_pure_est:
 

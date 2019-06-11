@@ -139,12 +139,6 @@ class Proc(proc_base.Proc):
         :param proc_input:
         :return:
         """
-        energy_field = dmc_base.IterProp.ENERGY
-        weight_field = dmc_base.IterProp.WEIGHT
-        num_walkers_field = dmc_base.IterProp.NUM_WALKERS
-        ref_energy_field = dmc_base.IterProp.REF_ENERGY
-        accum_energy_field = dmc_base.IterProp.ACCUM_ENERGY
-
         num_blocks = self.num_blocks
         num_time_steps_block = self.num_time_steps_block
         target_num_walkers = self.target_num_walkers
@@ -219,7 +213,7 @@ class Proc(proc_base.Proc):
         props_weight = props_blocks_data.weight
         props_num_walkers = props_blocks_data.num_walkers
         props_ref_energy = props_blocks_data.ref_energy
-        props_accum_energy = props_blocks_data.weight
+        props_accum_energy = props_blocks_data.accum_energy
 
         if should_eval_density:
             # The shape of the structure factor array.
@@ -282,11 +276,6 @@ class Proc(proc_base.Proc):
             for block_idx, block_data in enum_eff_blocks:
 
                 block_props = block_data.iter_props
-                energy = block_props.energy
-                weight = block_props.weight
-                num_walkers = block_props.num_walkers
-                ref_energy = block_props.ref_energy
-                accum_energy = block_props.accum_energy
 
                 # NOTE: Should we return the iter_props by default? 🤔🤔🤔
                 #  If we keep the whole sampling data, i.e.,
@@ -297,8 +286,11 @@ class Proc(proc_base.Proc):
                 if keep_iter_data:
 
                     # Store all the information of the DMC sampling.
-                    props_blocks_data.energy[block_idx] \
-                        = block_props.energy[:]
+                    props_energy[block_idx] = block_props.energy[:]
+                    props_weight[block_idx] = block_props.weight[:]
+                    props_num_walkers[block_idx] = block_props.num_walkers[:]
+                    props_ref_energy[block_idx] = block_props.ref_energy[:]
+                    props_accum_energy[block_idx] = block_props.accum_energy[:]
 
                     # Handling the density results.
                     if should_eval_density:
@@ -311,6 +303,12 @@ class Proc(proc_base.Proc):
                         ssf_blocks_data[block_idx] = iter_ssf_array[:]
 
                 else:
+
+                    energy = block_props.energy
+                    weight = block_props.weight
+                    num_walkers = block_props.num_walkers
+                    ref_energy = block_props.ref_energy
+                    accum_energy = block_props.accum_energy
 
                     weight_sum = weight.sum()
                     props_energy[block_idx] = energy.sum()
