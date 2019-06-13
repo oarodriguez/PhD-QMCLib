@@ -199,35 +199,19 @@ class CoreFuncs(vmc_ndf.CoreFuncs):
 
         # noinspection PyUnusedLocal
         @nb.njit
-        def _init_state_data(cfc_spec: CFCSpec):
+        def _init_state_data(base_shape: t.Tuple[int, ...],
+                             cfc_spec: CFCSpec):
             """
 
             :param cfc_spec:
             :return:
             """
             num_dims = cfc_spec.wf_params.dims
-            state_sys_conf = np.zeros(num_dims, dtype=np.float64)
+            confs_shape = base_shape + (num_dims,)
+            state_sys_conf = np.zeros(confs_shape, dtype=np.float64)
             return vmc_udf.StateData(state_sys_conf)
 
         return _init_state_data
-
-    @cached_property
-    def copy_state_data(self):
-        """Initialize the data arrays for the VMC states generator."""
-
-        # noinspection PyUnusedLocal
-        @nb.njit
-        def _copy_state_data(state: vmc_udf.State,
-                             state_data: vmc_udf.StateData):
-            """
-
-            :param state:
-            :param state_data:
-            :return:
-            """
-            state_data.sys_conf[:] = state.sys_conf[:]
-
-        return _copy_state_data
 
     @cached_property
     def init_prepare_state(self):
@@ -248,7 +232,8 @@ class CoreFuncs(vmc_ndf.CoreFuncs):
             :param cfc_spec:
             :return:
             """
-            state_data = init_state_data(cfc_spec)
+            base_shape = ()
+            state_data = init_state_data(base_shape, cfc_spec)
             wf_abs_log = _base_wf_abs_log(sys_conf, cfc_spec)
             state_data.sys_conf[:] = sys_conf[:]
             return build_state(state_data, wf_abs_log, move_stat)

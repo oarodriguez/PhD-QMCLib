@@ -74,8 +74,7 @@ def test_confs_props_blocks():
     ar_ = states_data.accept_rate
     assert ar == ar_
 
-    move_stat_field = mrbp_qmc.vmc.StateProp.MOVE_STAT
-    accepted = np.count_nonzero(sys_props_set[move_stat_field])
+    accepted = np.count_nonzero(sys_props_set.move_stat)
     assert (accepted / num_steps) == ar_
 
     # noinspection PyTypeChecker
@@ -116,10 +115,10 @@ def test_blocks():
         accepted += accept_rate * num_steps_block
     blocks_accept_rate = accepted / eff_num_steps
 
-    move_stat_field = mrbp_qmc.vmc.StateProp.MOVE_STAT
     states_data = vmc_sampling.as_chain(num_steps, ini_state)
-    sys_props_set = states_data.props[num_steps_block:]
-    accepted = np.count_nonzero(sys_props_set[move_stat_field])
+    states_props = states_data.props
+    sys_props_set = states_props.move_stat[num_steps_block:]
+    accepted = np.count_nonzero(sys_props_set)
     chain_accept_rate = accepted / eff_num_steps
 
     # Both acceptance ratios should be equal.

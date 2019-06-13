@@ -101,39 +101,19 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         num_slots = len(model.SysConfSlot.__members__)
 
         @njit
-        def _init_state_data(cfc_spec: CFCSpec):
+        def _init_state_data(base_shape: t.Tuple[int, ...],
+                             cfc_spec: CFCSpec):
             """
 
             :param cfc_spec:
             :return:
             """
             nop = cfc_spec.model_params.boson_number
-            sys_conf_shape = num_slots, nop
-            state_sys_conf = np.zeros(sys_conf_shape, dtype=np.float64)
+            confs_shape = base_shape + (num_slots, nop)
+            state_sys_conf = np.zeros(confs_shape, dtype=np.float64)
             return vmc.StateData(state_sys_conf)
 
         return _init_state_data
-
-    @cached_property
-    def copy_state_data(self):
-        """
-
-        :return:
-        """
-
-        # noinspection PyUnusedLocal
-        @njit
-        def _copy_state_data(state: vmc.State,
-                             state_data: vmc.StateData):
-            """
-
-            :param state:
-            :param state_data:
-            :return:
-            """
-            state_data.sys_conf[:] = state.sys_conf[:]
-
-        return _copy_state_data
 
     @cached_property
     def build_state(self):
