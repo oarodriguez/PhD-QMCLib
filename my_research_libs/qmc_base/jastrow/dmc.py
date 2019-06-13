@@ -679,7 +679,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         num_slots = len(model.SysConfSlot.__members__)
 
         @nb.njit
-        def _init_state_data(max_num_walkers: int,
+        def _init_state_data(base_shape: t.Tuple[int, ...],
                              cfc_spec: CFCSpec):
             """
 
@@ -687,8 +687,8 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             :return:
             """
             nop = cfc_spec.model_params.boson_number
-            confs_shape = max_num_walkers, num_slots, nop
-            props_shape = max_num_walkers,
+            confs_shape = base_shape + (num_slots, nop)
+            props_shape = base_shape + ()
 
             state_confs = np.zeros(confs_shape, dtype=state_confs_dtype)
             energy = np.zeros(props_shape, dtype=np.float64)
@@ -698,26 +698,6 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             return dmc.StateData(state_confs, state_props)
 
         return _init_state_data
-
-    @cached_property
-    def copy_state_data(self):
-        """Copy the data of an existing ``State`` instance."""
-
-        @nb.njit
-        def _copy_state_data(state: dmc.State,
-                             state_data: dmc.StateData):
-            """
-
-            :param state:
-            :param state_data:
-            :return:
-            """
-            state_data.confs[:] = state.confs[:]
-            state_data.props.energy[:] = state.props.energy[:]
-            state_data.props.weight[:] = state.props.weight[:]
-            state_data.props.mask[:] = state.props.mask[:]
-
-        return _copy_state_data
 
     @cached_property
     def build_state(self):

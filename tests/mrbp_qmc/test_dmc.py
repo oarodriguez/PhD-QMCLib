@@ -111,7 +111,7 @@ def test_blocks():
         print(state_props)
 
 
-def test_confs_props_blocks():
+def test_state_data_blocks():
     """"""
     vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
     sys_conf_set = vmc_chain_data.confs
@@ -121,14 +121,14 @@ def test_confs_props_blocks():
     ini_sys_conf_set = sys_conf_set[-100:]
     dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
     sampling_blocks = \
-        dmc_sampling.confs_props_blocks(dmc_ini_state, num_time_steps_block)
+        dmc_sampling.state_data_blocks(dmc_ini_state, num_time_steps_block)
 
-    dmc_sampling_blocks: dmc_base.T_SCPBlocksIter = \
+    dmc_sampling_blocks: dmc_base.T_SDBlocksIter = \
         islice(sampling_blocks, num_blocks)
 
     for block in dmc_sampling_blocks:
         # state_props = block.iter_props
-        states_confs = block.states_confs
+        states_confs = block.confs
         print(states_confs)
 
 

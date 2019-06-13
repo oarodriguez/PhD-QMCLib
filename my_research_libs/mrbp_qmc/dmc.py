@@ -290,8 +290,8 @@ class Sampling(jsw_dmc.Sampling):
         sys_conf_set = np.asarray(sys_conf_set)[-self.target_num_walkers:]
         num_walkers = len(sys_conf_set)
 
-        state_data = \
-            self.core_funcs.init_state_data(max_num_walkers, cfc_spec)
+        sd_shape = max_num_walkers,
+        state_data = self.core_funcs.init_state_data(sd_shape, cfc_spec)
         state_props = state_data.props
 
         # Calculate the initial state arrays properties.

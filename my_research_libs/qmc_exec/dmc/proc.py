@@ -207,7 +207,7 @@ class Proc(proc_base.Proc):
             iter_props_shape = num_blocks,
 
         props_blocks_data = \
-            self.sampling.core_funcs.init_props_block_data(iter_props_shape)
+            self.sampling.core_funcs.init_props_data_block(iter_props_shape)
 
         props_energy = props_blocks_data.energy
         props_weight = props_blocks_data.weight
