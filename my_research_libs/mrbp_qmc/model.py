@@ -119,13 +119,14 @@ def num_defects_validator(model_inst: 'Spec',
     :return:
     """
     num_defects = value
-    num_sites = int(ceil(model_inst.supercell_size))
-    if num_defects < 0:
-        raise ValueError("number of defects can't be negative")
-    if num_defects and (num_sites % num_defects):
-        raise ValueError(f"the specified number of defects "
-                         f"({num_defects :d}) can't be evenly "
-                         f"distributed in the lattice")
+    if num_defects is not None:
+        if num_defects < 0:
+            raise ValueError("number of defects can't be negative")
+        num_sites = int(ceil(model_inst.supercell_size))
+        if num_defects and (num_sites % num_defects):
+            raise ValueError(f"the specified number of defects "
+                             f"({num_defects :d}) can't be evenly "
+                             f"distributed in the lattice")
 
 
 # NOTE: slots=True avoids adding more attributes
