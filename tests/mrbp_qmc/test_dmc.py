@@ -15,6 +15,8 @@ INTERACTION_STRENGTH = 4
 BOSON_NUMBER = 16
 SUPERCELL_SIZE = 16
 TBF_CONTACT_CUTOFF = .25 * SUPERCELL_SIZE
+NUM_DEFECTS = 4
+DEFECT_MAGNITUDE = 0
 
 # TODO: Improve this test.
 model_spec = mrbp_qmc.Spec(lattice_depth=LATTICE_DEPTH,
@@ -22,7 +24,9 @@ model_spec = mrbp_qmc.Spec(lattice_depth=LATTICE_DEPTH,
                            interaction_strength=INTERACTION_STRENGTH,
                            boson_number=BOSON_NUMBER,
                            supercell_size=SUPERCELL_SIZE,
-                           tbf_contact_cutoff=TBF_CONTACT_CUTOFF)
+                           tbf_contact_cutoff=TBF_CONTACT_CUTOFF,
+                           num_defects=NUM_DEFECTS,
+                           defect_magnitude=DEFECT_MAGNITUDE)
 
 move_spread = 0.25 * model_spec.well_width
 num_steps = 4906 * 1

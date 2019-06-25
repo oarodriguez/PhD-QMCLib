@@ -6,7 +6,7 @@ import dask
 import dask.bag as db
 import numpy as np
 from cached_property import cached_property
-from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
+from math import (atan, ceil, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh)
 from numba import jit
 from numpy import random
 from scipy.optimize import brentq, differential_evolution
@@ -14,7 +14,8 @@ from scipy.optimize import brentq, differential_evolution
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
 from my_research_libs.util.attr import (
-    int_converter, int_validator, opt_float_converter, opt_float_validator
+    int_converter, int_validator, opt_float_converter, opt_float_validator,
+    opt_int_converter
 )
 
 __all__ = [
@@ -46,6 +47,7 @@ class Params(qmc_base.jastrow.Params, t.NamedTuple):
     supercell_size: float
     tbf_contact_cutoff: float
     defect_magnitude: float
+    defects_sep: int
     well_width: float
     barrier_width: float
     is_free: bool
@@ -105,6 +107,27 @@ def tbf_contact_cutoff_validator(model_inst: 'Spec',
         raise ValueError("parameter value 'rm' out of domain")
 
 
+# noinspection PyUnusedLocal
+def num_defects_validator(model_inst: 'Spec',
+                          attribute: str,
+                          value: t.Any):
+    """Validator for the ``num_defects`` attribute.
+
+    :param model_inst: The model instance.
+    :param attribute: The validated attribute.
+    :param value: The value of the attribute.
+    :return:
+    """
+    num_defects = value
+    num_sites = int(ceil(model_inst.supercell_size))
+    if num_defects < 0:
+        raise ValueError("number of defects can't be negative")
+    if num_defects and (num_sites % num_defects):
+        raise ValueError(f"the specified number of defects "
+                         f"({num_defects :d}) can't be evenly "
+                         f"distributed in the lattice")
+
+
 # NOTE: slots=True avoids adding more attributes
 # NOTE: Use repr=False if we want instances that can be serialized (pickle)
 @attr.s(auto_attribs=True, frozen=True)
@@ -136,7 +159,12 @@ class Spec(qmc_base.jastrow.Spec):
     tbf_contact_cutoff: float = \
         attr.ib(converter=float, validator=tbf_contact_cutoff_validator)
 
-    #:
+    #: Number of defects, evenly spaced.
+    num_defects: t.Optional[int] = \
+        attr.ib(default=None, converter=opt_int_converter,
+                validator=num_defects_validator)
+
+    #: Magnitude for all the defects.
     defect_magnitude: t.Optional[float] = \
         attr.ib(default=None, converter=opt_float_converter,
                 validator=opt_float_validator)
@@ -145,13 +173,17 @@ class Spec(qmc_base.jastrow.Spec):
     def __attrs_post_init__(self):
         """Post initialization stage."""
         lattice_depth = self.lattice_depth
+        num_defects = self.num_defects
         defect_magnitude = self.defect_magnitude
-        if defect_magnitude is None:
+        if (defect_magnitude is None) or (num_defects is None):
             object.__setattr__(self, 'defect_magnitude', lattice_depth)
+            object.__setattr__(self, 'num_defects', 0)
         else:
             if defect_magnitude > lattice_depth:
                 raise ValueError("Defect magnitude can't be greater than the "
                                  "lattice depth.")
+            if not num_defects:
+                object.__setattr__(self, 'defect_magnitude', lattice_depth)
 
     @property
     def boundaries(self):
@@ -233,6 +265,10 @@ class Spec(qmc_base.jastrow.Spec):
     @property
     def params(self):
         """"""
+        num_sites = int(ceil(self.supercell_size))
+        num_defects = self.num_defects
+        defects_sep = 1 if not num_defects else int(num_sites // num_defects)
+
         # NOTE: Keep the order in which the attributes were defined.
         params = Params(self.lattice_depth,
                         self.lattice_ratio,
@@ -241,6 +277,7 @@ class Spec(qmc_base.jastrow.Spec):
                         self.supercell_size,
                         self.tbf_contact_cutoff,
                         self.defect_magnitude,
+                        defects_sep,
                         self.well_width,
                         self.barrier_width,
                         self.is_free,
@@ -495,8 +532,10 @@ def _potential(z: float, params: Params) -> float:
     v0 = params.lattice_depth
     z_a = params.well_width
     v0d = params.defect_magnitude
+    defects_sep = params.defects_sep
     n_cell, z_cell = divmod(z, 1)
-    if n_cell == 0:
+    if not (n_cell % defects_sep):
+        # We are in a lattice defect.
         return v0d if z_a < z_cell else 0.
     else:
         return v0 if z_a < z_cell else 0.
@@ -584,10 +623,11 @@ class CoreFuncs(qmc_base.jastrow.CoreFuncs):
                                   supercell_size=model_params[4],
                                   tbf_contact_cutoff=model_params[5],
                                   defect_magnitude=model_params[6],
-                                  well_width=model_params[7],
-                                  barrier_width=model_params[8],
-                                  is_free=bool(model_params[9]),
-                                  is_ideal=bool(model_params[10]))
+                                  defects_sep=int(model_params[7]),
+                                  well_width=model_params[8],
+                                  barrier_width=model_params[9],
+                                  is_free=bool(model_params[10]),
+                                  is_ideal=bool(model_params[11]))
             return model_params
 
         return _model_params_reconstruct
@@ -681,10 +721,11 @@ class CoreFuncs(qmc_base.jastrow.CoreFuncs):
                                   supercell_size=model_params[4],
                                   tbf_contact_cutoff=model_params[5],
                                   defect_magnitude=model_params[6],
-                                  well_width=model_params[7],
-                                  barrier_width=model_params[8],
-                                  is_free=bool(model_params[9]),
-                                  is_ideal=bool(model_params[10]))
+                                  defects_sep=int(model_params[7]),
+                                  well_width=model_params[8],
+                                  barrier_width=model_params[9],
+                                  is_free=bool(model_params[10]),
+                                  is_ideal=bool(model_params[11]))
 
             # OBF is a tuple of floats.
             obf_params = \

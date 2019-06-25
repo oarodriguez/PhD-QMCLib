@@ -8,9 +8,11 @@ from my_research_libs.mrbp_qmc import Spec, dmc_exec
 lattice_depth = 5 * ER
 lattice_ratio = 1
 interaction_strength = 2
-boson_number = 8
-supercell_size = 8
+boson_number = 16
+supercell_size = 16
 tbf_contact_cutoff = 0.25 * supercell_size
+num_defects = 4
+defect_magnitude = 0
 
 # TODO: Improve this test.
 model_spec = Spec(lattice_depth=lattice_depth,
@@ -18,7 +20,9 @@ model_spec = Spec(lattice_depth=lattice_depth,
                   interaction_strength=interaction_strength,
                   boson_number=boson_number,
                   supercell_size=supercell_size,
-                  tbf_contact_cutoff=tbf_contact_cutoff)
+                  tbf_contact_cutoff=tbf_contact_cutoff,
+                  num_defects=num_defects,
+                  defect_magnitude=defect_magnitude)
 
 
 def test_proc():
@@ -53,7 +57,7 @@ def test_density_proc():
     """Testing the calculation of the density."""
     time_step = 6.25e-4
     num_blocks = 2
-    num_time_steps_block = 512
+    num_time_steps_block = 1024
     target_num_walkers = 480
     max_num_walkers = 512
     # ini_ref_energy = None
