@@ -85,7 +85,7 @@ def test_density_proc():
     pyplot.ylabel(r'$n(z)$')
     pyplot.show()
 
-    h5f_path = pathlib.Path('./test-density-results.h5')
+    h5f_path = pathlib.Path('./test-dmc-density-results.h5')
     if h5f_path.exists():
         h5f_path.unlink()
     handler = dmc_exec.HDF5FileHandler(h5f_path, 'density-data-group')
@@ -94,7 +94,7 @@ def test_density_proc():
 
 def test_load_proc_density_output():
     """Load the static structure factor VMC data from HDF5 file."""
-    h5f_path = pathlib.Path('./test-density-results.h5')
+    h5f_path = pathlib.Path('./test-dmc-density-results.h5')
     handler = dmc_exec.HDF5FileHandler(h5f_path, 'density-data-group')
     result = handler.load()
     density_bin_edges = result.proc.sampling.density_bins_edges
@@ -110,7 +110,7 @@ def test_ssf_proc():
     """Testing the calculation of the static structure factor."""
     time_step = 6.25e-4
     num_blocks = 2
-    num_time_steps_block = 512
+    num_time_steps_block = 1024
     target_num_walkers = 480
     max_num_walkers = 512
     # ini_ref_energy = None
@@ -141,7 +141,7 @@ def test_ssf_proc():
     pyplot.ylabel(r'$S(k)$')
     pyplot.show()
 
-    h5f_path = pathlib.Path('./test-ssf-results.h5')
+    h5f_path = pathlib.Path('./test-dmc-ssf-results.h5')
     if h5f_path.exists():
         h5f_path.unlink()
     handler = dmc_exec.HDF5FileHandler(h5f_path, 'ssf-data-group')
@@ -150,7 +150,7 @@ def test_ssf_proc():
 
 def test_load_ssf_proc_output():
     """Load the static structure factor VMC data from HDF5 file."""
-    h5f_path = pathlib.Path('./test-ssf-results.h5')
+    h5f_path = pathlib.Path('./test-dmc-ssf-results.h5')
     handler = dmc_exec.HDF5FileHandler(h5f_path, 'ssf-data-group')
     result = handler.load()
     ssf_momenta = result.proc.sampling.ssf_momenta
