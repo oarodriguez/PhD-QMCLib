@@ -157,10 +157,9 @@ class Proc(proc_base.Proc):
         should_eval_ssf = self.should_eval_ssf
 
         exec_logger.info('Starting DMC sampling...')
-        exec_logger.info(f'Using an average of {target_num_walkers} walkers.')
-        exec_logger.info(f'Sampling {num_blocks} blocks of time.')
-        exec_logger.info(f'Sampling {num_time_steps_block} time-steps '
-                         f'per block.')
+
+        self.describe_model_spec()
+        self.describe_sampling()
 
         # We will burn-in the first ten percent of the sampling chain.
         if burn_in_blocks is None:
