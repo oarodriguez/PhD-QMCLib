@@ -181,12 +181,13 @@ class Spec(qmc_base.jastrow.Spec):
             object.__setattr__(self, 'defect_magnitude', lattice_depth)
             object.__setattr__(self, 'num_defects', 0)
         else:
-            if defect_magnitude is None:
-                # Assume as many full defects as num_defects
-                defect_magnitude = 0
+            if num_defects is None:
+                num_defects = 0
+                defect_magnitude = lattice_depth
             else:
-                # Assume that there is only one defect.
-                num_defects = 1
+                # Assume as many full defects as num_defects
+                defect_magnitude = 0 if num_defects else lattice_depth
+
             if defect_magnitude > lattice_depth:
                 raise ValueError("Defect magnitude can't be greater than the "
                                  "lattice depth.")
