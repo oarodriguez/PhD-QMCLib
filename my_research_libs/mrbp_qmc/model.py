@@ -1,4 +1,5 @@
 import typing as t
+from math import (atan, ceil, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh)
 from os import cpu_count
 
 import attr
@@ -6,7 +7,6 @@ import dask
 import dask.bag as db
 import numpy as np
 from cached_property import cached_property
-from math import (atan, ceil, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh)
 from numba import jit
 from numpy import random
 from scipy.optimize import brentq, differential_evolution
@@ -186,7 +186,8 @@ class Spec(qmc_base.jastrow.Spec):
                 defect_magnitude = lattice_depth
             else:
                 # Assume as many full defects as num_defects
-                defect_magnitude = 0 if num_defects else lattice_depth
+                defect_magnitude = \
+                    defect_magnitude if num_defects else lattice_depth
 
             if defect_magnitude > lattice_depth:
                 raise ValueError("Defect magnitude can't be greater than the "
