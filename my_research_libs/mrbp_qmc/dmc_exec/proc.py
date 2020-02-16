@@ -138,7 +138,8 @@ class ProcInput(dmc_exec.ProcInput):
         :return:
         """
         state = proc_result.state
-        assert proc.model_spec == proc_result.proc.model_spec
+        # assert proc.model_spec.boson_number == \
+        #        proc_result.proc.model_spec.boson_number  # noqa
         return cls(state)
 
 
