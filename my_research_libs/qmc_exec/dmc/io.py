@@ -42,7 +42,10 @@ class HDF5FileHandler(io_base.HDF5FileHandler, metaclass=ABCMeta):
         """
         group.create_dataset('branching_spec', data=state.branching_spec)
         group.create_dataset('confs', data=state.confs)
-        group.create_dataset('props', data=state.props)
+        props_group = group.require_group('props')
+        props_group.create_dataset('energy', data=state.props.energy)
+        props_group.create_dataset('weight', data=state.props.weight)
+        props_group.create_dataset('mask', data=state.props.mask)
 
         group.attrs.update({
             'energy': state.energy,
@@ -60,8 +63,11 @@ class HDF5FileHandler(io_base.HDF5FileHandler, metaclass=ABCMeta):
         """
         branching_spec = group.get('branching_spec').value
         state_confs = group.get('confs').value
-        state_props = group.get('props').value
-
+        state_props = group.get('props')
+        energy = state_props.get('energy').value
+        weight = state_props.get('weight').value
+        mask = state_props.get('mask').value
+        state_props = dmc_base.StateProps(energy, weight, mask)
         return dmc_base.State(confs=state_confs,
                               props=state_props,
                               branching_spec=branching_spec,
