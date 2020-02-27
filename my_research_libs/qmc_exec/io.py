@@ -98,7 +98,7 @@ class HDF5FileHandler(IOHandler, metaclass=ABCMeta):
         :param proc_result:
         :return:
         """
-        h5_file = h5py.File(self.location_path)
+        h5_file = h5py.File(self.location_path, 'a')
         with h5_file:
             #
             base_group = h5_file.require_group(self.group)
