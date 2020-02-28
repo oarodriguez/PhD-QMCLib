@@ -61,19 +61,19 @@ class HDF5FileHandler(io_base.HDF5FileHandler, metaclass=ABCMeta):
 
         :return:
         """
-        branching_spec = group.get('branching_spec').value
-        state_confs = group.get('confs').value
+        branching_spec = group.get('branching_spec')[()]
+        state_confs = group.get('confs')[()]
         try:
             # Load data according to the new behavior.
             state_props = group.get('props')
-            energy = state_props.get('energy').value
-            weight = state_props.get('weight').value
-            mask = state_props.get('mask').value
+            energy = state_props.get('energy')[()]
+            weight = state_props.get('weight')[()]
+            mask = state_props.get('mask')[()]
             state_props = dmc_base.StateProps(energy, weight, mask)
         except AttributeError:
             # Load data following the previous (flawed) behavior, so legacy
             # data does not become necessarily useless.
-            state_props = group.get('props').value
+            state_props = group.get('props')[()]
         return dmc_base.State(confs=state_confs,
                               props=state_props,
                               branching_spec=branching_spec,

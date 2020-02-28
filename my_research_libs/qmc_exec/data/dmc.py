@@ -114,8 +114,8 @@ class PropBlocks(Mapping):
         :return:
         """
         data = {
-            'totals': group.get('totals').value,
-            'weight_totals': group.get('weight_totals').value
+            'totals': group.get('totals')[()],
+            'weight_totals': group.get('weight_totals')[()]
         }
         return cls(**data)
 
@@ -206,7 +206,7 @@ class UnWeightedPropBlocks(Mapping):
         :return:
         """
         data = {
-            'totals': group.get('totals').value,
+            'totals': group.get('totals')[()],
         }
         return cls(**data)
 
