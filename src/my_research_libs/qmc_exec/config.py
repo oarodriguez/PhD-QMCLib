@@ -6,7 +6,7 @@ from collections import Sequence
 
 import jinja2
 import toml
-from ruamel_yaml import YAML
+from ruamel.yaml import YAML
 
 CONFIG_FILE_EXTENSIONS = ('.yml', '.yaml', '.toml')
 YAML_EXTENSIONS = ('.yml', '.yaml')
