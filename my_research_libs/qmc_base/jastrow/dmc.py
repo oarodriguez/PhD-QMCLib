@@ -1,11 +1,11 @@
 import typing as t
 from abc import ABCMeta, abstractmethod
-from math import exp
 
 import attr
 import numba as nb
 import numpy as np
 from cached_property import cached_property
+from math import exp
 from numpy import random
 
 from my_research_libs import qmc_base
@@ -23,7 +23,15 @@ state_props_dtype = np.dtype([
 ])
 
 
-class DDFParams(dmc.DDFParams, metaclass=ABCMeta):
+# NOTE: Is this redundant...
+class StateProps(dmc.StateProps, t.NamedTuple):
+    """"""
+    energy: np.ndarray
+    weight: np.ndarray
+    mask: np.ndarray
+
+
+class DDFParams(dmc.DDFParams):
     """The parameters of the diffusion-and-drift process."""
     boson_number: int
     time_step: float
@@ -56,6 +64,16 @@ class CFCSpec(dmc.CFCSpec, t.NamedTuple):
     ssf_params: t.Optional[SSFParams]
 
 
+class CFCSpecAlt(t.NamedTuple):
+    """Represent the common spec of the core functions."""
+    model_params: np.ndarray
+    obf_params: np.ndarray
+    tbf_params: np.ndarray
+    ddf_params: np.ndarray
+    density_params: t.Optional[np.ndarray]
+    ssf_params: t.Optional[np.ndarray]
+
+
 class Sampling(dmc.Sampling, metaclass=ABCMeta):
     """Spec for the VMC sampling of a Bijl-Jastrow model."""
 
@@ -68,6 +86,38 @@ class Sampling(dmc.Sampling, metaclass=ABCMeta):
         max_num_walkers = self.max_num_walkers
         sys_conf_shape = self.model_spec.sys_conf_shape
         return (max_num_walkers,) + sys_conf_shape
+
+
+# noinspection PyUnusedLocal
+def _ddf_params_transform_stub(ddf_params: DDFParams) -> np.ndarray:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _density_params_transform_stub(density_params: DensityParams) -> \
+        np.ndarray:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _ssf_params_transform_stub(ssf_params: SSFParams) -> np.ndarray:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _ddf_params_reconstruct_stub(ddf_params: np.ndarray) -> DDFParams:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _density_params_reconstruct_stub(density_params: np.ndarray) -> \
+        DensityParams:
+    pass
+
+
+# noinspection PyUnusedLocal
+def _ssf_params_reconstruct_stub(ssf_params: np.ndarray) -> SSFParams:
+    pass
 
 
 # noinspection PyUnusedLocal
@@ -102,6 +152,42 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
     @property
     @abstractmethod
+    def ddf_params_transform(self):
+        """"""
+        return _ddf_params_transform_stub
+
+    @property
+    @abstractmethod
+    def density_params_transform(self):
+        """"""
+        return _density_params_transform_stub
+
+    @property
+    @abstractmethod
+    def ssf_params_transform(self):
+        """"""
+        return _ssf_params_transform_stub
+
+    @property
+    @abstractmethod
+    def ddf_params_reconstruct(self):
+        """"""
+        return _ddf_params_reconstruct_stub
+
+    @property
+    @abstractmethod
+    def density_params_reconstruct(self):
+        """"""
+        return _density_params_reconstruct_stub
+
+    @property
+    @abstractmethod
+    def ssf_params_reconstruct(self):
+        """"""
+        return _ssf_params_reconstruct_stub
+
+    @property
+    @abstractmethod
     def density_core(self):
         return _density_core_stub
 
@@ -113,9 +199,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         """
         fastmath = self.jit_fastmath
         parallel = self.jit_parallel
-        branch_ref_field = dmc.BranchingSpecField.CLONING_REF.value
+        model_core_funcs = self.model_core_funcs
 
-        # Structure factor
+        model_params_reconstruct = model_core_funcs.model_params_reconstruct
+        obf_params_reconstruct = model_core_funcs.obf_params_reconstruct
+        tbf_params_reconstruct = model_core_funcs.tbf_params_reconstruct
+        density_params_reconstruct = self.density_params_reconstruct
         density_core = self.density_core
 
         @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
@@ -123,11 +212,11 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                            state_confs: np.ndarray,
                            num_walkers: int,
                            max_num_walkers: int,
-                           branching_spec: np.ndarray,
-                           model_params: model.Params,
-                           obf_params: model.OBFParams,
-                           tbf_params: model.TBFParams,
-                           density_params: DensityParams,
+                           cloning_refs: np.ndarray,
+                           model_params: np.ndarray,
+                           obf_params: np.ndarray,
+                           tbf_params: np.ndarray,
+                           density_params: np.ndarray,
                            iter_density_array: np.ndarray,
                            aux_states_density_array: np.ndarray):
             """
@@ -136,13 +225,11 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             :param state_confs:
             :param num_walkers:
             :param max_num_walkers:
-            :param branching_spec:
             :param iter_density_array:
             :param aux_states_density_array:
             :return:
             """
             # Cloning table. Needed for evaluate pure estimators.
-            cloning_refs = branching_spec[branch_ref_field]
             prev_step_idx = step_idx % 2 - 1  #
             actual_step_idx = step_idx % 2
 
@@ -151,14 +238,10 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             actual_iter_density = iter_density_array[step_idx]
 
             # Hack to use this arrays inside the parallel for.
-            model_params_nd = np.array((model_params,))
-            obf_params_nd = np.array((obf_params,))
-            tbf_params_nd = np.array((tbf_params,))
-            density_params_nd = np.array((density_params,))
-
-            num_bins = density_params.num_bins
-            as_pure_est = density_params.as_pure_est
-            pfw_nts = density_params.pfw_num_time_steps
+            density_params_nt = density_params_reconstruct(density_params)
+            num_bins = density_params_nt.num_bins
+            as_pure_est = density_params_nt.as_pure_est
+            pfw_nts = density_params_nt.pfw_num_time_steps
 
             if as_pure_est:
                 # Copy previous auxiliary state data to current auxiliary
@@ -170,6 +253,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
             # Estimator evaluation (parallel for).
             for sys_idx in nb.prange(max_num_walkers):
+
+                # Hack to use this arrays inside the parallel for.
+                model_params_nt = model_params_reconstruct(model_params)
+                obf_params_nt = obf_params_reconstruct(obf_params)
+                tbf_params_nt = tbf_params_reconstruct(tbf_params)
+                density_params_nt = density_params_reconstruct(density_params)
 
                 # Beyond the actual number of walkers just pass to
                 # the next iteration.
@@ -184,10 +273,10 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                              sys_idx,
                              clone_ref_idx,
                              state_confs,
-                             model_params_nd[0],
-                             obf_params_nd[0],
-                             tbf_params_nd[0],
-                             density_params_nd[0],
+                             model_params_nt,
+                             obf_params_nt,
+                             tbf_params_nt,
+                             density_params_nt,
                              iter_density_array,
                              aux_states_density_array)
 
@@ -219,6 +308,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         :return:
         """
         fastmath = self.jit_fastmath
+        model_core_funcs = self.model_core_funcs
+
+        model_params_transform = model_core_funcs.model_params_transform
+        obf_params_transform = model_core_funcs.obf_params_transform
+        tbf_params_transform = model_core_funcs.tbf_params_transform
+        density_params_transform = self.density_params_transform
         density_inner = self.density_inner
 
         @nb.jit(nopython=True, fastmath=fastmath)
@@ -234,16 +329,17 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             :param density_exec_data:
             :return:
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
-            density_params = cfc_spec.density_params
+            model_params = model_params_transform(cfc_spec.model_params)
+            obf_params = obf_params_transform(cfc_spec.obf_params)
+            tbf_params = tbf_params_transform(cfc_spec.tbf_params)
+            density_params = density_params_transform(cfc_spec.density_params)
 
             # State data attributes.
             state_confs = state.confs
             num_walkers = state.num_walkers
             max_num_walkers = state.max_num_walkers
             branching_spec = state.branching_spec
+            cloning_refs = branching_spec.cloning_ref
 
             # Density data attributes.
             iter_density_array = density_exec_data.iter_density_array
@@ -253,7 +349,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                           state_confs,
                           num_walkers,
                           max_num_walkers,
-                          branching_spec,
+                          cloning_refs,
                           model_params,
                           obf_params,
                           tbf_params,
@@ -373,8 +469,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         """
         fastmath = self.jit_fastmath
         parallel = self.jit_parallel
-        branch_ref_field = dmc.BranchingSpecField.CLONING_REF.value
+        model_core_funcs = self.model_core_funcs
 
+        model_params_reconstruct = model_core_funcs.model_params_reconstruct
+        obf_params_reconstruct = model_core_funcs.obf_params_reconstruct
+        tbf_params_reconstruct = model_core_funcs.tbf_params_reconstruct
+        ssf_params_reconstruct = self.ssf_params_reconstruct
         # Structure factor
         fourier_density_core = self.fourier_density_core
 
@@ -384,11 +484,11 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                                    state_confs: np.ndarray,
                                    num_walkers: int,
                                    max_num_walkers: int,
-                                   branching_spec: np.ndarray,
-                                   model_params: model.Params,
-                                   obf_params: model.OBFParams,
-                                   tbf_params: model.TBFParams,
-                                   ssf_params: SSFParams,
+                                   cloning_refs: np.ndarray,
+                                   model_params: np.ndarray,
+                                   obf_params: np.ndarray,
+                                   tbf_params: np.ndarray,
+                                   ssf_params: np.ndarray,
                                    iter_ssf_array: np.ndarray,
                                    aux_states_sf_array: np.ndarray):
             """
@@ -397,23 +497,16 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             :param state_confs:
             :param num_walkers:
             :param max_num_walkers:
-            :param branching_spec:
+            :param cloning_refs:
             :param iter_ssf_array:
             :param aux_states_sf_array:
             :return:
             """
             # Cloning table. Needed for evaluate pure estimators.
-            cloning_refs = branching_spec[branch_ref_field]
             actual_step_idx = step_idx % 2
 
             actual_state_ssf = aux_states_sf_array[actual_step_idx]
             actual_iter_ssf = iter_ssf_array[step_idx]
-
-            # Hack to use this arrays inside the parallel for.
-            model_params_nd = np.array((model_params,))
-            obf_params_nd = np.array((obf_params,))
-            tbf_params_nd = np.array((tbf_params,))
-            ssf_params_nd = np.array((ssf_params,))
 
             # Branching process (parallel for).
             for sys_idx in nb.prange(max_num_walkers):
@@ -422,6 +515,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                 # the next iteration.
                 if sys_idx >= num_walkers:
                     continue
+
+                # Hack to use this arrays inside the parallel for.
+                model_params_nt = model_params_reconstruct(model_params)
+                obf_params_nt = obf_params_reconstruct(obf_params)
+                tbf_params_nt = tbf_params_reconstruct(tbf_params)
+                ssf_params_nt = ssf_params_reconstruct(ssf_params)
 
                 # Lookup which configuration should be cloned.
                 clone_ref_idx = cloning_refs[sys_idx]
@@ -432,16 +531,19 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                                      clone_ref_idx,
                                      momenta,
                                      state_confs,
-                                     model_params_nd[0],
-                                     obf_params_nd[0],
-                                     tbf_params_nd[0],
-                                     ssf_params_nd[0],
+                                     model_params_nt,
+                                     obf_params_nt,
+                                     tbf_params_nt,
+                                     ssf_params_nt,
                                      iter_ssf_array,
                                      aux_states_sf_array)
 
-            num_modes = ssf_params.num_modes
-            as_pure_est = ssf_params.as_pure_est
-            pfw_nts = ssf_params.pfw_num_time_steps
+            # Hack to use this arrays inside the parallel for.
+            ssf_params_nt = ssf_params_reconstruct(ssf_params)
+
+            num_modes = ssf_params_nt.num_modes
+            as_pure_est = ssf_params_nt.as_pure_est
+            pfw_nts = ssf_params_nt.pfw_num_time_steps
 
             if as_pure_est:
                 if step_idx < pfw_nts:
@@ -477,6 +579,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         :return:
         """
         fastmath = self.jit_fastmath
+        model_core_funcs = self.model_core_funcs
+
+        model_params_transform = model_core_funcs.model_params_transform
+        obf_params_transform = model_core_funcs.obf_params_transform
+        tbf_params_transform = model_core_funcs.tbf_params_transform
+        ssf_params_transform = self.ssf_params_transform
         fourier_density_inner = self.fourier_density_inner
 
         @nb.jit(nopython=True, fastmath=fastmath)
@@ -492,15 +600,16 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             :param ssf_exec_data:
             :return:
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
-            ssf_params = cfc_spec.ssf_params
+            model_params = model_params_transform(cfc_spec.model_params)
+            obf_params = obf_params_transform(cfc_spec.obf_params)
+            tbf_params = tbf_params_transform(cfc_spec.tbf_params)
+            ssf_params = ssf_params_transform(cfc_spec.ssf_params)
 
             state_confs = state.confs
             num_walkers = state.num_walkers
             max_num_walkers = state.max_num_walkers
             branching_spec = state.branching_spec
+            cloning_refs = branching_spec.cloning_ref
 
             momenta = ssf_exec_data.momenta
             iter_ssf_array = ssf_exec_data.iter_ssf_array
@@ -511,7 +620,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                                   state_confs,
                                   num_walkers,
                                   max_num_walkers,
-                                  branching_spec,
+                                  cloning_refs,
                                   model_params,
                                   obf_params,
                                   tbf_params,
@@ -570,7 +679,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         num_slots = len(model.SysConfSlot.__members__)
 
         @nb.njit
-        def _init_state_data(max_num_walkers: int,
+        def _init_state_data(base_shape: t.Tuple[int, ...],
                              cfc_spec: CFCSpec):
             """
 
@@ -578,32 +687,17 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             :return:
             """
             nop = cfc_spec.model_params.boson_number
-            confs_shape = max_num_walkers, num_slots, nop
-            props_shape = max_num_walkers,
+            confs_shape = base_shape + (num_slots, nop)
+            props_shape = base_shape + ()
 
             state_confs = np.zeros(confs_shape, dtype=state_confs_dtype)
-            state_props = np.zeros(props_shape, dtype=state_props_dtype)
+            energy = np.zeros(props_shape, dtype=np.float64)
+            weight = np.zeros(props_shape, dtype=np.float64)
+            mask = np.zeros(props_shape, dtype=np.bool_)
+            state_props = StateProps(energy, weight, mask)
             return dmc.StateData(state_confs, state_props)
 
         return _init_state_data
-
-    @cached_property
-    def copy_state_data(self):
-        """Copy the data of an existing ``State`` instance."""
-
-        @nb.njit
-        def _copy_state_data(state: dmc.State,
-                             state_data: dmc.StateData):
-            """
-
-            :param state:
-            :param state_data:
-            :return:
-            """
-            state_data.confs[:] = state.confs[:]
-            state_data.props[:] = state.props[:]
-
-        return _copy_state_data
 
     @cached_property
     def build_state(self):
@@ -617,7 +711,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                          state_ref_energy: float,
                          state_accum_energy: float,
                          max_num_walkers: int,
-                         state_branching_spec: np.ndarray = None):
+                         state_branching_spec: dmc.BranchingSpec = None):
             """
 
             :param state_data:
@@ -740,77 +834,68 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         """
         parallel = self.jit_parallel
         fastmath = self.jit_fastmath
-        props_energy_field = qmc_base.dmc.StateProp.ENERGY.value
-        props_weight_field = qmc_base.dmc.StateProp.WEIGHT.value
-        props_mask_field = qmc_base.dmc.StateProp.MASK.value
-        branch_ref_field = qmc_base.dmc.BranchingSpecField.CLONING_REF.value
+        model_core_funcs = self.model_core_funcs
 
         # JIT methods.
+        model_params_reconstruct = model_core_funcs.model_params_reconstruct
+        obf_params_reconstruct = model_core_funcs.obf_params_reconstruct
+        tbf_params_reconstruct = model_core_funcs.tbf_params_reconstruct
+        ddf_params_reconstruct = self.ddf_params_reconstruct
         evolve_system = self.evolve_system
 
         @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
         def _evolve_state_inner(prev_state_confs: np.ndarray,
-                                prev_state_props: np.ndarray,
+                                prev_state_energies: np.ndarray,
+                                prev_state_weights: np.ndarray,
+                                prev_state_masks: np.ndarray,
                                 actual_state_confs: np.ndarray,
-                                actual_state_props: np.ndarray,
+                                actual_state_energies: np.ndarray,
+                                actual_state_weights: np.ndarray,
+                                actual_state_masks: np.ndarray,
                                 aux_next_state_confs: np.ndarray,
-                                aux_next_state_props: np.ndarray,
+                                aux_next_state_energies: np.ndarray,
+                                aux_next_state_weights: np.ndarray,
+                                aux_next_state_masks: np.ndarray,
                                 actual_num_walkers: int,
                                 max_num_walkers: int,
                                 time_step: float,
                                 ref_energy: float,
-                                branching_spec: np.ndarray,
-                                model_params: model.Params,
-                                obf_params: model.OBFParams,
-                                tbf_params: model.TBFParams,
-                                ddf_params: DDFParams):
+                                cloning_refs: np.ndarray,
+                                model_params: np.ndarray,
+                                obf_params: np.ndarray,
+                                tbf_params: np.ndarray,
+                                ddf_params: np.ndarray):
             """Realize the diffusion-branching process.
 
             This function realize a simple diffusion process over each
             one of the walkers, followed by the branching process.
 
             :param prev_state_confs:
-            :param prev_state_props:
             :param actual_state_confs:
-            :param actual_state_props:
             :param aux_next_state_confs:
-            :param aux_next_state_props:
             :param actual_num_walkers:
             :param max_num_walkers:
             :param time_step:
             :param ref_energy:
-            :param branching_spec:
             :param model_params:
             :param obf_params:
             :param tbf_params:
             :return:
             """
-            # Arrays of properties.
-            prev_state_energies = prev_state_props[props_energy_field]
-            actual_state_energies = actual_state_props[props_energy_field]
-            aux_next_state_energies = aux_next_state_props[props_energy_field]
-
-            prev_state_weights = prev_state_props[props_weight_field]
-            actual_state_weights = actual_state_props[props_weight_field]
-            aux_next_state_weights = aux_next_state_props[props_weight_field]
-
-            actual_state_masks = actual_state_props[props_mask_field]
-            cloning_refs = branching_spec[branch_ref_field]
-
             # Total energy and weight of the next configuration.
             # NOTE: This initialization causes a memory leak with
             #  parallel=True
             # state_energy = 0.
             # state_weight = 0.
 
-            # Hack to use this arrays inside the parallel for.
-            model_params_nd = np.array((model_params,))
-            obf_params_nd = np.array((obf_params,))
-            tbf_params_nd = np.array((tbf_params,))
-            ddf_params_nd = np.array((ddf_params,))
-
             # Branching and diffusion process (parallel for).
             for sys_idx in nb.prange(max_num_walkers):
+
+                # Hack to use this arrays inside the parallel for.
+                model_params_nt = model_params_reconstruct(model_params)
+                obf_params_nt = obf_params_reconstruct(obf_params)
+                tbf_params_nt = tbf_params_reconstruct(tbf_params)
+                ddf_params_nt = ddf_params_reconstruct(ddf_params)
 
                 # Beyond the actual number of walkers just pass to
                 # the next iteration.
@@ -840,10 +925,10 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                                   aux_next_state_confs,
                                   aux_next_state_energies,
                                   aux_next_state_weights,
-                                  model_params_nd[0],
-                                  obf_params_nd[0],
-                                  tbf_params_nd[0],
-                                  ddf_params_nd[0])
+                                  model_params_nt,
+                                  obf_params_nt,
+                                  tbf_params_nt,
+                                  ddf_params_nt)
 
                     # Cloning process. Actual states are not modified.
                     actual_state_confs[sys_idx] \
@@ -871,7 +956,12 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         :return:
         """
+        model_core_funcs = self.model_core_funcs
         evolve_state_inner = self.evolve_state_inner
+        model_params_transform = model_core_funcs.model_params_transform
+        obf_params_transform = model_core_funcs.obf_params_transform
+        tbf_params_transform = model_core_funcs.tbf_params_transform
+        ddf_params_transform = self.ddf_params_transform
 
         @nb.jit(nopython=True)
         def _evolve_state(prev_state_data: dmc.StateData,
@@ -881,7 +971,7 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
                           max_num_walkers: int,
                           time_step: float,
                           ref_energy: float,
-                          branching_spec: np.ndarray,
+                          branching_spec: dmc.BranchingSpec,
                           cfc_spec: CFCSpec):
             """Realizes the diffusion-branching process.
 
@@ -899,10 +989,10 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             :param cfc_spec:
             :return:
             """
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
-            diff_params = cfc_spec.ddf_params
+            model_params = model_params_transform(cfc_spec.model_params)
+            obf_params = obf_params_transform(cfc_spec.obf_params)
+            tbf_params = tbf_params_transform(cfc_spec.tbf_params)
+            ddf_params = ddf_params_transform(cfc_spec.ddf_params)
 
             actual_state_confs = actual_state_data.confs
             actual_state_props = actual_state_data.props
@@ -910,22 +1000,29 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             prev_state_props = prev_state_data.props
             aux_next_state_confs = next_state_data.confs
             aux_next_state_props = next_state_data.props
+            cloning_refs = branching_spec.cloning_ref
 
             evolve_state_inner(prev_state_confs,
-                               prev_state_props,
+                               prev_state_props.energy,
+                               prev_state_props.weight,
+                               prev_state_props.mask,
                                actual_state_confs,
-                               actual_state_props,
+                               actual_state_props.energy,
+                               actual_state_props.weight,
+                               actual_state_props.mask,
                                aux_next_state_confs,
-                               aux_next_state_props,
+                               aux_next_state_props.energy,
+                               aux_next_state_props.weight,
+                               aux_next_state_props.mask,
                                actual_num_walkers,
                                max_num_walkers,
                                time_step,
                                ref_energy,
-                               branching_spec,
+                               cloning_refs,
                                model_params,
                                obf_params,
                                tbf_params,
-                               diff_params)
+                               ddf_params)
 
         return _evolve_state
 
@@ -988,49 +1085,52 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
 
         parallel = self.jit_parallel
         fastmath = self.jit_fastmath
-
-        # Fields
-        state_props_fields = qmc_base.dmc.StateProp
-        energy_field = state_props_fields.ENERGY.value
-        weight_field = state_props_fields.WEIGHT.value
-        mask_field = state_props_fields.MASK.value
+        model_core_funcs = self.model_core_funcs
 
         # JIT functions.
+        model_params_reconstruct = model_core_funcs.model_params_reconstruct
+        obf_params_reconstruct = model_core_funcs.obf_params_reconstruct
+        tbf_params_reconstruct = model_core_funcs.tbf_params_reconstruct
         prepare_ini_ith_system = self.prepare_ini_ith_system
 
         @nb.jit(nopython=True, parallel=parallel, fastmath=fastmath)
         def _prepare_state_data_inner(ini_sys_conf_set: np.ndarray,
                                       state_confs: np.ndarray,
-                                      state_props: np.ndarray,
-                                      model_params: model.Params,
-                                      obf_params: model.OBFParams,
-                                      tbf_params: model.TBFParams):
+                                      state_energy: np.ndarray,
+                                      state_weight: np.ndarray,
+                                      state_mask: np.ndarray,
+                                      model_params: np.ndarray,
+                                      obf_params: np.ndarray,
+                                      tbf_params: np.ndarray):
             """Prepare the initial state of the sampling.
 
             :param ini_sys_conf_set:
             :param state_confs:
-            :param state_props:
+            :param state_energy:
+            :param state_weight:
+            :param state_mask:
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
             :return:
             """
             ini_num_walkers = len(ini_sys_conf_set)
-            state_energy = state_props[energy_field]
-            state_weight = state_props[weight_field]
-            state_mask = state_props[mask_field]
-
-            # Hack to use this arrays inside the parallel for.
-            model_params_nd = np.array((model_params,))
-            obf_params_nd = np.array((obf_params,))
-            tbf_params_nd = np.array((tbf_params,))
 
             # Initialize the mask.
             state_mask[:] = True
 
             for sys_idx in nb.prange(ini_num_walkers):
+
+                # Hack to use this arrays inside the parallel for.
+                model_params_nt = model_params_reconstruct(model_params)
+                obf_params_nt = obf_params_reconstruct(obf_params)
+                tbf_params_nt = tbf_params_reconstruct(tbf_params)
+
                 # Prepare each one of the configurations of the state.
                 prepare_ini_ith_system(sys_idx, state_confs, state_energy,
                                        state_weight, ini_sys_conf_set,
-                                       model_params_nd[0], obf_params_nd[0],
-                                       tbf_params_nd[0])
+                                       model_params_nt, obf_params_nt,
+                                       tbf_params_nt)
 
                 # Unmask this walker.
                 state_mask[sys_idx] = False
@@ -1042,6 +1142,10 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
         """Prepare the initial state of the sampling. """
 
         fastmath = self.jit_fastmath
+        model_core_funcs = self.model_core_funcs
+        model_params_transform = model_core_funcs.model_params_transform
+        obf_params_transform = model_core_funcs.obf_params_transform
+        tbf_params_transform = model_core_funcs.tbf_params_transform
         prepare_state_data_inner = self.prepare_state_data_inner
 
         @nb.jit(nopython=True, fastmath=fastmath)
@@ -1055,12 +1159,16 @@ class CoreFuncs(qmc_base.dmc.CoreFuncs):
             """
             state_confs = state_data.confs
             state_props = state_data.props
-            model_params = cfc_spec.model_params
-            obf_params = cfc_spec.obf_params
-            tbf_params = cfc_spec.tbf_params
+            model_params = model_params_transform(cfc_spec.model_params)
+            obf_params = obf_params_transform(cfc_spec.obf_params)
+            tbf_params = tbf_params_transform(cfc_spec.tbf_params)
+            state_energy = state_props.energy
+            state_weight = state_props.weight
+            state_mask = state_props.mask
 
             prepare_state_data_inner(ini_sys_conf_set, state_confs,
-                                     state_props, model_params,
+                                     state_energy, state_weight,
+                                     state_mask, model_params,
                                      obf_params, tbf_params)
 
         return _prepare_state_data

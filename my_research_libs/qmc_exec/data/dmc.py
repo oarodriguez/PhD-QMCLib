@@ -1,5 +1,5 @@
 import typing as t
-from collections import Mapping
+from typing import Mapping
 
 import attr
 import h5py
@@ -10,26 +10,10 @@ from my_research_libs.qmc_base import dmc as dmc_base
 from my_research_libs.qmc_base.dmc import SSFPartSlot
 from my_research_libs.stats import reblock
 
-__all__ = [
-    'DensityBlocks',
-    'ProcResult',
-    'EnergyBlocks',
-    'NumWalkersBlocks',
-    'PropBlocks',
-    'PropsDataBlocks',
-    'PropsDataSeries',
-    'SamplingData',
-    'SSFBlocks',
-    'SSFPartBlocks',
-    'UnWeightedPropBlocks',
-    'WeightBlocks'
-]
-
 
 @attr.s(auto_attribs=True, frozen=True)
 class PropBlock:
     """Represent a single block of data."""
-    num_time_steps: int
     total: float
     weight: t.Optional[float] = None
 
@@ -40,8 +24,6 @@ T_PropBlocksItem = t.Union['PropBlock', 'PropBlocks']
 @attr.s(auto_attribs=True, frozen=True)
 class PropBlocks(Mapping):
     """Represent a series of data grouped in blocks."""
-    num_blocks: int
-    num_time_steps_block: int  # NOTE: I'm not sure if we need this
     totals: np.ndarray
     weight_totals: t.Optional[np.ndarray]
 
@@ -124,12 +106,6 @@ class PropBlocks(Mapping):
         group.create_dataset('totals', data=self.totals)
         group.create_dataset('weight_totals', data=self.weight_totals)
 
-        # Save attributes.
-        group.attrs.update({
-            'num_blocks': self.num_blocks,
-            'num_time_steps_block': self.num_time_steps_block
-        })
-
     @classmethod
     def from_hdf5_data(cls, group: h5py.Group):
         """Create an instance from the data to an HDF5 group object.
@@ -138,11 +114,9 @@ class PropBlocks(Mapping):
         :return:
         """
         data = {
-            'totals': group.get('totals').value,
-            'weight_totals': group.get('weight_totals').value
+            'totals': group.get('totals')[()],
+            'weight_totals': group.get('weight_totals')[()]
         }
-        data.update(group.attrs.items())
-        # noinspection PyArgumentList
         return cls(**data)
 
     def __getitem__(self, index) -> T_PropBlocksItem:
@@ -151,17 +125,14 @@ class PropBlocks(Mapping):
             if len(index) > 1:
                 raise TypeError("only one-element tuples are allowed")
 
-        nts_block = self.num_time_steps_block
         if isinstance(index, int):
             total = self.totals[index]
             weight = self.weight_totals[index]
-            return PropBlock(nts_block, total, weight=weight)
+            return PropBlock(total, weight=weight)
 
         totals = self.totals[index]
         weight_totals = self.weight_totals[index]
-        num_blocks = len(totals)
-        # TODO: Retrieve an instance of type(self) for now.
-        return type(self)(num_blocks, nts_block, totals, weight_totals)
+        return PropBlocks(totals, weight_totals)
 
     def __len__(self) -> int:
         """Number of blocks."""
@@ -169,11 +140,29 @@ class PropBlocks(Mapping):
 
     def __iter__(self):
         """Iterable interface."""
-        nts_block = self.num_time_steps_block
         for index, total in enumerate(self.totals):
-            total = self.totals[index]
             weight = self.weight_totals[index]
-            yield PropBlock(total, nts_block, weight=weight)
+            yield PropBlock(total, weight=weight)
+
+    def __add__(self, other: t.Any):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, PropBlocks):
+            return NotImplemented
+        try:
+            all_totals = self.totals, other.totals
+            totals = np.concatenate(all_totals, axis=0)
+        except ValueError as e:
+            raise ValueError("'totals' are incompatible "
+                             "between instances") from e
+        try:
+            all_weight_totals = self.weight_totals, other.weight_totals
+            weight_totals = np.concatenate(all_weight_totals, axis=0)
+        except ValueError as e:
+            raise ValueError("'weight_totals' are incompatible "
+                             "between instances") from e
+        return PropBlocks(totals, weight_totals)
+
+    # TODO: I think we do not need __radd__ method...
 
 
 T_UnWeightedPropBlockItem = t.Union['PropBlock', 'UnWeightedPropBlocks']
@@ -183,8 +172,6 @@ T_UnWeightedPropBlockItem = t.Union['PropBlock', 'UnWeightedPropBlocks']
 class UnWeightedPropBlocks(Mapping):
     """Abstract class to represent data in blocks."""
 
-    num_blocks: int
-    num_time_steps_block: int
     totals: np.ndarray
 
     @property
@@ -210,10 +197,6 @@ class UnWeightedPropBlocks(Mapping):
         """
         # Create the necessary data sets and export data.
         group.create_dataset('totals', data=self.totals)
-        group.attrs.update({
-            'num_blocks': self.num_blocks,
-            'num_time_steps_block': self.num_time_steps_block
-        })
 
     @classmethod
     def from_hdf5_data(cls, group: h5py.Group):
@@ -223,10 +206,8 @@ class UnWeightedPropBlocks(Mapping):
         :return:
         """
         data = {
-            'totals': group.get('totals').value,
+            'totals': group.get('totals')[()],
         }
-        data.update(group.attrs.items())
-        # noinspection PyArgumentList
         return cls(**data)
 
     def __getitem__(self, index) -> T_UnWeightedPropBlockItem:
@@ -234,16 +215,12 @@ class UnWeightedPropBlocks(Mapping):
         if isinstance(index, tuple):
             if len(index) > 1:
                 raise TypeError("only one-element tuples are allowed")
-
-        nts_block = self.num_time_steps_block
         if isinstance(index, int):
             total = self.totals[index]
-            return PropBlock(nts_block, total, weight=None)
-
+            return PropBlock(total, weight=None)
         totals = self.totals[index]
-        num_blocks = len(totals)
         # TODO: Retrieve an instance of type(self) for now.
-        return type(self)(num_blocks, nts_block, totals)
+        return UnWeightedPropBlocks(totals)
 
     def __len__(self) -> int:
         """Number of blocks."""
@@ -251,135 +228,113 @@ class UnWeightedPropBlocks(Mapping):
 
     def __iter__(self):
         """Iterable interface."""
-        nts_block = self.num_time_steps_block
         for index, total in enumerate(self.totals):
             total = self.totals[index]
-            yield PropBlock(nts_block, total, weight=None)
+            yield PropBlock(total, weight=None)
+
+    def __add__(self, other: t.Any):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, UnWeightedPropBlocks):
+            return NotImplemented
+        try:
+            all_totals = self.totals, other.totals
+            totals = np.concatenate(all_totals, axis=0)
+        except ValueError as e:
+            raise ValueError("'totals' are incompatible between "
+                             "instances") from e
+        return UnWeightedPropBlocks(totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class NumWalkersBlocks(UnWeightedPropBlocks):
     """Number of walkers data in blocks."""
 
-    num_blocks: int
-    num_time_steps_block: int
     totals: np.ndarray
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_time_steps_block: int,
-                  data: np.ndarray,
+    def from_data(cls, data: dmc_base.PropsData,
                   reduce_data: bool = True):
         """
 
-        :param num_blocks:
-        :param num_time_steps_block:
         :param data:
         :param reduce_data:
         :return:
         """
-        weight_data = data[dmc_base.IterProp.NUM_WALKERS]
+        num_walkers_data = data.num_walkers
         if reduce_data:
-            weight_totals = weight_data.sum(axis=1)
+            totals = num_walkers_data.sum(axis=1)
         else:
-            weight_totals = weight_data
-
-        return cls(num_blocks,
-                   num_time_steps_block,
-                   weight_totals)
+            totals = num_walkers_data
+        return cls(totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class WeightBlocks(UnWeightedPropBlocks):
     """Weight data in blocks."""
 
-    num_blocks: int
-    num_time_steps_block: int
     totals: np.ndarray
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_time_steps_block: int,
-                  data: np.ndarray,
+    def from_data(cls, data: dmc_base.PropsData,
                   reduce_data: bool = True):
         """
 
-        :param num_blocks:
-        :param num_time_steps_block:
         :param data:
         :param reduce_data:
         :return:
         """
-        weight_data = data[dmc_base.IterProp.WEIGHT]
+        weight_data = data.weight
         if reduce_data:
             weight_totals = weight_data.sum(axis=1)
         else:
             weight_totals = weight_data
-
-        return cls(num_blocks,
-                   num_time_steps_block,
-                   weight_totals)
+        return cls(weight_totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class EnergyBlocks(PropBlocks):
     """Energy data in blocks."""
 
-    num_blocks: int
-    num_time_steps_block: int
     totals: np.ndarray
     weight_totals: np.ndarray
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_time_steps_block: int,
-                  data: np.ndarray,
+    def from_data(cls, data: dmc_base.PropsData,
                   reduce_data: bool = True):
         """
 
-        :param num_blocks:
-        :param num_time_steps_block:
         :param data:
         :param reduce_data:
         :return:
         """
-        energy_data = data[dmc_base.IterProp.ENERGY]
-        weight_data = data[dmc_base.IterProp.WEIGHT]
+        energy_data = data.energy
+        weight_data = data.weight
         if reduce_data:
             totals = energy_data.sum(axis=1)
             weight_totals = weight_data.sum(axis=1)
         else:
             totals = energy_data
             weight_totals = weight_data
-
-        return cls(num_blocks,
-                   num_time_steps_block,
-                   totals,
-                   weight_totals)
+        return cls(totals, weight_totals)
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class DensityBlocks(PropBlocks):
     """Density data in blocks."""
 
-    num_blocks: int
-    num_time_steps_block: int
     totals: np.ndarray
     weight_totals: np.ndarray
-    as_pure_est: bool = True  # NOTE: Maybe we do not need this.
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_time_steps_block: int,
+    def from_data(cls, num_time_steps_block: int,
                   density_data: np.ndarray,
-                  props_data: np.ndarray,
+                  props_data: dmc_base.PropsData,
                   reduce_data: bool = True,
                   as_pure_est: bool = True,
                   pure_est_reduce_factor: np.ndarray = None):
         """
 
         :param reduce_data:
-        :param num_blocks:
         :param num_time_steps_block:
         :param density_data:
         :param props_data:
@@ -388,7 +343,7 @@ class DensityBlocks(PropBlocks):
         :return:
         """
         nts_block = num_time_steps_block
-        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+        weight_data = props_data.weight
 
         if not as_pure_est:
 
@@ -416,8 +371,7 @@ class DensityBlocks(PropBlocks):
         # Add an extra dimension.
         weight_totals = weight_totals[:, np.newaxis]
 
-        return cls(num_blocks, num_time_steps_block,
-                   totals, weight_totals, as_pure_est)
+        return cls(totals, weight_totals)
 
     @property
     def reblock(self):
@@ -446,42 +400,37 @@ class DensityBlocks(PropBlocks):
 class SSFPartBlocks(PropBlocks):
     """Structure Factor data in blocks."""
 
-    num_blocks: int
-    num_time_steps_block: int
     totals: np.ndarray
     weight_totals: np.ndarray
-    as_pure_est: bool = True  # NOTE: Maybe we do not need this.
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_time_steps_block: int,
-                  sf_data: np.ndarray,
-                  props_data: np.ndarray,
+    def from_data(cls, num_time_steps_block: int,
+                  ssf_data: np.ndarray,
+                  props_data: dmc_base.PropsData,
                   reduce_data: bool = True,
                   as_pure_est: bool = True,
                   pure_est_reduce_factor: np.ndarray = None):
         """
 
         :param reduce_data:
-        :param num_blocks:
         :param num_time_steps_block:
-        :param sf_data:
+        :param ssf_data:
         :param props_data:
         :param as_pure_est:
         :param pure_est_reduce_factor:
         :return:
         """
         nts_block = num_time_steps_block
-        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+        weight_data = props_data.weight
 
         if not as_pure_est:
 
             if reduce_data:
-                totals = sf_data.sum(axis=1)
+                totals = ssf_data.sum(axis=1)
                 weight_totals = weight_data.sum(axis=1)
 
             else:
-                totals = sf_data
+                totals = ssf_data
                 weight_totals = weight_data
 
         else:
@@ -490,18 +439,17 @@ class SSFPartBlocks(PropBlocks):
 
                 # Reductions are not used in pure estimators.
                 # We just take the last element.
-                totals = sf_data[:, nts_block - 1, :]
+                totals = ssf_data[:, nts_block - 1, :]
                 weight_totals = weight_data[:, nts_block - 1]
 
             else:
-                totals = sf_data
+                totals = ssf_data
                 weight_totals = weight_data * pure_est_reduce_factor
 
         # Add an extra dimension.
         weight_totals = weight_totals[:, np.newaxis]
 
-        return cls(num_blocks, num_time_steps_block,
-                   totals, weight_totals, as_pure_est)
+        return cls(totals, weight_totals)
 
     @property
     def reblock(self):
@@ -540,35 +488,33 @@ class SSFBlocks:
     fdk_imag_part: SSFPartBlocks
 
     @classmethod
-    def from_data(cls, num_blocks: int,
-                  num_time_steps_block: int,
-                  sf_data: np.ndarray,
-                  props_data: np.ndarray,
+    def from_data(cls, num_time_steps_block: int,
+                  ssf_data: np.ndarray,
+                  props_data: dmc_base.PropsData,
                   reduce_data: bool = True,
                   as_pure_est: bool = True,
                   pure_est_reduce_factor: np.ndarray = None):
         """
 
         :param reduce_data:
-        :param num_blocks:
         :param num_time_steps_block:
-        :param sf_data:
+        :param ssf_data:
         :param props_data:
         :param as_pure_est:
         :param pure_est_reduce_factor:
         :return:
         """
         nts_block = num_time_steps_block
-        weight_data = props_data[dmc_base.IterProp.WEIGHT]
+        weight_data = props_data.weight
 
         if not as_pure_est:
 
             if reduce_data:
-                totals = sf_data.sum(axis=1)
+                totals = ssf_data.sum(axis=1)
                 weight_totals = weight_data.sum(axis=1)
 
             else:
-                totals = sf_data
+                totals = ssf_data
                 weight_totals = weight_data
 
         else:
@@ -577,11 +523,11 @@ class SSFBlocks:
 
                 # Reductions are not used in pure estimators.
                 # We just take the last element.
-                totals = sf_data[:, nts_block - 1, :]
+                totals = ssf_data[:, nts_block - 1, :]
                 weight_totals = weight_data[:, nts_block - 1]
 
             else:
-                totals = sf_data
+                totals = ssf_data
                 weight_totals = weight_data * pure_est_reduce_factor
 
         # Add an extra dimension.
@@ -593,16 +539,13 @@ class SSFBlocks:
         fdk_imag_totals = totals[:, :, SSFPartSlot.FDK_IMAG]
 
         fdk_sqr_abs_part_blocks = \
-            SSFPartBlocks(num_blocks, num_time_steps_block,
-                          fdk_sqr_abs_totals, weight_totals, as_pure_est)
+            SSFPartBlocks(fdk_sqr_abs_totals, weight_totals)
 
         fdk_real_part_blocks = \
-            SSFPartBlocks(num_blocks, num_time_steps_block,
-                          fdk_real_totals, weight_totals, as_pure_est)
+            SSFPartBlocks(fdk_real_totals, weight_totals)
 
         fdk_imag_part_blocks = \
-            SSFPartBlocks(num_blocks, num_time_steps_block,
-                          fdk_imag_totals, weight_totals, as_pure_est)
+            SSFPartBlocks(fdk_imag_totals, weight_totals)
 
         return cls(fdk_sqr_abs_part_blocks,
                    fdk_real_part_blocks,
@@ -667,6 +610,15 @@ class SSFBlocks:
         fdk_imag = SSFPartBlocks.from_hdf5_data(fdk_imag_group)
 
         return cls(fdk_sqr_abs, fdk_real, fdk_imag)
+
+    def __add__(self, other: t.Any):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, SSFBlocks):
+            return NotImplemented
+        fdk_sqr_abs_part = self.fdk_sqr_abs_part + other.fdk_sqr_abs_part
+        fdk_real_part = self.fdk_real_part + other.fdk_real_part
+        fdk_imag_part = self.fdk_imag_part + other.fdk_imag_part
+        return SSFBlocks(fdk_sqr_abs_part, fdk_real_part, fdk_imag_part)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -781,6 +733,28 @@ class PropsDataBlocks:
 
         return cls(energy_blocks, weight_blocks,
                    num_walkers_blocks, density_blocks, ssf_block)
+
+    def merge(self, other: 'PropsDataBlocks'):
+        """Concatenate the current data blocks with another data blocks."""
+        if not isinstance(other, PropsDataBlocks):
+            raise TypeError("'other' must be an instance of "
+                            "'PropsDataBlocks'")
+        energy = self.energy + other.energy
+        weight = self.weight + other.weight
+        num_walkers = self.num_walkers + other.num_walkers
+        density = self.density
+        if density is None:
+            density = other.density if other.density is not None else None
+        else:
+            if other.density is not None:
+                density = density + other.density
+        ssf = self.ss_factor
+        if ssf is None:
+            ssf = other.ss_factor if other.ss_factor is not None else None
+        else:
+            if other.ss_factor is not None:
+                ssf = ssf + other.ss_factor
+        return PropsDataBlocks(energy, weight, num_walkers, density, ssf)
 
 
 @attr.s(auto_attribs=True, frozen=True)

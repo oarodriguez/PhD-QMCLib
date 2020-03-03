@@ -2,9 +2,9 @@ import pathlib
 import typing as t
 
 import attr
-import h5py
 
-from my_research_libs.qmc_exec import vmc as vmc_exec
+from my_research_libs.qmc_base import vmc as vmc_udf_base
+from my_research_libs.qmc_exec import data as dmc_data, vmc as vmc_exec
 from my_research_libs.util.attr import (
     bool_validator, opt_str_validator, str_validator
 )
@@ -50,6 +50,7 @@ class RawHDF5FileHandler(vmc_exec.io.RawHDF5FileHandler):
 
 # A ``pathlib.Path`` instance is a valid location.
 valid_path_types = pathlib.Path, str
+# noinspection PyTypeChecker
 loc_validator = attr.validators.instance_of(valid_path_types)
 
 
@@ -92,55 +93,22 @@ class HDF5FileHandler(vmc_exec.io.HDF5FileHandler):
         """
         return cls(**config)
 
-    def load(self):
-        """Load the contents of the file.
+    def build_proc(self, proc_config: t.Dict):
+        """
 
+        :param proc_config:
         :return:
         """
-        h5_file = h5py.File(self.location_path, 'r')
-        with h5_file:
-            #
-            vmc_group = h5_file.get(f'{self.group}/vmc')
-            state_group = vmc_group.get('state')
-            proc_group = vmc_group.get('proc_spec')
-            # TODO: This is data/blocks group, not data...
-            data_group = vmc_group.get('data/blocks')
-
-            state = self.load_state(state_group)
-            proc = self.load_proc(proc_group)
-            blocks = vmc_exec.data.PropsDataBlocks.from_hdf5_data(data_group)
-
-        data_series = None  # For now...
-        sampling_data = vmc_exec.data.SamplingData(blocks, series=data_series)
-        return ProcResult(state, proc, sampling_data)
-
-    def load_proc(self, group: h5py.Group):
-        """Load the procedure results from the file.
-
-        :param group:
-        :return:
-        """
-        model_spec_group = group.get('model_spec')
-        model_spec_config = dict(model_spec_group.attrs.items())
-
-        density_spec_group: h5py.Group = group.get('density_spec')
-        if density_spec_group is not None:
-            density_spec_config = dict(density_spec_group.attrs.items())
-        else:
-            density_spec_config = None
-
-        ssf_spec_group: h5py.Group = group.get('ssf_spec')
-        if ssf_spec_group is not None:
-            ssf_spec_config = dict(ssf_spec_group.attrs.items())
-        else:
-            ssf_spec_config = None
-
-        # Build a config object.
-        proc_config = {
-            'model_spec': model_spec_config,
-            'density_spec': density_spec_config,
-            'ssf_spec': ssf_spec_config
-        }
-        proc_config.update(group.attrs.items())
-
         return Proc.from_config(proc_config)
+
+    def build_result(self, state: vmc_udf_base.State,
+                     proc_inst: Proc,
+                     sampling_data: dmc_data.vmc.SamplingData):
+        """
+
+        :param state:
+        :param proc_inst:
+        :param sampling_data:
+        :return:
+        """
+        return ProcResult(state, proc_inst, sampling_data)

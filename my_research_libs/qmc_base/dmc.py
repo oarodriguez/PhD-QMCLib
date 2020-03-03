@@ -95,38 +95,67 @@ class BranchingSpecField(str, enum.Enum):
     MASK = 'MASK'
 
 
+class BranchingSpec(t.NamedTuple):
+    """Represent the branching information."""
+    cloning_factor: np.ndarray
+    cloning_ref: np.ndarray
+
+
+class StateProps(t.NamedTuple):
+    """Contain the arrays that hold a DMC state properties."""
+    energy: np.ndarray
+    weight: np.ndarray
+    mask: np.ndarray
+
+
 class StateData(t.NamedTuple):
     """Represent the data necessary to execute the DMC states generator."""
     confs: np.ndarray
-    props: np.ndarray
+    props: StateProps
 
 
 class State(t.NamedTuple):
     """A DMC state."""
     confs: np.ndarray
-    props: np.ndarray
+    props: StateProps
     energy: float
     weight: float
     num_walkers: int
     ref_energy: float
     accum_energy: float
     max_num_walkers: int
-    branching_spec: t.Optional[np.ndarray] = None
+    branching_spec: t.Optional[BranchingSpec] = None
+
+
+class PropsData(t.NamedTuple):
+    """"""
+    energy: np.ndarray
+    weight: np.ndarray
+    num_walkers: np.ndarray
+    ref_energy: np.ndarray
+    accum_energy: np.ndarray
+
+    def as_record(self):
+        """"""
+        fields = (self.energy, self.weight, self.num_walkers, self.ref_energy,
+                  self.accum_energy)
+        array_data = [d for d in zip(*fields)]
+        return np.array(array_data, dtype=iter_props_dtype)
 
 
 class SamplingBlock(t.NamedTuple):
     """"""
     #: Properties data.
-    iter_props: np.ndarray
+    iter_props: PropsData
     iter_density: np.ndarray
     iter_ssf: np.ndarray = None
     last_state: t.Optional[State] = None
 
 
-class SamplingConfsPropsBlock(t.NamedTuple):
+class SamplingStateDataBlock(t.NamedTuple):
     """"""
-    states_confs: np.ndarray
-    states_props: np.ndarray
+    confs: np.ndarray
+    props: StateProps
     iter_props: np.ndarray
 
 
@@ -135,8 +164,8 @@ T_SIter = t.Iterator[State]
 T_E_SIter = t.Iterator[t.Tuple[int, State]]
 T_SBlocksIter = t.Iterator[SamplingBlock]
 T_E_SBlocksIter = t.Iterator[t.Tuple[int, SamplingBlock]]
-T_SCPBlocksIter = t.Iterator[SamplingConfsPropsBlock]
-T_E_SCPBlocksIter = t.Iterator[t.Tuple[int, SamplingConfsPropsBlock]]
+T_SDBlocksIter = t.Iterator[SamplingStateDataBlock]
+T_E_SDBlocksIter = t.Iterator[t.Tuple[int, SamplingStateDataBlock]]
 
 
 # noinspection PyUnusedLocal
@@ -315,8 +344,8 @@ class Sampling(metaclass=ABCMeta):
                                       self.rng_seed,
                                       self.cfc_spec)
 
-    def confs_props_blocks(self, ini_state: State,
-                           num_time_steps_block: int) -> T_SCPBlocksIter:
+    def state_data_blocks(self, ini_state: State,
+                          num_time_steps_block: int) -> T_SDBlocksIter:
         """Generator of blocks of states.
 
         :param ini_state: The initial state of the sampling.
@@ -326,13 +355,13 @@ class Sampling(metaclass=ABCMeta):
         time_step = self.time_step
         target_num_walkers = self.target_num_walkers
         nwc_factor = self.num_walkers_control_factor
-        return self.core_funcs.confs_props_blocks(time_step,
-                                                  ini_state,
-                                                  target_num_walkers,
-                                                  nwc_factor,
-                                                  num_time_steps_block,
-                                                  self.rng_seed,
-                                                  self.cfc_spec)
+        return self.core_funcs.state_data_blocks(time_step,
+                                                 ini_state,
+                                                 target_num_walkers,
+                                                 nwc_factor,
+                                                 num_time_steps_block,
+                                                 self.rng_seed,
+                                                 self.cfc_spec)
 
     @property
     @abstractmethod
@@ -344,7 +373,7 @@ class Sampling(metaclass=ABCMeta):
 iter_props_dtype = np.dtype([
     (IterProp.ENERGY.value, np.float64),
     (IterProp.WEIGHT.value, np.float64),
-    (IterProp.NUM_WALKERS.value, np.uint32),
+    (IterProp.NUM_WALKERS.value, np.uint64),
     (IterProp.REF_ENERGY.value, np.float64),
     (IterProp.ACCUM_ENERGY.value, np.float64)
 ])
@@ -396,14 +425,14 @@ def _init_ssf_est_data_stub(num_time_steps_block: int,
 
 
 # noinspection PyUnusedLocal
-def _init_state_data_stub(max_num_walkers: int,
+def _init_state_data_stub(base_shape: t.Tuple[int, ...],
                           cfc_spec: CFCSpec) -> StateData:
     """Stub for the _init_state_data function."""
     pass
 
 
 # noinspection PyUnusedLocal
-def _copy_state_data_stub(state: State,
+def _copy_state_data_stub(state: t.Union[State, StateData],
                           state_data: StateData):
     """Stub for the copy_state_data function."""
     pass
@@ -486,11 +515,46 @@ class CoreFuncs(metaclass=ABCMeta):
         """"""
         return _init_state_data_stub
 
-    @property
-    @abstractmethod
+    @cached_property
+    def get_state_data_item(self):
+        """Copy an item of an ``StateData`` block."""
+
+        @nb.njit
+        def _get_state_data(source: StateData,
+                            item: int):
+            """
+
+            :param source:
+            :param item:
+            :return:
+            """
+            confs = source.confs[item]
+            props = StateProps(energy=source.props.energy[item],
+                               weight=source.props.weight[item],
+                               mask=source.props.mask[item])
+            return StateData(confs=confs, props=props)
+
+        return _get_state_data
+
+    @cached_property
     def copy_state_data(self):
-        """"""
-        return _copy_state_data_stub
+        """Copy the data of an existing ``State`` instance."""
+
+        @nb.njit
+        def _copy_state_data(source: t.Union[State, StateData],
+                             dest: StateData):
+            """
+
+            :param source:
+            :param dest:
+            :return:
+            """
+            dest.confs[:] = source.confs[:]
+            dest.props.energy[:] = source.props.energy[:]
+            dest.props.weight[:] = source.props.weight[:]
+            dest.props.mask[:] = source.props.mask[:]
+
+        return _copy_state_data
 
     @property
     @abstractmethod
@@ -522,11 +586,29 @@ class CoreFuncs(metaclass=ABCMeta):
             :param cfc_spec:
             :return:
             """
-            state_data = init_state_data(state.max_num_walkers, cfc_spec)
+            base_shape = state.max_num_walkers,
+            state_data = init_state_data(base_shape, cfc_spec)
             copy_state_data(state, state_data)
             return state_data
 
         return _init_state_data_from_state
+
+    @cached_property
+    def init_branching_spec(self):
+        """"""
+
+        @nb.jit(nopython=True)
+        def _init_branching_spec(max_num_walkers: int):
+            """
+
+            :param max_num_walkers:
+            :return:
+            """
+            cloning_factor = np.zeros(max_num_walkers, dtype=np.int64)
+            cloning_ref = np.zeros(max_num_walkers, dtype=np.int64)
+            return BranchingSpec(cloning_factor, cloning_ref)
+
+        return _init_branching_spec
 
     @cached_property
     def sync_branching_spec(self):
@@ -535,22 +617,20 @@ class CoreFuncs(metaclass=ABCMeta):
         :return:
         """
         fastmath = self.jit_fastmath
-        props_weight_field = StateProp.WEIGHT.value
-        clone_ref_field = BranchingSpecField.CLONING_REF.value
 
         @nb.jit(nopython=True, fastmath=fastmath)
         def _sync_branching_spec(prev_state_data: StateData,
                                  prev_num_walkers: int,
                                  max_num_walkers: int,
-                                 branching_spec: np.ndarray):
+                                 branching_spec: BranchingSpec):
             """
 
             :param branching_spec:
             :return:
             """
             prev_state_props = prev_state_data.props
-            prev_state_weights = prev_state_props[props_weight_field]
-            cloning_refs = branching_spec[clone_ref_field]
+            prev_state_weights = prev_state_props.weight
+            cloning_refs = branching_spec.cloning_ref
 
             final_num_walkers = 0
             for sys_idx in range(prev_num_walkers):
@@ -587,12 +667,11 @@ class CoreFuncs(metaclass=ABCMeta):
         :return:
         """
         fastmath = self.jit_fastmath
-        props_energy_field = StateProp.ENERGY.value
-        props_weight_field = StateProp.WEIGHT.value
 
         # JIT functions.
         evolve_state = self.evolve_state
         init_state_data_from_state = self.init_state_data_from_state
+        init_branching_spec = self.init_branching_spec
         build_state = self.build_state
         sync_branching_spec = self.sync_branching_spec
 
@@ -638,12 +717,12 @@ class CoreFuncs(metaclass=ABCMeta):
 
             # Table to control the branching process.
             state_branching_spec = \
-                np.zeros(max_num_walkers, dtype=branching_spec_dtype)
+                init_branching_spec(max_num_walkers)
 
             # Current state properties.
             state_props = actual_state_data.props
-            state_energies = state_props[props_energy_field]
-            state_weights = state_props[props_weight_field]
+            state_energies = state_props.energy
+            state_weights = state_props.weight
             state_ref_energy = ini_state.ref_energy
 
             # Seed the numba RNG.
@@ -707,6 +786,31 @@ class CoreFuncs(metaclass=ABCMeta):
 
         return _states_generator
 
+    @property
+    def init_props_data_block(self):
+        """"""
+
+        @nb.njit
+        def _init_props_data_block(block_shape: t.Tuple[int, ...]):
+            """
+
+            :param block_shape:
+            :return:
+            """
+            energy = np.zeros(block_shape, dtype=np.float64)
+            weight = np.zeros(block_shape, dtype=np.float64)
+            num_walkers = np.zeros(block_shape, dtype=np.uint64)
+            ref_energy = np.zeros(block_shape, dtype=np.float64)
+            accum_energy = np.zeros(block_shape, dtype=np.float64)
+
+            return PropsData(energy=energy,
+                             weight=weight,
+                             num_walkers=num_walkers,
+                             ref_energy=ref_energy,
+                             accum_energy=accum_energy)
+
+        return _init_props_data_block
+
     @cached_property
     def blocks(self):
         """
@@ -715,15 +819,10 @@ class CoreFuncs(metaclass=ABCMeta):
         """
         fastmath = self.jit_fastmath
 
-        iter_energy_field = IterProp.ENERGY.value
-        iter_weight_field = IterProp.WEIGHT.value
-        iter_num_walkers_field = IterProp.NUM_WALKERS.value
-        ref_energy_field = IterProp.REF_ENERGY.value
-        accum_energy_field = IterProp.ACCUM_ENERGY.value
-
         # JIT routines.
         states_generator = self.states_generator
         density = self.density
+        init_props_data_block = self.init_props_data_block
         init_density_est_data = self.init_density_est_data
         init_ssf_est_data = self.init_ssf_est_data
         fourier_density = self.fourier_density
@@ -760,12 +859,12 @@ class CoreFuncs(metaclass=ABCMeta):
             ipb_shape = nts_block,
 
             # Array to store the configuration data of a block of states.
-            iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
-            iter_energies = iter_props_array[iter_energy_field]
-            iter_weights = iter_props_array[iter_weight_field]
-            iter_num_walkers = iter_props_array[iter_num_walkers_field]
-            iter_ref_energies = iter_props_array[ref_energy_field]
-            iter_accum_energies = iter_props_array[accum_energy_field]
+            props_data = init_props_data_block(ipb_shape)
+            iter_energies = props_data.energy
+            iter_weights = props_data.weight
+            iter_num_walkers = props_data.num_walkers
+            iter_ref_energies = props_data.ref_energy
+            iter_accum_energies = props_data.accum_energy
 
             # Density arrays.
             density_est_data = \
@@ -780,10 +879,10 @@ class CoreFuncs(metaclass=ABCMeta):
             pfw_aux_ssf_array = ssf_est_data.pfw_aux_ssf_array
 
             # Create a new sampling generator.
-            generator = states_generator(time_step, ini_state,
-                                         target_num_walkers,
-                                         num_walkers_control_factor,
-                                         rng_seed, cfc_spec)
+            states_gen = states_generator(time_step, ini_state,
+                                          target_num_walkers,
+                                          num_walkers_control_factor,
+                                          rng_seed, cfc_spec)
 
             # Counter for blocks.
             block_idx = 0
@@ -816,7 +915,7 @@ class CoreFuncs(metaclass=ABCMeta):
                 # block should be burned. Only do the sampling.
                 should_burn_block = block_idx < burn_in_blocks
 
-                for state in generator:
+                for state in states_gen:
 
                     # Copy other data to keep track of the evolution.
                     iter_energies[step_idx] = state.energy
@@ -854,7 +953,7 @@ class CoreFuncs(metaclass=ABCMeta):
                                            state.max_num_walkers,
                                            state.branching_spec)
 
-                        block_data = SamplingBlock(iter_props_array,
+                        block_data = SamplingBlock(props_data,
                                                    iter_density_array,
                                                    iter_ssf_array,
                                                    last_state)
@@ -872,28 +971,27 @@ class CoreFuncs(metaclass=ABCMeta):
         return _blocks
 
     @cached_property
-    def confs_props_blocks(self):
+    def state_data_blocks(self):
         """
 
         :return:
         """
         fastmath = self.jit_fastmath
-        iter_energy_field = IterProp.ENERGY.value
-        iter_weight_field = IterProp.WEIGHT.value
-        iter_num_walkers_field = IterProp.NUM_WALKERS.value
-        ref_energy_field = IterProp.REF_ENERGY.value
-        accum_energy_field = IterProp.ACCUM_ENERGY.value
 
+        init_state_data = self.init_state_data
+        get_state_data_item = self.get_state_data_item
+        copy_state_data = self.copy_state_data
+        init_props_data_block = self.init_props_data_block
         states_generator = self.states_generator
 
         @nb.jit(nopython=True, nogil=True, fastmath=fastmath)
-        def _confs_props_blocks(time_step: float,
-                                ini_state: State,
-                                target_num_walkers: int,
-                                num_walkers_control_factor: float,
-                                num_time_steps_block: int,
-                                rng_seed: int,
-                                cfc_spec: CFCSpec):
+        def _state_data_blocks(time_step: float,
+                               ini_state: State,
+                               target_num_walkers: int,
+                               num_walkers_control_factor: float,
+                               num_time_steps_block: int,
+                               rng_seed: int,
+                               cfc_spec: CFCSpec):
             """The DMC sampling generator.
 
             :param time_step:
@@ -906,40 +1004,31 @@ class CoreFuncs(metaclass=ABCMeta):
             :return:
             """
             # Initial state properties.
-            ini_state_confs = ini_state.confs
-            ini_state_props = ini_state.props
+            max_num_walkers = ini_state.max_num_walkers
+            target_num_walkers = ini_state.num_walkers
 
             # Alias 🙂
             nts_block = num_time_steps_block
-            isc_shape = ini_state_confs.shape
-            isp_shape = ini_state_props.shape
 
             # The shape of the blocks.
-            scb_shape = (nts_block,) + isc_shape
-            spb_shape = (nts_block,) + isp_shape
+            sdb_shape = nts_block, max_num_walkers
             ipb_shape = nts_block,
 
-            # Array dtypes.
-            state_confs_dtype = ini_state_confs.dtype
-            state_props_dtype = ini_state_props.dtype
-
-            # Array for the states configurations data.
-            states_confs_array = np.zeros(scb_shape, dtype=state_confs_dtype)
-
-            # Array for the states properties data.
-            states_props_array = np.zeros(spb_shape, dtype=state_props_dtype)
+            # Data for the states configurations.
+            state_data_block = init_state_data(sdb_shape, cfc_spec)
+            state_confs_block = state_data_block.confs
+            state_props_block = state_data_block.props
 
             # Array to store the configuration data of a block of states.
-            iter_props_array = np.zeros(ipb_shape, dtype=iter_props_dtype)
-
-            iter_energies = iter_props_array[iter_energy_field]
-            iter_weights = iter_props_array[iter_weight_field]
-            iter_num_walkers = iter_props_array[iter_num_walkers_field]
-            iter_ref_energies = iter_props_array[ref_energy_field]
-            iter_accum_energies = iter_props_array[accum_energy_field]
+            props_block = init_props_data_block(ipb_shape)
+            energies = props_block.energy
+            weights = props_block.weight
+            num_walkers = props_block.num_walkers
+            ref_energies = props_block.ref_energy
+            accum_energies = props_block.accum_energy
 
             # Create a new sampling generator.
-            generator = \
+            states_gen = \
                 states_generator(time_step, ini_state, target_num_walkers,
                                  num_walkers_control_factor, rng_seed,
                                  cfc_spec)
@@ -953,18 +1042,19 @@ class CoreFuncs(metaclass=ABCMeta):
                 # We use an initial index instead enumerate.
                 step_idx = 0
 
-                for state in generator:
+                for state in states_gen:
 
                     # Copy the data to the block.
-                    states_confs_array[step_idx] = state.confs[:]
-                    states_props_array[step_idx] = state.props[:]
+                    state_data = \
+                        get_state_data_item(state_data_block, step_idx)
 
                     # Copy other data to keep track of the evolution.
-                    iter_energies[step_idx] = state.energy
-                    iter_weights[step_idx] = state.weight
-                    iter_num_walkers[step_idx] = state.num_walkers
-                    iter_ref_energies[step_idx] = state.ref_energy
-                    iter_accum_energies[step_idx] = state.accum_energy
+                    copy_state_data(state, state_data)
+                    energies[step_idx] = state.energy
+                    weights[step_idx] = state.weight
+                    num_walkers[step_idx] = state.num_walkers
+                    ref_energies[step_idx] = state.ref_energy
+                    accum_energies[step_idx] = state.accum_energy
 
                     # Stop/pause the iteration.
                     if step_idx + 1 >= nts_block:
@@ -972,9 +1062,9 @@ class CoreFuncs(metaclass=ABCMeta):
 
                     step_idx += 1
 
-                iter_data = SamplingConfsPropsBlock(states_confs_array,
-                                                    states_props_array,
-                                                    iter_props_array)
-                yield iter_data
+                block_data = SamplingStateDataBlock(state_confs_block,
+                                                    state_props_block,
+                                                    props_block)
+                yield block_data
 
-        return _confs_props_blocks
+        return _state_data_blocks

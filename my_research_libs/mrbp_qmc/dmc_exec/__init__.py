@@ -12,6 +12,5 @@ from .io import HDF5FileHandler
 
 #
 from .proc import (
-    DensityEstSpec, ModelSysConfSpec, Proc, ProcInput, ProcInputError,
-    ProcResult, SSFEstSpec
+    DensityEstSpec, ModelSysConfSpec, Proc, ProcInput, SSFEstSpec
 )

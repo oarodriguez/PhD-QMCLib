@@ -2,7 +2,7 @@ import typing as t
 
 import attr
 
-from my_research_libs.qmc_exec import dmc as dmc_exec, exec_logger
+from my_research_libs.qmc_exec import exec_logger
 from my_research_libs.util.attr import (
     opt_int_validator, seq_validator, str_validator
 )
@@ -22,9 +22,9 @@ proc_input_validator = \
     attr.validators.instance_of(proc_input_types)
 
 # Helpers for the AppSpec.proc_output handling.
-T_ProcOutput = dmc_exec.IOHandler
+T_ProcOutput = HDF5FileHandler
 # NOTE: Using base class or specific classes...
-proc_output_types = (dmc_exec.IOHandler,)
+proc_output_types = (HDF5FileHandler,)
 proc_output_validator = \
     attr.validators.instance_of(proc_output_types)
 

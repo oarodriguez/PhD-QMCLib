@@ -1,5 +1,5 @@
 import typing as t
-from math import atan, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh
+from math import (atan, ceil, cos, cosh, fabs, pi, sin, sinh, sqrt, tan, tanh)
 from os import cpu_count
 
 import attr
@@ -14,7 +14,8 @@ from scipy.optimize import brentq, differential_evolution
 from my_research_libs import ideal, qmc_base
 from my_research_libs.qmc_base.utils import min_distance
 from my_research_libs.util.attr import (
-    Record, int_converter, int_validator
+    int_converter, int_validator, opt_float_converter, opt_float_validator,
+    opt_int_converter
 )
 
 __all__ = [
@@ -36,8 +37,7 @@ DIST_RAND = qmc_base.jastrow.SysConfDistType.RANDOM
 DIST_REGULAR = qmc_base.jastrow.SysConfDistType.REGULAR
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class Params(qmc_base.jastrow.Params, Record):
+class Params(qmc_base.jastrow.Params, t.NamedTuple):
     """The model `Spec` as a named tuple."""
     # TODO: Add a more robust type system for the parameters.
     lattice_depth: float
@@ -46,14 +46,15 @@ class Params(qmc_base.jastrow.Params, Record):
     boson_number: np.int64
     supercell_size: float
     tbf_contact_cutoff: float
+    defect_magnitude: float
+    defects_sep: int
     well_width: float
     barrier_width: float
     is_free: bool
     is_ideal: bool
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class OBFParams(qmc_base.jastrow.OBFParams, Record):
+class OBFParams(qmc_base.jastrow.OBFParams, t.NamedTuple):
     """One-body function parameters."""
     lattice_depth: float
     lattice_ratio: float
@@ -64,8 +65,7 @@ class OBFParams(qmc_base.jastrow.OBFParams, Record):
     param_kp1: float
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class TBFParams(qmc_base.jastrow.TBFParams, Record):
+class TBFParams(qmc_base.jastrow.TBFParams, t.NamedTuple):
     """Two-body function parameters."""
     supercell_size: float
     tbf_contact_cutoff: float
@@ -83,6 +83,14 @@ class CFCSpec(qmc_base.jastrow.CFCSpec, t.NamedTuple):
     tbf_params: TBFParams
 
 
+class CFCSpecAlt(qmc_base.jastrow.CFCSpecAlt, t.NamedTuple):
+    """"""
+    # Does nothing, only for type hints
+    model_params: np.ndarray
+    obf_params: np.ndarray
+    tbf_params: np.ndarray
+
+
 # noinspection PyUnusedLocal
 def tbf_contact_cutoff_validator(model_inst: 'Spec',
                                  attribute: str,
@@ -97,6 +105,28 @@ def tbf_contact_cutoff_validator(model_inst: 'Spec',
     sc_size = model_inst.supercell_size
     if not fabs(value) <= fabs(sc_size / 2):
         raise ValueError("parameter value 'rm' out of domain")
+
+
+# noinspection PyUnusedLocal
+def num_defects_validator(model_inst: 'Spec',
+                          attribute: str,
+                          value: t.Any):
+    """Validator for the ``num_defects`` attribute.
+
+    :param model_inst: The model instance.
+    :param attribute: The validated attribute.
+    :param value: The value of the attribute.
+    :return:
+    """
+    num_defects = value
+    if num_defects is not None:
+        if num_defects < 0:
+            raise ValueError("number of defects can't be negative")
+        num_sites = int(ceil(model_inst.supercell_size))
+        if num_defects and (num_sites % num_defects):
+            raise ValueError(f"the specified number of defects "
+                             f"({num_defects :d}) can't be evenly "
+                             f"distributed in the lattice")
 
 
 # NOTE: slots=True avoids adding more attributes
@@ -130,7 +160,40 @@ class Spec(qmc_base.jastrow.Spec):
     tbf_contact_cutoff: float = \
         attr.ib(converter=float, validator=tbf_contact_cutoff_validator)
 
+    #: Number of defects, evenly spaced.
+    num_defects: t.Optional[int] = \
+        attr.ib(default=None, converter=opt_int_converter,
+                validator=num_defects_validator)
+
+    #: Magnitude for all the defects.
+    defect_magnitude: t.Optional[float] = \
+        attr.ib(default=None, converter=opt_float_converter,
+                validator=opt_float_validator)
+
     # TODO: Implement improved __init__.
+    def __attrs_post_init__(self):
+        """Post initialization stage."""
+        lattice_depth = self.lattice_depth
+        num_defects = self.num_defects
+        defect_magnitude = self.defect_magnitude
+        if (defect_magnitude is None) and (num_defects is None):
+            # Assume a regular lattice.
+            object.__setattr__(self, 'defect_magnitude', lattice_depth)
+            object.__setattr__(self, 'num_defects', 0)
+        else:
+            if num_defects is None:
+                num_defects = 0
+                defect_magnitude = lattice_depth
+            else:
+                # Assume as many full defects as num_defects
+                defect_magnitude = \
+                    defect_magnitude if num_defects else lattice_depth
+
+            if defect_magnitude > lattice_depth:
+                raise ValueError("Defect magnitude can't be greater than the "
+                                 "lattice depth.")
+            object.__setattr__(self, 'defect_magnitude', defect_magnitude)
+            object.__setattr__(self, 'num_defects', num_defects)
 
     @property
     def boundaries(self):
@@ -212,6 +275,10 @@ class Spec(qmc_base.jastrow.Spec):
     @property
     def params(self):
         """"""
+        num_sites = int(ceil(self.supercell_size))
+        num_defects = self.num_defects
+        defects_sep = 1 if not num_defects else int(num_sites // num_defects)
+
         # NOTE: Keep the order in which the attributes were defined.
         params = Params(self.lattice_depth,
                         self.lattice_ratio,
@@ -219,11 +286,13 @@ class Spec(qmc_base.jastrow.Spec):
                         self.boson_number,
                         self.supercell_size,
                         self.tbf_contact_cutoff,
+                        self.defect_magnitude,
+                        defects_sep,
                         self.well_width,
                         self.barrier_width,
                         self.is_free,
                         self.is_ideal)
-        return params.as_record()
+        return params
 
     @property
     def obf_params(self):
@@ -243,7 +312,7 @@ class Spec(qmc_base.jastrow.Spec):
                                param_e0=e0,
                                param_k1=k1,
                                param_kp1=kp1)
-        return obf_params.as_record()
+        return obf_params
 
     @property
     def tbf_params(self):
@@ -266,7 +335,7 @@ class Spec(qmc_base.jastrow.Spec):
                                    param_beta=0.,
                                    param_r_off=1 / 2 * sc_size,
                                    param_am=1.0)
-            return tbf_params.as_record()
+            return tbf_params
 
         # Convert interaction energy to Lieb gamma.
         lgm = 0.5 * (sc_size / nop) ** 2 * gn
@@ -321,7 +390,7 @@ class Spec(qmc_base.jastrow.Spec):
                                param_beta=beta,
                                param_r_off=r_off * sc_size,
                                param_am=am)
-        return tbf_params.as_record()
+        return tbf_params
 
     @property
     def cfc_spec(self):
@@ -472,8 +541,14 @@ def _potential(z: float, params: Params) -> float:
     """
     v0 = params.lattice_depth
     z_a = params.well_width
-    z_cell = z % 1.
-    return v0 if z_a < z_cell else 0.
+    v0d = params.defect_magnitude
+    defects_sep = params.defects_sep
+    n_cell, z_cell = divmod(z, 1)
+    if not (n_cell % defects_sep):
+        # We are in a lattice defect.
+        return v0d if z_a < z_cell else 0.
+    else:
+        return v0 if z_a < z_cell else 0.
 
 
 @jit(nopython=True)
@@ -492,6 +567,187 @@ class CoreFuncs(qmc_base.jastrow.CoreFuncs):
     """Functions of a QMC model for a system with a trial wave function
     of the Bijl-Jastrow type.
     """
+
+    @cached_property
+    def model_params_transform(self):
+        """"""
+
+        @jit(nopython=True)
+        def _model_params_transform(model_params: Params):
+            """
+
+            :param model_params:
+            :return:
+            """
+            return np.array(tuple(model_params), dtype=np.float64)
+
+        return _model_params_transform
+
+    @cached_property
+    def obf_params_transform(self):
+        """"""
+
+        @jit(nopython=True)
+        def _obf_params_transform(obf_params: OBFParams):
+            """
+
+            :param obf_params:
+            :return:
+            """
+            return np.array(tuple(obf_params), dtype=np.float64)
+
+        return _obf_params_transform
+
+    @cached_property
+    def tbf_params_transform(self):
+        """"""
+
+        @jit(nopython=True)
+        def _tbf_params_transform(tbf_params: TBFParams):
+            """
+
+            :param tbf_params:
+            :return:
+            """
+            return np.array(tuple(tbf_params), dtype=np.float64)
+
+        return _tbf_params_transform
+
+    @cached_property
+    def model_params_reconstruct(self):
+        """"""
+
+        @jit(nopython=True)
+        def _model_params_reconstruct(model_params: np.ndarray):
+            """
+
+            :param model_params:
+            :return:
+            """
+            # Somewhat ugly function...
+            # First, we have to transform the elements of the array.
+            model_params = Params(lattice_depth=model_params[0],
+                                  lattice_ratio=model_params[1],
+                                  interaction_strength=model_params[2],
+                                  boson_number=int(model_params[3]),
+                                  supercell_size=model_params[4],
+                                  tbf_contact_cutoff=model_params[5],
+                                  defect_magnitude=model_params[6],
+                                  defects_sep=int(model_params[7]),
+                                  well_width=model_params[8],
+                                  barrier_width=model_params[9],
+                                  is_free=bool(model_params[10]),
+                                  is_ideal=bool(model_params[11]))
+            return model_params
+
+        return _model_params_reconstruct
+
+    @cached_property
+    def obf_params_reconstruct(self):
+        """"""
+
+        @jit(nopython=True)
+        def _obf_params_reconstruct(obf_params: np.ndarray):
+            """
+
+            :param obf_params:
+            :return:
+            """
+            # OBF is a tuple of floats.
+            return OBFParams(lattice_depth=obf_params[0],
+                             lattice_ratio=obf_params[1],
+                             well_width=obf_params[2],
+                             barrier_width=obf_params[3],
+                             param_e0=obf_params[4],
+                             param_k1=obf_params[5],
+                             param_kp1=obf_params[6])
+
+        return _obf_params_reconstruct
+
+    @cached_property
+    def tbf_params_reconstruct(self):
+        """"""
+
+        @jit(nopython=True)
+        def _tbf_params_reconstruct(tbf_params: np.ndarray):
+            """
+
+            :param tbf_params:
+            :return:
+            """
+            # TBF is a tuple of floats.
+            return TBFParams(supercell_size=tbf_params[0],
+                             tbf_contact_cutoff=tbf_params[1],
+                             param_k2=tbf_params[2],
+                             param_beta=tbf_params[3],
+                             param_r_off=tbf_params[4],
+                             param_am=tbf_params[5])
+
+        return _tbf_params_reconstruct
+
+    @cached_property
+    def cfc_spec_transform(self):
+        """"""
+
+        @jit(nopython=True)
+        def _cfc_spec_transform(model_params: Params,
+                                obf_params: OBFParams,
+                                tbf_params: TBFParams):
+            """
+
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
+            :return:
+            """
+            model_params = np.array(tuple(model_params), dtype=np.float64)
+            obf_params = np.array(tuple(obf_params), dtype=np.float64)
+            tbf_params = np.array(tuple(tbf_params), dtype=np.float64)
+            return CFCSpecAlt(model_params, obf_params, tbf_params)
+
+        return _cfc_spec_transform
+
+    @cached_property
+    def cfc_spec_reconstruct(self):
+        """"""
+
+        @jit(nopython=True)
+        def _cfc_spec_reconstruct(model_params: Params,
+                                  obf_params: OBFParams,
+                                  tbf_params: TBFParams):
+            """
+
+            :param model_params:
+            :param obf_params:
+            :param tbf_params:
+            :return:
+            """
+            # Somewhat ugly function...
+            # First, we have to transform the elements of the array.
+            model_params = Params(lattice_depth=model_params[0],
+                                  lattice_ratio=model_params[1],
+                                  interaction_strength=model_params[2],
+                                  boson_number=int(model_params[3]),
+                                  supercell_size=model_params[4],
+                                  tbf_contact_cutoff=model_params[5],
+                                  defect_magnitude=model_params[6],
+                                  defects_sep=int(model_params[7]),
+                                  well_width=model_params[8],
+                                  barrier_width=model_params[9],
+                                  is_free=bool(model_params[10]),
+                                  is_ideal=bool(model_params[11]))
+
+            # OBF is a tuple of floats.
+            obf_params = \
+                OBFParams(*(obf_params[idx] for idx in range(len(obf_params))))
+
+            # TBF is a tuple of floats.
+            tbf_params = \
+                TBFParams(*(tbf_params[idx] for idx in range(len(tbf_params))))
+
+            return CFCSpec(model_params, obf_params, tbf_params)
+
+        return _cfc_spec_reconstruct
 
     @cached_property
     def real_distance(self):

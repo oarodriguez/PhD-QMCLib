@@ -1,15 +1,14 @@
 import typing as t
-from math import pi
 
 import attr
 import numpy as np
 from cached_property import cached_property
+from math import pi
 from numba import jit
 
 from my_research_libs import qmc_base, utils
 from my_research_libs.qmc_base.jastrow import vmc as jsw_vmc_udf
 from my_research_libs.qmc_base.utils import recast_to_supercell
-from my_research_libs.util.attr import Record
 from . import model
 
 __all__ = [
@@ -27,8 +26,7 @@ STAT_ACCEPTED = qmc_base.vmc.STAT_ACCEPTED
 STAT_REJECTED = qmc_base.vmc.STAT_REJECTED
 
 
-@attr.s(auto_attribs=True, frozen=True)
-class TPFParams(jsw_vmc_udf.TPFParams, Record):
+class TPFParams(jsw_vmc_udf.TPFParams, t.NamedTuple):
     """Parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -40,8 +38,7 @@ class TPFParams(jsw_vmc_udf.TPFParams, Record):
     upper_bound: float
 
 
-@attr.s(auto_attribs=True)
-class SSFParams(jsw_vmc_udf.SSFParams, Record):
+class SSFParams(jsw_vmc_udf.SSFParams, t.NamedTuple):
     """Static structure factor parameters."""
     num_modes: int
     supercell_size: float
@@ -98,7 +95,7 @@ class Sampling(jsw_vmc_udf.Sampling):
                                move_spread=move_spread,
                                lower_bound=z_min,
                                upper_bound=z_max)
-        return tpf_params.as_record()
+        return tpf_params
 
     @property
     def ssf_params(self):
@@ -117,7 +114,7 @@ class Sampling(jsw_vmc_udf.Sampling):
 
         ssf_params = \
             SSFParams(num_modes, supercell_size, assume_none=assume_none)
-        return ssf_params.as_record()
+        return ssf_params
 
     @property
     def cfc_spec(self) -> CFCSpec:

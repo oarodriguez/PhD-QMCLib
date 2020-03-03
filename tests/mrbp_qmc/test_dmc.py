@@ -15,6 +15,8 @@ INTERACTION_STRENGTH = 4
 BOSON_NUMBER = 16
 SUPERCELL_SIZE = 16
 TBF_CONTACT_CUTOFF = .25 * SUPERCELL_SIZE
+NUM_DEFECTS = 4
+DEFECT_MAGNITUDE = 0
 
 # TODO: Improve this test.
 model_spec = mrbp_qmc.Spec(lattice_depth=LATTICE_DEPTH,
@@ -22,7 +24,9 @@ model_spec = mrbp_qmc.Spec(lattice_depth=LATTICE_DEPTH,
                            interaction_strength=INTERACTION_STRENGTH,
                            boson_number=BOSON_NUMBER,
                            supercell_size=SUPERCELL_SIZE,
-                           tbf_contact_cutoff=TBF_CONTACT_CUTOFF)
+                           tbf_contact_cutoff=TBF_CONTACT_CUTOFF,
+                           num_defects=NUM_DEFECTS,
+                           defect_magnitude=DEFECT_MAGNITUDE)
 
 move_spread = 0.25 * model_spec.well_width
 num_steps = 4906 * 1
@@ -111,7 +115,7 @@ def test_blocks():
         print(state_props)
 
 
-def test_confs_props_blocks():
+def test_state_data_blocks():
     """"""
     vmc_chain_data = vmc_sampling.as_chain(num_steps, vmc_ini_state)
     sys_conf_set = vmc_chain_data.confs
@@ -121,14 +125,14 @@ def test_confs_props_blocks():
     ini_sys_conf_set = sys_conf_set[-100:]
     dmc_ini_state = dmc_sampling.build_state(ini_sys_conf_set, ini_ref_energy)
     sampling_blocks = \
-        dmc_sampling.confs_props_blocks(dmc_ini_state, num_time_steps_block)
+        dmc_sampling.state_data_blocks(dmc_ini_state, num_time_steps_block)
 
-    dmc_sampling_blocks: dmc_base.T_SCPBlocksIter = \
+    dmc_sampling_blocks: dmc_base.T_SDBlocksIter = \
         islice(sampling_blocks, num_blocks)
 
     for block in dmc_sampling_blocks:
         # state_props = block.iter_props
-        states_confs = block.states_confs
+        states_confs = block.confs
         print(states_confs)
 
 
@@ -166,7 +170,7 @@ def test_density_est():
 
     for block in es_blocks:
         state_props = block.iter_props
-        nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
+        nw_iter = state_props.num_walkers
         iter_density = block.iter_density
         print(iter_density.shape)
         density_block_data = iter_density / nw_iter[:, np.newaxis, np.newaxis]
@@ -209,7 +213,7 @@ def test_dmc_est_sampling():
 
     for block in es_blocks:
         state_props = block.iter_props
-        nw_iter = state_props[dmc_base.IterProp.NUM_WALKERS]
+        nw_iter = state_props.num_walkers
         iter_ssf = block.iter_ssf
         # print(state_props)
         ssf_block_data = iter_ssf / nw_iter[:, np.newaxis, np.newaxis]

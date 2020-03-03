@@ -8,9 +8,11 @@ from my_research_libs.mrbp_qmc import Spec, dmc_exec
 lattice_depth = 5 * ER
 lattice_ratio = 1
 interaction_strength = 2
-boson_number = 8
-supercell_size = 8
+boson_number = 16
+supercell_size = 16
 tbf_contact_cutoff = 0.25 * supercell_size
+num_defects = 4
+defect_magnitude = 0
 
 # TODO: Improve this test.
 model_spec = Spec(lattice_depth=lattice_depth,
@@ -18,7 +20,9 @@ model_spec = Spec(lattice_depth=lattice_depth,
                   interaction_strength=interaction_strength,
                   boson_number=boson_number,
                   supercell_size=supercell_size,
-                  tbf_contact_cutoff=tbf_contact_cutoff)
+                  tbf_contact_cutoff=tbf_contact_cutoff,
+                  num_defects=num_defects,
+                  defect_magnitude=defect_magnitude)
 
 
 def test_proc():
@@ -53,7 +57,7 @@ def test_density_proc():
     """Testing the calculation of the density."""
     time_step = 6.25e-4
     num_blocks = 2
-    num_time_steps_block = 512
+    num_time_steps_block = 1024
     target_num_walkers = 480
     max_num_walkers = 512
     # ini_ref_energy = None
@@ -85,18 +89,32 @@ def test_density_proc():
     pyplot.ylabel(r'$n(z)$')
     pyplot.show()
 
-    h5f_path = pathlib.Path('./test-density-results.h5')
+    h5f_path = pathlib.Path('./test-dmc-density-results.h5')
     if h5f_path.exists():
         h5f_path.unlink()
     handler = dmc_exec.HDF5FileHandler(h5f_path, 'density-data-group')
     handler.dump(result)
 
 
+def test_load_proc_density_output():
+    """Load the static structure factor VMC data from HDF5 file."""
+    h5f_path = pathlib.Path('./test-dmc-density-results.h5')
+    handler = dmc_exec.HDF5FileHandler(h5f_path, 'density-data-group')
+    result = handler.load()
+    density_bin_edges = result.proc.sampling.density_bins_edges
+    density_mean = result.data.blocks.density.mean
+
+    pyplot.plot(density_bin_edges[:-1], density_mean / boson_number)
+    pyplot.xlabel(r'$z / l$')
+    pyplot.ylabel(r'$n_{1}(z)$')
+    pyplot.show()
+
+
 def test_ssf_proc():
     """Testing the calculation of the static structure factor."""
     time_step = 6.25e-4
     num_blocks = 2
-    num_time_steps_block = 512
+    num_time_steps_block = 1024
     target_num_walkers = 480
     max_num_walkers = 512
     # ini_ref_energy = None
@@ -127,11 +145,25 @@ def test_ssf_proc():
     pyplot.ylabel(r'$S(k)$')
     pyplot.show()
 
-    h5f_path = pathlib.Path('./test-ssf-results.h5')
+    h5f_path = pathlib.Path('./test-dmc-ssf-results.h5')
     if h5f_path.exists():
         h5f_path.unlink()
     handler = dmc_exec.HDF5FileHandler(h5f_path, 'ssf-data-group')
     handler.dump(result)
+
+
+def test_load_ssf_proc_output():
+    """Load the static structure factor VMC data from HDF5 file."""
+    h5f_path = pathlib.Path('./test-dmc-ssf-results.h5')
+    handler = dmc_exec.HDF5FileHandler(h5f_path, 'ssf-data-group')
+    result = handler.load()
+    ssf_momenta = result.proc.sampling.ssf_momenta
+    ssf_mean = result.data.blocks.ss_factor.mean
+
+    pyplot.plot(ssf_momenta, ssf_mean / boson_number)
+    pyplot.xlabel(r'$k / n$')
+    pyplot.ylabel(r'$S(k)$')
+    pyplot.show()
 
 
 if __name__ == '__main__':

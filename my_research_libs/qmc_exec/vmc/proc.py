@@ -2,32 +2,24 @@ import typing as t
 from abc import ABCMeta, abstractmethod
 from itertools import islice
 
-import attr
 import numpy as np
 import tqdm
 
 from my_research_libs.qmc_base import model as model_base, vmc as vmc_base
-from .data import (
-    EnergyBlocks, PropsDataBlocks, PropsDataSeries, SSFBlocks,
-    SamplingData
+from .. import proc as proc_base
+from ..data.vmc import (
+    EnergyBlocks, PropsDataBlocks, PropsDataSeries, SSFBlocks, SamplingData
 )
 from ..logging import exec_logger
 
 
-class ModelSysConfSpec(metaclass=ABCMeta):
+class ModelSysConfSpec(proc_base.ModelSysConfSpec):
     """Handler to build inputs from system configurations."""
     #:
     dist_type: str
 
 
-class SSFEstSpec(metaclass=ABCMeta):
-    """Structure factor estimator basic config."""
-    #: The number of momenta modes.
-    num_modes: int
-
-
-@attr.s(auto_attribs=True)
-class ProcInput(metaclass=ABCMeta):
+class ProcInput(proc_base.ProcInput, metaclass=ABCMeta):
     """Represents the input for the VMC calculation procedure."""
     # The state of the VMC procedure input.
     state: vmc_base.State
@@ -38,20 +30,7 @@ class ProcInputError(ValueError):
     pass
 
 
-class ProcResult:
-    """Result of the VMC estimator sampling."""
-
-    #: The last state of the sampling.
-    state: vmc_base.State
-
-    #: The procedure object used to generate the results.
-    proc: 'Proc'
-
-    #: The data generated during the sampling.
-    data: SamplingData
-
-
-class Proc(metaclass=ABCMeta):
+class Proc(proc_base.Proc):
     """VMC Sampling procedure spec."""
 
     #: The model spec.
@@ -76,27 +55,16 @@ class Proc(metaclass=ABCMeta):
     keep_iter_data: bool
 
     # *** Estimators configuration ***
-    ssf_spec: t.Optional[SSFEstSpec]
+    #: Density estimator spec.
+    density_spec: t.Optional[proc_base.DensityEstSpec]
 
-    @abstractmethod
-    def as_config(self) -> t.Dict:
-        """Converts the procedure to a dictionary / mapping object."""
-        pass
-
-    @property
-    def should_eval_ssf(self):
-        """Whether or not to evaluate the static structure factor."""
-        return False if self.ssf_spec is None else True
+    #: Static structure factor estimator spec.
+    ssf_spec: t.Optional[proc_base.SSFEstSpec]
 
     @property
     @abstractmethod
     def sampling(self) -> vmc_base.Sampling:
         """VMC sampling object."""
-        pass
-
-    @abstractmethod
-    def describe_model_spec(self):
-        """Describe the spec of the model."""
         pass
 
     def describe_sampling(self):
@@ -115,19 +83,6 @@ class Proc(metaclass=ABCMeta):
         else:
             exec_logger.info(f'The random seed of the sampling '
                              f'is {rng_seed}...')
-
-    @abstractmethod
-    def build_result(self, state: vmc_base.State,
-                     sampling: vmc_base.Sampling,
-                     data: SamplingData) -> ProcResult:
-        """Build the procedure result object.
-
-        :param state: The last state of the sampling.
-        :param data: The data generated during the sampling.
-        :param sampling: The sampling object used to generate the results.
-        :return:
-        """
-        pass
 
     def exec(self, proc_input: ProcInput):
         """Trigger the execution of the procedure.
@@ -196,10 +151,11 @@ class Proc(metaclass=ABCMeta):
             iter_props_shape = num_blocks,
 
         props_blocks_data = \
-            np.empty(iter_props_shape, dtype=vmc_base.iter_props_dtype)
+            self.sampling.core_funcs.init_props_data_block(iter_props_shape)
 
-        props_wf_abs_log = props_blocks_data[wf_abs_log_field]
-        props_energy = props_blocks_data[energy_field]
+        props_wf_abs_log = props_blocks_data.wf_abs_log
+        props_energy = props_blocks_data.energy
+        # props_move_stat = props_blocks_data.move_stat
 
         if should_eval_ssf:
             # The shape of the structure factor array.
@@ -233,15 +189,19 @@ class Proc(metaclass=ABCMeta):
             for block_idx, block_data in enum_eff_blocks:
                 #
                 block_props = block_data.iter_props
-                wf_abs_log: np.ndarray = block_props[wf_abs_log_field]
-                energy: np.ndarray = block_props[energy_field]
+                wf_abs_log = block_props.wf_abs_log
+                energy = block_props.energy
+                # move_stat = block_props.move_stat
 
                 if keep_iter_data:
                     # Store all the information of the DMC sampling.
-                    props_blocks_data[block_idx] = block_props[:]
+                    props_wf_abs_log[block_idx] = wf_abs_log[:]
+                    props_energy[block_idx] = energy[:]
+                    # props_move_stat[block_idx] = move_stat[:]
                 else:
-                    props_energy[block_idx] = energy.mean()
                     props_wf_abs_log[block_idx] = wf_abs_log.mean()
+                    props_energy[block_idx] = energy.mean()
+                    # props_move_stat[block_idx] = move_stat[-1]
 
                 if should_eval_ssf:
                     # Get the static structure factor data.
@@ -269,13 +229,11 @@ class Proc(metaclass=ABCMeta):
         reduce_data = True if keep_iter_data else False
 
         energy_blocks = \
-            EnergyBlocks.from_data(num_blocks, ns_block,
-                                   props_blocks_data, reduce_data)
+            EnergyBlocks.from_data(props_blocks_data, reduce_data)
 
         if should_eval_ssf:
             ssf_blocks = \
-                SSFBlocks.from_data(num_blocks, ns_block,
-                                    ssf_blocks_data, reduce_data)
+                SSFBlocks.from_data(ssf_blocks_data, reduce_data)
         else:
             ssf_blocks = None
 
@@ -289,4 +247,4 @@ class Proc(metaclass=ABCMeta):
 
         sampling_data = SamplingData(data_blocks, data_series)
 
-        return self.build_result(last_state, self.sampling, sampling_data)
+        return self.build_result(last_state, sampling_data)

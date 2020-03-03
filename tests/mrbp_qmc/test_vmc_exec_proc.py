@@ -43,7 +43,7 @@ def test_proc():
     energy_mean_error = energy_blocks.mean_error
     print(mean_energy, energy_mean_error)
 
-    h5f_path = pathlib.Path('./test-results.h5')
+    h5f_path = pathlib.Path('./test-vmc-results.h5')
     if h5f_path.exists():
         h5f_path.unlink()
     handler = vmc_exec.HDF5FileHandler(h5f_path, 'test-group')
@@ -52,7 +52,7 @@ def test_proc():
 
 def test_load_proc_output():
     """Load VMC data from HDF5 file."""
-    handler = vmc_exec.HDF5FileHandler('./test-results.h5', 'test-group')
+    handler = vmc_exec.HDF5FileHandler('./test-vmc-results.h5', 'test-group')
     result = handler.load()
     energy_blocks = result.data.blocks.energy
     mean_energy = energy_blocks.mean
@@ -89,7 +89,7 @@ def test_ssf_proc():
     pyplot.ylabel(r'$S(k)$')
     pyplot.show()
 
-    h5f_path = pathlib.Path('./test-ssf-results.h5')
+    h5f_path = pathlib.Path('./test-vmc-ssf-results.h5')
     if h5f_path.exists():
         h5f_path.unlink()
     handler = vmc_exec.HDF5FileHandler(h5f_path, 'ssf-data-group')
@@ -98,7 +98,7 @@ def test_ssf_proc():
 
 def test_load_proc_ssf_output():
     """Load the static structure factor VMC data from HDF5 file."""
-    h5f_path = pathlib.Path('./test-ssf-results.h5')
+    h5f_path = pathlib.Path('./test-vmc-ssf-results.h5')
     handler = vmc_exec.HDF5FileHandler(h5f_path, 'ssf-data-group')
     result = handler.load()
     ssf_momenta = result.proc.sampling.ssf_momenta

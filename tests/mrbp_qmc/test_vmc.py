@@ -5,7 +5,6 @@ from matplotlib import pyplot
 
 from my_research_libs import mrbp_qmc
 from my_research_libs.qmc_base.jastrow import SysConfSlot
-from my_research_libs.qmc_base.vmc import IterProp
 
 LATTICE_DEPTH = 100
 LATTICE_RATIO = 1
@@ -44,7 +43,7 @@ def test_sampling():
     energy_data = []
     for block_data in blocks:
         iter_props = block_data.iter_props
-        energy_block = iter_props[IterProp.ENERGY]
+        energy_block = iter_props.energy
         energy_data.append(energy_block)
         if block_idx + 1 >= num_blocks:
             break
@@ -75,8 +74,7 @@ def test_confs_props_blocks():
     ar_ = states_data.accept_rate
     assert ar == ar_
 
-    move_stat_field = mrbp_qmc.vmc.StateProp.MOVE_STAT
-    accepted = np.count_nonzero(sys_props_set[move_stat_field])
+    accepted = np.count_nonzero(sys_props_set.move_stat)
     assert (accepted / num_steps) == ar_
 
     # noinspection PyTypeChecker
@@ -117,10 +115,10 @@ def test_blocks():
         accepted += accept_rate * num_steps_block
     blocks_accept_rate = accepted / eff_num_steps
 
-    move_stat_field = mrbp_qmc.vmc.StateProp.MOVE_STAT
     states_data = vmc_sampling.as_chain(num_steps, ini_state)
-    sys_props_set = states_data.props[num_steps_block:]
-    accepted = np.count_nonzero(sys_props_set[move_stat_field])
+    states_props = states_data.props
+    sys_props_set = states_props.move_stat[num_steps_block:]
+    accepted = np.count_nonzero(sys_props_set)
     chain_accept_rate = accepted / eff_num_steps
 
     # Both acceptance ratios should be equal.

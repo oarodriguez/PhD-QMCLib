@@ -4,7 +4,7 @@ from my_research_libs.qmc_base import vmc_ndf
 from my_research_libs.qmc_base.jastrow import model
 
 
-class TPFParams(vmc_ndf.TPFParams, metaclass=ABCMeta):
+class TPFParams(vmc_ndf.TPFParams):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers

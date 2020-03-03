@@ -19,7 +19,7 @@ STAT_ACCEPTED = vmc.STAT_ACCEPTED
 STAT_REJECTED = vmc.STAT_REJECTED
 
 
-class TPFParams(vmc.TPFParams, metaclass=ABCMeta):
+class TPFParams(vmc.TPFParams):
     """The parameters of the transition probability function.
 
     The parameters correspond to a sampling done with random numbers
@@ -101,39 +101,19 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
         num_slots = len(model.SysConfSlot.__members__)
 
         @njit
-        def _init_state_data(cfc_spec: CFCSpec):
+        def _init_state_data(base_shape: t.Tuple[int, ...],
+                             cfc_spec: CFCSpec):
             """
 
             :param cfc_spec:
             :return:
             """
             nop = cfc_spec.model_params.boson_number
-            sys_conf_shape = num_slots, nop
-            state_sys_conf = np.zeros(sys_conf_shape, dtype=np.float64)
+            confs_shape = base_shape + (num_slots, nop)
+            state_sys_conf = np.zeros(confs_shape, dtype=np.float64)
             return vmc.StateData(state_sys_conf)
 
         return _init_state_data
-
-    @cached_property
-    def copy_state_data(self):
-        """
-
-        :return:
-        """
-
-        # noinspection PyUnusedLocal
-        @njit
-        def _copy_state_data(state: vmc.State,
-                             state_data: vmc.StateData):
-            """
-
-            :param state:
-            :param state_data:
-            :return:
-            """
-            state_data.sys_conf[:] = state.sys_conf[:]
-
-        return _copy_state_data
 
     @cached_property
     def build_state(self):
@@ -251,25 +231,24 @@ class CoreFuncs(vmc.CoreFuncs, metaclass=ABCMeta):
 
         :return:
         """
-        energy_field = vmc.IterProp.ENERGY.value
         energy = self.model_core_funcs.energy
 
         @jit(nopython=True)
         def _energy(step_idx: int,
                     state: vmc.State,
                     cfc_spec: CFCSpec,
-                    iter_props_array: np.ndarray):
+                    iter_props: vmc.PropsData):
             """
 
             :param step_idx:
             :param state:
             :param cfc_spec:
-            :param iter_props_array:
+            :param iter_props:
             :return:
             """
             sys_conf = state.sys_conf
             move_stat = state.move_stat
-            energy_set = iter_props_array[energy_field]
+            energy_set = iter_props.energy
 
             if move_stat == STAT_REJECTED:
                 # Just get the previous value of the energy.
