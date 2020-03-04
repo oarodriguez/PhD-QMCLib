@@ -53,8 +53,8 @@ python-dotenv = "^0.12.0"
 pytest = "^5.3.5"
 
 [tool.poetry.scripts]
-mrbp_dmc = 'my_research_libs.mrbp_qmc.dmc_cli:cli'
-mrbp_vmc = 'my_research_libs.mrbp_qmc.vmc_cli:cli'
+mrbp-dmc = 'my_research_libs.mrbp_qmc.dmc_cli:cli'
+mrbp-vmc = 'my_research_libs.mrbp_qmc.vmc_cli:cli'
 
 [build-system]
 requires = ["poetry>=0.12"]
