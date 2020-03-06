@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 import colorama
 from click import option
+from colored import attr, fg, stylize
 from dotenv import find_dotenv, load_dotenv
 from my_research_libs.util.win32 import enable_virtual_terminal_processing
 from my_research_libs.utils import now
@@ -111,16 +112,28 @@ def proc_template(template: str,
     if output_path.is_dir():
         output_path /= gen_filename()
 
-    if output_path.exists() and not replace:
-        raise IOError(f"file {output_path} exists")
+    styled_path = stylize(f"{tpl_path}", attr("bold"))
+    print(f"Template path:")
+    print(f"    {styled_path}")
+    styled_output = stylize(output_path, attr("bold"))
+    print("Path to output configuration file:")
+    print(f"    {styled_output}")
 
-    print(output_path)
+    if output_path.exists():
+        if not replace:
+            raise IOError(f"file {output_path} exists")
+        else:
+            output_msg = "W: Output file already exists. It will be replaced"
+            styled_output = stylize(output_msg, fg(208) + attr("bold"))
+            print(f"{styled_output}")
 
     # Create the output directory.
     os.makedirs(output_path.parent, exist_ok=True)
 
     config_template = config.Template(tpl_path)
     config_template.save(output_path)
+
+    print(f"Output file successfully saved")
 
 
 # noinspection PyUnusedLocal
