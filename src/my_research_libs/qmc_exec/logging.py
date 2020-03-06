@@ -1,10 +1,14 @@
 import logging
 
+import colorama
 from colorlog import ColoredFormatter
 
 __all__ = [
     'exec_logger'
 ]
+
+# Disable colorama processing.
+colorama.deinit()
 
 # The name of the logger.
 QMC_EXEC_LOG_NAME = f'QMC Exec'

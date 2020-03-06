@@ -5,8 +5,10 @@ import socket
 from pathlib import Path
 
 import click
+import colorama
 from click import option
 from dotenv import find_dotenv, load_dotenv
+from my_research_libs.util.win32 import enable_virtual_terminal_processing
 from my_research_libs.utils import now
 
 from . import config
@@ -14,8 +16,13 @@ from .dmc_exec import (
     CLIApp, config as dmc_exec_config
 )
 
+# NOTE 1: We can use enable_virtual_terminal_processing function
+#   from my_research_libs.util.win32 module to enable ANSI escape codes on
+#   Windows.
+enable_virtual_terminal_processing()
+
+# Load environment variables
 load_dotenv(find_dotenv(), verbose=True)
-UNIX_NEWLINE = '\n'
 
 BANNER = '''
 #####################################################################
@@ -89,6 +96,8 @@ def proc_template(template: str,
                   output: str = None,
                   replace: bool = False):
     """Process a template and generates a configuration file."""
+    # Disable colorama processing (again...).
+    colorama.deinit()
 
     tpl_path = Path(template).absolute()
 
@@ -127,6 +136,9 @@ def start(config_path: str,
           silent: bool,
           dry_run: bool):
     """Start a DMC simulation"""
+    # Disable colorama processing (again...).
+    colorama.deinit()
+
     print(BANNER)
 
     config_path = Path(config_path).absolute()
