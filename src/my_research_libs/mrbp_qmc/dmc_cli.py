@@ -5,8 +5,11 @@ import socket
 from pathlib import Path
 
 import click
+import colorama
 from click import option
+from colored import attr, fg, stylize
 from dotenv import find_dotenv, load_dotenv
+from my_research_libs.util.win32 import enable_virtual_terminal_processing
 from my_research_libs.utils import now
 
 from . import config
@@ -14,8 +17,13 @@ from .dmc_exec import (
     CLIApp, config as dmc_exec_config
 )
 
+# NOTE 1: We can use enable_virtual_terminal_processing function
+#   from my_research_libs.util.win32 module to enable ANSI escape codes on
+#   Windows.
+enable_virtual_terminal_processing()
+
+# Load environment variables
 load_dotenv(find_dotenv(), verbose=True)
-UNIX_NEWLINE = '\n'
 
 BANNER = '''
 #####################################################################
@@ -89,6 +97,8 @@ def proc_template(template: str,
                   output: str = None,
                   replace: bool = False):
     """Process a template and generates a configuration file."""
+    # Disable colorama processing (again...).
+    colorama.deinit()
 
     tpl_path = Path(template).absolute()
 
@@ -102,16 +112,28 @@ def proc_template(template: str,
     if output_path.is_dir():
         output_path /= gen_filename()
 
-    if output_path.exists() and not replace:
-        raise IOError(f"file {output_path} exists")
+    styled_path = stylize(f"{tpl_path}", attr("bold"))
+    print(f"Template path:")
+    print(f"    {styled_path}")
+    styled_output = stylize(output_path, attr("bold"))
+    print("Path to output configuration file:")
+    print(f"    {styled_output}")
 
-    print(output_path)
+    if output_path.exists():
+        if not replace:
+            raise IOError(f"file {output_path} exists")
+        else:
+            output_msg = "W: Output file already exists. It will be replaced"
+            styled_output = stylize(output_msg, fg(208) + attr("bold"))
+            print(f"{styled_output}")
 
     # Create the output directory.
     os.makedirs(output_path.parent, exist_ok=True)
 
     config_template = config.Template(tpl_path)
     config_template.save(output_path)
+
+    print(f"Output file successfully saved")
 
 
 # noinspection PyUnusedLocal
@@ -127,6 +149,9 @@ def start(config_path: str,
           silent: bool,
           dry_run: bool):
     """Start a DMC simulation"""
+    # Disable colorama processing (again...).
+    colorama.deinit()
+
     print(BANNER)
 
     config_path = Path(config_path).absolute()
