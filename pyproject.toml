@@ -50,8 +50,14 @@ python-dotenv = "^0.12.0"
 "ruamel.yaml" = "^0.16.10"
 colored = "^1.4.2"
 
+# Keep jupyterlab is an optional dependency.
+jupyterlab = {version = "^2.1.2", optional = true}
+
 [tool.poetry.dev-dependencies]
 pytest = "^5.3.5"
+
+[tool.poetry.extras]
+jupyterlab = ["jupyterlab"]
 
 [tool.poetry.scripts]
 mrbp-dmc = 'my_research_libs.mrbp_qmc.dmc_cli:cli'
