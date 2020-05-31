@@ -3,7 +3,7 @@ import typing as t
 import pytest
 from numpy.random import random_sample
 
-from my_research_libs.qmc_exec.data.dmc import PropBlocks, UnWeightedPropBlocks
+from phd_qmclib.qmc_exec.data.dmc import PropBlocks, UnWeightedPropBlocks
 
 # We will handle objects with a different number of blocks.
 NUM_BLOCKS = 1024

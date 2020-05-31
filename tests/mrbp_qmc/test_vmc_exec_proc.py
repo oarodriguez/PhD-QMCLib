@@ -2,8 +2,8 @@ import pathlib
 
 from matplotlib import pyplot
 
-from my_research_libs.constants import ER
-from my_research_libs.mrbp_qmc import Spec, vmc_exec
+from phd_qmclib.constants import ER
+from phd_qmclib.mrbp_qmc import Spec, vmc_exec
 
 lattice_depth = 5 * ER
 lattice_ratio = 1

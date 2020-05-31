@@ -1,7 +1,7 @@
 import attr
 import yaml
 
-from my_research_libs.mrbp_qmc.vmc_exec import AppSpec, CLIApp, config
+from phd_qmclib.mrbp_qmc.vmc_exec import AppSpec, CLIApp, config
 
 
 def test_app_spec():

@@ -2,9 +2,9 @@ import attr
 import numpy as np
 import pytest
 
-from my_research_libs import mrbp_qmc
-from my_research_libs.mrbp_qmc.model import DIST_REGULAR
-from my_research_libs.qmc_base.jastrow import SysConfSlot
+from phd_qmclib import mrbp_qmc
+from phd_qmclib.mrbp_qmc.model import DIST_REGULAR
+from phd_qmclib.qmc_base.jastrow import SysConfSlot
 
 LATTICE_DEPTH = 100
 LATTICE_RATIO = 1

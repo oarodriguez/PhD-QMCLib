@@ -4,10 +4,10 @@ import attr
 import numpy as np
 from numba.runtime import rtsys
 
-import my_research_libs.qmc_base.dmc as dmc_base
-from my_research_libs import mrbp_qmc
-from my_research_libs.qmc_base.jastrow import SysConfSlot
-from my_research_libs.qmc_exec import exec_logger
+import phd_qmclib.qmc_base.dmc as dmc_base
+from phd_qmclib import mrbp_qmc
+from phd_qmclib.qmc_base.jastrow import SysConfSlot
+from phd_qmclib.qmc_exec import exec_logger
 
 LATTICE_DEPTH = 0
 LATTICE_RATIO = 1

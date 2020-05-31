@@ -5,9 +5,9 @@ import numba as nb
 from cached_property import cached_property
 from numpy import random
 
-from my_research_libs.qmc_base import jastrow, utils
-from my_research_libs.qmc_base.jastrow import SysConfSlot
-from my_research_libs.util.attr import Record
+from phd_qmclib.qmc_base import jastrow, utils
+from phd_qmclib.qmc_base.jastrow import SysConfSlot
+from phd_qmclib.util.attr import Record
 
 
 @attr.s(auto_attribs=True, frozen=True)

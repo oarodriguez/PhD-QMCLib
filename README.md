@@ -1,4 +1,4 @@
-# My Research Libraries
+# PhD-QMCLib
 
 Repository with the software libraries used in my Doctoral Thesis work.
 

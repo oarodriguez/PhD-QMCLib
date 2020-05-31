@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import my_research_libs.stats.reblock as rb
+import phd_qmclib.stats.reblock as rb
 
 
 def test_object():

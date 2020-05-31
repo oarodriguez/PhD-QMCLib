@@ -1,8 +1,8 @@
 import attr
 import yaml
 
-from my_research_libs.mrbp_qmc import dmc_exec
-from my_research_libs.mrbp_qmc.dmc_exec import CLIApp, config
+from phd_qmclib.mrbp_qmc import dmc_exec
+from phd_qmclib.mrbp_qmc.dmc_exec import CLIApp, config
 
 
 def test_app_spec():

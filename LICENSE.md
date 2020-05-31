@@ -1,6 +1,6 @@
-# My Research Libraries
+# PhD-QMCLib
 
-Copyright (c) 2018-2019, Omar Abel Rodríguez-López.
+Copyright (c) 2018-2020, Omar Abel Rodríguez-López.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

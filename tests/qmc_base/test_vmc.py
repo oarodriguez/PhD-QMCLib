@@ -8,8 +8,8 @@ from math import sqrt
 from matplotlib import pyplot
 from numpy.linalg import norm
 
-from my_research_libs.qmc_base import vmc as vmc_udf, vmc_ndf
-from my_research_libs.qmc_base.vmc import State
+from phd_qmclib.qmc_base import vmc as vmc_udf, vmc_ndf
+from phd_qmclib.qmc_base.vmc import State
 
 
 class WFParams(t.NamedTuple):

@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from my_research_libs.utils import strict_update
+from phd_qmclib.utils import strict_update
 
 
 def test_strict_update():
