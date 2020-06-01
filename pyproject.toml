@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "phd-qmclib"
-version = "0.16.0"
+version = "0.17.0"
 description = "A collection of libraries to estimate the physical properties of an interacting, quantum many-body system."
 authors = ["Omar Abel Rodríguez-López <oarodriguez.mx@gmail.com>"]
 license = "BSD-3-Clause"
